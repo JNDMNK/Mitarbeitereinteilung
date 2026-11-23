@@ -11,6 +11,8 @@ import { EmployeeChip, VehicleLabel } from "./chips";
 import { DayColumn } from "./day-column";
 import { PlanningDnd, type DragData, type DropData } from "./dnd";
 import { PlanningSheets, type Sheet } from "./sheets";
+import { TimelineDay } from "./timeline-day";
+import { timeRange } from "@/lib/planning-logic";
 import { Toasts } from "./toasts";
 import { usePlanningActions, usePlanningData } from "./use-planning";
 
@@ -21,6 +23,7 @@ type Props = {
   canEdit: boolean;
   ownEmployeeId: string | null;
   hideWeekends: boolean;
+  planningView: "cards" | "timeline";
 };
 
 export function PlanningBoard(props: Props) {
@@ -32,8 +35,9 @@ export function PlanningBoard(props: Props) {
   );
 }
 
-function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideWeekends: initialHide }: Props) {
+function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideWeekends: initialHide, planningView }: Props) {
   const [hideWeekends, setHideWeekends] = useState(initialHide);
+  const [view, setView] = useState(planningView);
   const [start, setStart] = useState(initialStart);
   const [mobileDay, setMobileDay] = useState(0);
   const [sheet, setSheet] = useState<Sheet | null>(null);
@@ -143,6 +147,15 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
     setMobileDay(0);
   }
 
+  async function changeView(next: "cards" | "timeline") {
+    setView(next);
+    try {
+      await api("/api/auth/prefs", { method: "PATCH", body: { planningView: next } });
+    } catch {
+      /* Einstellung bleibt lokal */
+    }
+  }
+
   async function toggleWeekends(hide: boolean) {
     setHideWeekends(hide);
     setStart((s) => normalizeStart(s, hide));
@@ -179,6 +192,24 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
           <input type="checkbox" className="size-5 accent-brand-600" checked={!hideWeekends} onChange={(e) => toggleWeekends(!e.target.checked)} />
           Wochenende
         </label>
+        <div className="flex overflow-hidden rounded-lg border border-line" role="group" aria-label="Ansicht">
+          {(
+            [
+              ["cards", "Karten"],
+              ["timeline", "Zeitleiste"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={view === key}
+              onClick={() => changeView(key)}
+              className={`min-h-11 px-3 font-semibold ${view === key ? "bg-brand-700 text-white" : "bg-white hover:bg-slate-50"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <span className="ml-auto text-sm text-muted" aria-live="polite">
           {query.isFetching ? "Aktualisiere …" : query.isError ? "Verbindung gestört – Daten evtl. veraltet" : ""}
         </span>
@@ -200,7 +231,12 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
         ))}
       </div>
 
-      {canEdit && (
+      {canEdit && view === "timeline" && (
+        <p className="no-print hidden text-sm text-muted md:block">
+          Balken ziehen verschiebt den Einsatz, die Ränder ändern die Länge (15-Minuten-Raster). Klick auf einen Balken oder ein Fahrzeug öffnet die Aktionen, Klick in einen freien Bereich plant eine Baustelle ein.
+        </p>
+      )}
+      {canEdit && view === "cards" && (
         <p className="no-print hidden text-sm text-muted md:block">
           Ziehen zum Verschieben – auch in eine andere Tagesspalte. Mit gedrückter <kbd className="rounded border border-line bg-white px-1">Strg</kbd> oder{" "}
           <kbd className="rounded border border-line bg-white px-1">Alt</kbd> wird kopiert. Antippen öffnet die Aktionen.
@@ -211,13 +247,39 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
         <div className="rounded-xl bg-white p-8 text-center text-muted ring-1 ring-line">Lade Planung …</div>
       ) : (
         <PlanningDnd enabled={canEdit} onDrop={handleDrop} renderOverlay={renderOverlay}>
-          <div className="grid gap-4 md:grid-cols-3">
-            {days.map((d, i) => (
-              <div key={d} className={i === mobileDay ? "" : "hidden md:block"}>
-                <DayColumn day={dayViews.get(d)!} idx={idx} today={today} canEdit={canEdit} ownEmployeeId={ownEmployeeId} open={setSheet} />
-              </div>
-            ))}
-          </div>
+          {view === "cards" ? (
+            <div className="grid gap-4 md:grid-cols-3">
+              {days.map((d, i) => (
+                <div key={d} className={i === mobileDay ? "" : "hidden md:block"}>
+                  <DayColumn day={dayViews.get(d)!} idx={idx} today={today} canEdit={canEdit} ownEmployeeId={ownEmployeeId} open={setSheet} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {days.map((d, i) => (
+                <div key={d} className={i === mobileDay ? "" : "hidden md:block"}>
+                  <TimelineDay
+                    day={dayViews.get(d)!}
+                    data={data}
+                    idx={idx}
+                    today={today}
+                    canEdit={canEdit}
+                    ownEmployeeId={ownEmployeeId}
+                    open={setSheet}
+                    updateTime={(a, next) =>
+                      actions.run(
+                        "assignment-update",
+                        { id: a.id, version: a.version, startMin: next.startMin, endMin: next.endMin },
+                        `Zeit auf ${timeRange(next.startMin, next.endMin)} geändert.`,
+                      )
+                    }
+                    notifyError={(text) => actions.notify("error", [text])}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </PlanningDnd>
       )}
 

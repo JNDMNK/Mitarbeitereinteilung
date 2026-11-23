@@ -18,7 +18,7 @@ type Props = {
   open: (s: Sheet) => void;
 };
 
-function DraggableEmployee({
+export function DraggableEmployee({
   employee,
   date,
   fromVehicleId,
@@ -89,7 +89,7 @@ function DraggableVehicle({
   return <VehicleLabel vehicle={slot.vehicle} crewCount={slot.crew.length} onClick={onClick} dragRef={drag.ref} dragProps={drag.props} dragging={drag.isDragging} />;
 }
 
-function Drop({ id, data, canEdit, className, children, as = "div" }: { id: string; data: DropData; canEdit: boolean; className: string; children: ReactNode; as?: "div" | "li" | "article" }) {
+export function Drop({ id, data, canEdit, className, children, as = "div" }: { id: string; data: DropData; canEdit: boolean; className: string; children: ReactNode; as?: "div" | "li" | "article" }) {
   const { ref, isOver, canDrop } = useDropZone(id, data, !canEdit);
   const Tag = as;
   return (
@@ -100,7 +100,6 @@ function Drop({ id, data, canEdit, className, children, as = "div" }: { id: stri
 }
 
 export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Props) {
-  const isToday = day.date === today;
   const crewChips = (crew: PEmployee[], vehicle: PVehicle, suffix: string) =>
     crew.map((e) => (
       <DraggableEmployee
@@ -119,58 +118,8 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
 
   return (
     <section className="min-w-0 space-y-3" aria-label={formatDayLong(day.date)}>
-      {/* Kopf */}
-      <header
-        className={`sticky top-14 z-20 flex items-center justify-between gap-2 rounded-xl px-3 py-2 shadow-sm ${
-          isToday ? "bg-brand-700 text-white" : isWeekend(day.date) ? "bg-slate-300 text-ink" : "bg-ink text-white"
-        }`}
-      >
-        <div className="min-w-0">
-          <h2 className="text-lg leading-tight font-bold">{formatDayShort(day.date)}</h2>
-          <p className="truncate text-xs opacity-90">
-            {isToday ? "Heute · " : ""}
-            {day.stats.assigned} eingeteilt · {day.stats.available} frei · {day.stats.absent} abwesend
-          </p>
-        </div>
-        {canEdit && (
-          <div className="flex shrink-0 gap-1">
-            <button
-              type="button"
-              onClick={() => open({ kind: "copyDay", date: day.date })}
-              className="min-h-10 rounded-lg bg-white/15 px-2 text-sm font-semibold hover:bg-white/25"
-              title="Einteilung dieses Tages auf einen anderen Tag übernehmen"
-            >
-              ⧉ Tag
-            </button>
-            <button type="button" onClick={() => open({ kind: "pickSiteForDay", date: day.date })} className="min-h-10 rounded-lg bg-white/15 px-2 text-sm font-semibold hover:bg-white/25">
-              + Baustelle
-            </button>
-          </div>
-        )}
-      </header>
-
-      {/* Abwesend */}
-      {day.absent.length > 0 && (
-        <div className="rounded-xl bg-white p-2 shadow-sm ring-1 ring-line">
-          <h3 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">Abwesend ({day.absent.length})</h3>
-          <div className="flex flex-wrap gap-1">
-            {day.absent.map((a) => (
-              <button
-                key={a.employee.id}
-                type="button"
-                onClick={() => open({ kind: "employee", date: day.date, employeeId: a.employee.id })}
-                title={`${a.employee.firstName} ${a.employee.lastName}: ${a.type?.name}`}
-                className={`inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 text-xs font-semibold ring-1 ring-line ${a.employee.id === ownEmployeeId ? "bg-brand-50 ring-2 ring-brand-600" : "bg-slate-50"}`}
-              >
-                <span className="rounded px-1 font-mono leading-5 font-bold text-white" style={{ backgroundColor: a.type?.color }}>
-                  {a.type?.code}
-                </span>
-                {a.employee.shortName}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <DayHeader day={day} today={today} canEdit={canEdit} open={open} />
+      <AbsentBar day={day} ownEmployeeId={ownEmployeeId} open={open} />
 
       {/* Baustellen */}
       {day.sites.length === 0 && (
@@ -298,5 +247,64 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
         </div>
       </Drop>
     </section>
+  );
+}
+
+export function DayHeader({ day, today, canEdit, open, sticky = true }: { day: DayView; today: string; canEdit: boolean; open: (s: Sheet) => void; sticky?: boolean }) {
+  const isToday = day.date === today;
+  return (
+      <header
+        className={`${sticky ? "sticky top-14 z-20" : ""} flex items-center justify-between gap-2 rounded-xl px-3 py-2 shadow-sm ${
+          isToday ? "bg-brand-700 text-white" : isWeekend(day.date) ? "bg-slate-300 text-ink" : "bg-ink text-white"
+        }`}
+      >
+        <div className="min-w-0">
+          <h2 className="text-lg leading-tight font-bold">{formatDayShort(day.date)}</h2>
+          <p className="truncate text-xs opacity-90">
+            {isToday ? "Heute · " : ""}
+            {day.stats.assigned} eingeteilt · {day.stats.available} frei · {day.stats.absent} abwesend
+          </p>
+        </div>
+        {canEdit && (
+          <div className="flex shrink-0 gap-1">
+            <button
+              type="button"
+              onClick={() => open({ kind: "copyDay", date: day.date })}
+              className="min-h-10 rounded-lg bg-white/15 px-2 text-sm font-semibold hover:bg-white/25"
+              title="Einteilung dieses Tages auf einen anderen Tag übernehmen"
+            >
+              ⧉ Tag
+            </button>
+            <button type="button" onClick={() => open({ kind: "pickSiteForDay", date: day.date })} className="min-h-10 rounded-lg bg-white/15 px-2 text-sm font-semibold hover:bg-white/25">
+              + Baustelle
+            </button>
+          </div>
+        )}
+      </header>
+  );
+}
+
+export function AbsentBar({ day, ownEmployeeId, open }: { day: DayView; ownEmployeeId: string | null; open: (s: Sheet) => void }) {
+  if (day.absent.length === 0) return null;
+  return (
+<div className="rounded-xl bg-white p-2 shadow-sm ring-1 ring-line">
+          <h3 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">Abwesend ({day.absent.length})</h3>
+          <div className="flex flex-wrap gap-1">
+            {day.absent.map((a) => (
+              <button
+                key={a.employee.id}
+                type="button"
+                onClick={() => open({ kind: "employee", date: day.date, employeeId: a.employee.id })}
+                title={`${a.employee.firstName} ${a.employee.lastName}: ${a.type?.name}`}
+                className={`inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 text-xs font-semibold ring-1 ring-line ${a.employee.id === ownEmployeeId ? "bg-brand-50 ring-2 ring-brand-600" : "bg-slate-50"}`}
+              >
+                <span className="rounded px-1 font-mono leading-5 font-bold text-white" style={{ backgroundColor: a.type?.color }}>
+                  {a.type?.code}
+                </span>
+                {a.employee.shortName}
+              </button>
+            ))}
+          </div>
+        </div>
   );
 }

@@ -24,6 +24,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
       canEdit={can(user.role, "planning.edit")}
       ownEmployeeId={user.employeeId}
       hideWeekends={user.hideWeekends}
+      planningView={user.planningView === "timeline" ? "timeline" : "cards"}
     />
   );
 }
