@@ -102,3 +102,8 @@ export function formatRange(from: string, to: string): string {
 export function weekdayShort(iso: string): string {
   return WEEKDAYS_SHORT[weekday(iso)];
 }
+
+/** Routenplanung/Navigation zur Adresse (öffnet auf dem Handy die Navi-App) */
+export function navigationUrl(address: string): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
+}
