@@ -8,10 +8,16 @@ import { forbidden } from "./errors";
  *  2. Synchronizer-Token: Header X-CSRF-Token == Token der Sitzung
  *     (entfällt nur beim Login, wo es noch keine Sitzung gibt).
  */
+function reject(received: string | null, appOrigin: string): never {
+  // Hilft bei der Einrichtung (z. B. APP_URL ohne Port hinter einer Portfreigabe)
+  console.warn(`[csrf] Anfrage abgelehnt: Herkunft "${received ?? "unbekannt"}" passt nicht zu APP_URL "${appOrigin}".`);
+  throw forbidden(`Ungültige Herkunft der Anfrage (CSRF-Schutz). Die App wird unter ${received ?? "einer anderen Adresse"} aufgerufen, eingerichtet ist ${appOrigin}.`);
+}
+
 export function checkOrigin(headers: Headers, appOrigin: string): void {
   const origin = headers.get("origin");
   if (origin) {
-    if (origin !== appOrigin) throw forbidden("Ungültige Herkunft der Anfrage (CSRF-Schutz).");
+    if (origin !== appOrigin) reject(origin, appOrigin);
     return;
   }
   const referer = headers.get("referer");
@@ -22,12 +28,10 @@ export function checkOrigin(headers: Headers, appOrigin: string): void {
     } catch {
       /* ungültig */
     }
-    if (refOrigin !== appOrigin) throw forbidden("Ungültige Herkunft der Anfrage (CSRF-Schutz).");
+    if (refOrigin !== appOrigin) reject(refOrigin, appOrigin);
     return;
   }
-  if (headers.get("sec-fetch-site") !== "same-origin") {
-    throw forbidden("Ungültige Herkunft der Anfrage (CSRF-Schutz).");
-  }
+  if (headers.get("sec-fetch-site") !== "same-origin") reject(null, appOrigin);
 }
 
 export function checkCsrfToken(headers: Headers, expected: string, equal: (a: string, b: string) => boolean): void {

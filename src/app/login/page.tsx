@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { homePathFor } from "@/lib/roles";
 import { Brand } from "@/components/brand";
 import { getSession } from "@/server/auth/session";
+import { env } from "@/server/env";
 import { getSettings, logoUrl } from "@/server/services/settings";
 import { LoginForm } from "./login-form";
 
@@ -24,7 +25,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </div>
         <h1 className="mb-1 text-xl font-bold">Anmelden</h1>
         <p className="mb-5 text-muted">Mitarbeitereinteilung</p>
-        <LoginForm next={safeNext} />
+        <LoginForm next={safeNext} appOrigin={env().appOrigin} />
       </div>
     </main>
   );

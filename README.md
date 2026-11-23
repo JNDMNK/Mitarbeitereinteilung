@@ -93,6 +93,32 @@ Die App sollte von außen **nur über HTTPS** erreichbar sein. Der Proxy leitet 
 
 NPM setzt `X-Forwarded-For` und `X-Forwarded-Proto` automatisch – deshalb `TRUST_PROXY=1`.
 
+### Zugriff von außen über die FritzBox
+
+Die Kette muss lauten: **Internet → FritzBox → Nginx Proxy Manager (HTTPS) → App**.
+
+```
+https://einteilung.meinefirma.de:8445
+        │
+FritzBox  extern 8445 ──► 192.168.x.x : <HTTPS-Port des Proxy Managers>   (nicht direkt auf die App!)
+        │
+Nginx Proxy Manager (Proxy Host) ──► 192.168.x.x : 3010  (WebUI-Port der App)
+```
+
+1. **HTTPS-Port des Proxy Managers ermitteln:** Unraid → Docker → Proxy Manager → *Port Mappings*,
+   Zeile mit Container-Port **443** → der Host-Port daneben (auf Unraid oft nicht 443, da Unraid 443 selbst nutzt).
+2. **FritzBox** → *Internet → Freigaben → Portfreigaben* → Gerät (Unraid) → *Neue Freigabe*:
+   extern `443` (oder z. B. `8445`, falls 443 schon von MyFRITZ belegt ist) → intern der Port aus Schritt 1.
+3. **Zertifikat:** Let's Encrypt prüft über Port 80. Entweder zusätzlich extern `80` auf den HTTP-Port des
+   Proxy Managers (Container-Port 80) freigeben – oder im Proxy Manager beim Zertifikat **„Use a DNS Challenge“**
+   wählen (wenn der DNS-Anbieter unterstützt wird; bei `*.myfritz.net` nur über Port 80 möglich).
+4. **APP_URL** genau so setzen, wie die Adresse im Browser aussieht – **mit Port**, wenn er nicht 443 ist:
+   `APP_URL=https://einteilung.meinefirma.de:8445`
+5. Testen mit dem Handy **über mobile Daten** (nicht im WLAN).
+
+Passt die aufgerufene Adresse nicht zu `APP_URL`, zeigt die Login-Seite einen Hinweis mit beiden Adressen,
+und im Container-Log steht `[csrf] Anfrage abgelehnt: Herkunft "…" passt nicht zu APP_URL "…"`.
+
 ### Nginx (klassisch, z. B. SWAG)
 
 ```nginx
