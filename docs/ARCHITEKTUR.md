@@ -20,7 +20,10 @@
    (`startDate <= tag <= endDate`) laufen direkt in SQL.
 2. **`VehicleDay`** (Fahrzeug an Tag X im Einsatz) ist die Klammer für Besatzung und
    Baustelleneinsätze:
-   - Wird ein `VehicleDay` angelegt, werden die Standard-Mitarbeiter vorbelegt.
+   - Wird ein Fahrzeug an einem Tag erstmals auf eine Baustelle eingeplant (oder ohne
+     Besatzung auf einen anderen Tag gezogen), werden die Standard-Mitarbeiter vorbelegt –
+     außer Abwesende, Inaktive, anderweitig Eingeteilte und über die Sitzplätze hinaus.
+     Wird nur eine einzelne Person auf ein freies Fahrzeug gesetzt, gibt es keine Vorbelegung.
    - Hat ein Fahrzeug Besatzung, aber keinen Einsatz, steht es im Pool.
    - „Fahrzeug inkl. Besatzung verschieben“ heißt: `SiteAssignment` umhängen bzw.
      `VehicleDay` auf einen anderen Tag kopieren.

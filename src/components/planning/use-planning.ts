@@ -7,6 +7,8 @@ import type { PlanningAction } from "@/lib/planning-schemas";
 import type { PlanningData, PlanningResult } from "@/lib/planning-types";
 
 export type Toast = { id: number; tone: "success" | "warning" | "error"; lines: string[] };
+export type RunResult = { ok: true; result: PlanningResult } | { ok: false; error: ApiClientError | null };
+export type RunOptions = { silentCodes?: string[] };
 
 export function planningKey(from: string, to: string) {
   return ["planning", from, to] as const;
@@ -38,22 +40,34 @@ export function usePlanningActions() {
   }, []);
 
   const mutation = useMutation({
-    mutationFn: ({ action, body }: { action: PlanningAction; body: unknown; success?: string }) =>
+    mutationFn: ({ action, body }: { action: PlanningAction; body: unknown; success?: string; options?: RunOptions }) =>
       api<PlanningResult>(`/api/planning/${action}`, { body }),
     onSuccess: (res, vars) => {
       if (res.warnings.length) push("warning", [...(vars.success ? [vars.success] : []), ...res.messages, ...res.warnings]);
       else push("success", [...(vars.success ? [vars.success] : []), ...res.messages]);
     },
-    onError: (err) => {
+    onError: (err, vars) => {
+      if (err instanceof ApiClientError && err.code && vars.options?.silentCodes?.includes(err.code)) return;
       push("error", [err instanceof ApiClientError ? err.message : "Aktion fehlgeschlagen."]);
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["planning"] }),
   });
 
+  const { mutateAsync } = mutation;
   const run = useCallback(
-    (action: PlanningAction, body: unknown, success?: string) => mutation.mutateAsync({ action, body, success }).then(() => true, () => false),
-    [mutation],
+    (action: PlanningAction, body: unknown, success?: string, options?: RunOptions): Promise<RunResult> =>
+      mutateAsync({ action, body, success, options }).then(
+        (result) => ({ ok: true as const, result }),
+        (error) => ({ ok: false as const, error: error instanceof ApiClientError ? error : null }),
+      ),
+    [mutateAsync],
   );
 
-  return { run, busy: mutation.isPending, toasts, dismiss: (id: number) => setToasts((t) => t.filter((x) => x.id !== id)) };
+  return {
+    run,
+    busy: mutation.isPending,
+    toasts,
+    notify: push,
+    dismiss: (id: number) => setToasts((t) => t.filter((x) => x.id !== id)),
+  };
 }

@@ -57,6 +57,42 @@ export const assignmentDeleteSchema = z.object({ id, version: z.number().int().p
 
 export const vehicleReleaseSchema = z.object({ date, vehicleId: id, version: z.number().int().positive() });
 
+export const crewTransferSchema = z.object({
+  fromDate: date,
+  toDate: date,
+  employeeId: id,
+  /** Fahrzeug am Quelltag (null = Pool) */
+  fromVehicleId: id.nullable(),
+  toVehicleId: id,
+  /** Wo der Client den Mitarbeiter am Zieltag vermutet (null = Pool) */
+  toExpectedVehicleId: id.nullable(),
+  copy: z.boolean(),
+});
+
+export const vehicleTransferSchema = timeWindow(
+  z.object({
+    fromDate: date,
+    toDate: date,
+    vehicleId: id,
+    /** Quell-Einsatz (null = Fahrzeug aus dem Pool) */
+    assignmentId: id.nullable(),
+    /** Version des Fahrzeug-Tags am Quelltag (null = kein Fahrzeug-Tag) */
+    fromVersion: z.number().int().positive().nullable(),
+    /** Ziel-Baustelle (null = Pool des Zieltags) */
+    toSiteId: id.nullable(),
+    startMin: minute.optional(),
+    endMin: minute.optional(),
+    copy: z.boolean(),
+  }),
+);
+
+export const dayCopySchema = z.object({
+  fromDate: date,
+  toDate: date,
+  /** fehlt der Modus und ist der Zieltag belegt -> Rückfrage (409 target_not_empty) */
+  mode: z.enum(["merge", "replace"]).optional(),
+});
+
 export const PLANNING_ACTIONS = {
   "crew-assign": crewAssignSchema,
   "crew-remove": crewRemoveSchema,
@@ -64,5 +100,8 @@ export const PLANNING_ACTIONS = {
   "assignment-update": assignmentUpdateSchema,
   "assignment-delete": assignmentDeleteSchema,
   "vehicle-release": vehicleReleaseSchema,
+  "crew-transfer": crewTransferSchema,
+  "vehicle-transfer": vehicleTransferSchema,
+  "day-copy": dayCopySchema,
 } as const;
 export type PlanningAction = keyof typeof PLANNING_ACTIONS;

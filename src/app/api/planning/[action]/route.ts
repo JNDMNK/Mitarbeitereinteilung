@@ -3,10 +3,13 @@ import { apiRoute, parseJson } from "@/server/api";
 import { notFound } from "@/server/errors";
 import {
   assignCrew,
+  copyDay,
   createAssignment,
   deleteAssignment,
   releaseVehicle,
   removeCrew,
+  transferCrew,
+  transferVehicle,
   updateAssignment,
 } from "@/server/services/planning";
 
@@ -18,6 +21,9 @@ const HANDLERS: Record<PlanningAction, (actorId: string, input: any) => Promise<
   "assignment-update": updateAssignment,
   "assignment-delete": deleteAssignment,
   "vehicle-release": releaseVehicle,
+  "crew-transfer": transferCrew,
+  "vehicle-transfer": transferVehicle,
+  "day-copy": copyDay,
 };
 
 export const POST = apiRoute<{ action: string }>({ permission: "planning.edit" }, async ({ req, params, session }) => {

@@ -1,5 +1,6 @@
 "use client";
 
+import type { HTMLAttributes, Ref } from "react";
 import { QualificationBadge } from "@/components/qualification-badge";
 import type { Warning } from "@/lib/planning-logic";
 import type { PAbsenceType, PDepartment, PEmployee, PVehicle } from "@/lib/planning-types";
@@ -10,12 +11,18 @@ export function EmployeeChip({
   absenceType,
   own,
   onClick,
+  dragRef,
+  dragProps,
+  dragging,
 }: {
   employee: PEmployee;
   department?: PDepartment;
   absenceType?: PAbsenceType;
   own?: boolean;
   onClick?: () => void;
+  dragRef?: Ref<HTMLButtonElement>;
+  dragProps?: HTMLAttributes<HTMLElement>;
+  dragging?: boolean;
 }) {
   const absent = !!absenceType;
   const body = (
@@ -34,11 +41,11 @@ export function EmployeeChip({
   );
   const cls = `inline-flex max-w-full min-h-9 items-center gap-1.5 rounded-md border-l-4 px-2 py-1 text-sm shadow-sm ring-1 ${
     own ? "bg-brand-50 font-bold ring-2 ring-brand-600" : absent ? "bg-slate-100 text-slate-500 ring-line" : "bg-white ring-line"
-  } ${onClick ? "cursor-pointer hover:ring-2 hover:ring-brand-600 active:bg-slate-50" : ""}`;
+  } ${onClick ? "cursor-pointer hover:ring-2 hover:ring-brand-600 active:bg-slate-50" : ""} ${dragProps && Object.keys(dragProps).length ? "touch-manipulation select-none [-webkit-touch-callout:none]" : ""} ${dragging ? "opacity-30" : ""}`;
   const style = { borderLeftColor: department?.color ?? "#94a3b8" };
   const title = `${employee.firstName} ${employee.lastName}${absenceType ? ` – ${absenceType.name}` : ""}${own ? " (Sie)" : ""}`;
   return onClick ? (
-    <button type="button" onClick={onClick} className={cls} style={style} title={title}>
+    <button type="button" ref={dragRef} {...dragProps} onClick={onClick} className={cls} style={style} title={title}>
       {body}
     </button>
   ) : (
@@ -48,7 +55,21 @@ export function EmployeeChip({
   );
 }
 
-export function VehicleLabel({ vehicle, crewCount, onClick }: { vehicle: PVehicle; crewCount: number; onClick?: () => void }) {
+export function VehicleLabel({
+  vehicle,
+  crewCount,
+  onClick,
+  dragRef,
+  dragProps,
+  dragging,
+}: {
+  vehicle: PVehicle;
+  crewCount: number;
+  onClick?: () => void;
+  dragRef?: Ref<HTMLButtonElement>;
+  dragProps?: HTMLAttributes<HTMLElement>;
+  dragging?: boolean;
+}) {
   const over = crewCount > vehicle.seats;
   const body = (
     <>
@@ -61,7 +82,14 @@ export function VehicleLabel({ vehicle, crewCount, onClick }: { vehicle: PVehicl
   );
   const cls = "flex w-full min-h-9 items-center gap-2 rounded-md text-left";
   return onClick ? (
-    <button type="button" onClick={onClick} className={`${cls} -mx-1 px-1 hover:bg-slate-100`}>
+    <button
+      type="button"
+      ref={dragRef}
+      {...dragProps}
+      onClick={onClick}
+      title={dragProps && Object.keys(dragProps).length ? "Antippen für Aktionen, ziehen zum Verschieben (Strg/Alt = kopieren)" : undefined}
+      className={`${cls} -mx-1 px-1 hover:bg-slate-100 ${dragProps && Object.keys(dragProps).length ? "cursor-grab touch-manipulation select-none [-webkit-touch-callout:none]" : ""} ${dragging ? "opacity-30" : ""}`}
+    >
       {body}
     </button>
   ) : (

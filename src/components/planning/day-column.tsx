@@ -1,9 +1,12 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { formatDayLong, formatDayShort, isWeekend, mapsUrl } from "@/lib/dates";
 import { timeRange } from "@/lib/planning-logic";
-import type { DayView, Indexes } from "@/lib/planning-view";
+import type { PEmployee, PVehicle } from "@/lib/planning-types";
+import type { DayView, Indexes, VehicleSlot } from "@/lib/planning-view";
 import { EmployeeChip, VehicleLabel, WarningList } from "./chips";
+import { dropZoneClass, useDragItem, useDropZone, type DragData, type DropData } from "./dnd";
 import type { Sheet } from "./sheets";
 
 type Props = {
@@ -15,23 +18,104 @@ type Props = {
   open: (s: Sheet) => void;
 };
 
+function DraggableEmployee({
+  employee,
+  date,
+  fromVehicleId,
+  day,
+  idx,
+  canEdit,
+  own,
+  open,
+  suffix,
+}: {
+  employee: PEmployee;
+  date: string;
+  fromVehicleId: string | null;
+  day: DayView;
+  idx: Indexes;
+  canEdit: boolean;
+  own: boolean;
+  open: (s: Sheet) => void;
+  /** eindeutiger Zusatz, falls der Mitarbeiter mehrfach angezeigt wird (mehrere Einsätze) */
+  suffix: string;
+}) {
+  const abs = day.absent.find((a) => a.employee.id === employee.id);
+  const data: DragData = { type: "employee", date, employeeId: employee.id, fromVehicleId };
+  const drag = useDragItem(`emp:${date}:${employee.id}:${suffix}`, data, !canEdit || !employee.active);
+  return (
+    <EmployeeChip
+      employee={employee}
+      department={idx.departments.get(employee.departmentId)}
+      absenceType={abs?.type}
+      own={own}
+      onClick={() => open({ kind: "employee", date, employeeId: employee.id })}
+      dragRef={drag.ref}
+      dragProps={drag.props}
+      dragging={drag.isDragging}
+    />
+  );
+}
+
+function DraggableVehicle({
+  slot,
+  date,
+  assignment,
+  siteId,
+  canEdit,
+  onClick,
+  suffix,
+}: {
+  slot: VehicleSlot;
+  date: string;
+  assignment: { id: string; version: number; startMin: number; endMin: number } | null;
+  siteId: string | null;
+  canEdit: boolean;
+  onClick: () => void;
+  suffix: string;
+}) {
+  const data: DragData = {
+    type: "vehicle",
+    date,
+    vehicleId: slot.vehicle.id,
+    assignmentId: assignment?.id ?? null,
+    assignmentVersion: assignment?.version ?? null,
+    siteId,
+    startMin: assignment?.startMin ?? null,
+    endMin: assignment?.endMin ?? null,
+    vdVersion: slot.vehicleDay?.version ?? null,
+  };
+  const drag = useDragItem(`veh:${date}:${slot.vehicle.id}:${suffix}`, data, !canEdit || !slot.vehicle.active);
+  return <VehicleLabel vehicle={slot.vehicle} crewCount={slot.crew.length} onClick={onClick} dragRef={drag.ref} dragProps={drag.props} dragging={drag.isDragging} />;
+}
+
+function Drop({ id, data, canEdit, className, children, as = "div" }: { id: string; data: DropData; canEdit: boolean; className: string; children: ReactNode; as?: "div" | "li" | "article" }) {
+  const { ref, isOver, canDrop } = useDropZone(id, data, !canEdit);
+  const Tag = as;
+  return (
+    <Tag ref={ref as never} className={`${className} transition-shadow ${dropZoneClass({ isOver, canDrop })}`}>
+      {children}
+    </Tag>
+  );
+}
+
 export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Props) {
   const isToday = day.date === today;
-  const empClick = (employeeId: string) => () => open({ kind: "employee", date: day.date, employeeId });
-  const chip = (employeeId: string) => {
-    const e = idx.employees.get(employeeId)!;
-    const abs = day.absent.find((a) => a.employee.id === e.id);
-    return (
-      <EmployeeChip
+  const crewChips = (crew: PEmployee[], vehicle: PVehicle, suffix: string) =>
+    crew.map((e) => (
+      <DraggableEmployee
         key={e.id}
         employee={e}
-        department={idx.departments.get(e.departmentId)}
-        absenceType={abs?.type}
+        date={day.date}
+        fromVehicleId={vehicle.id}
+        day={day}
+        idx={idx}
+        canEdit={canEdit}
         own={e.id === ownEmployeeId}
-        onClick={empClick(e.id)}
+        open={open}
+        suffix={suffix}
       />
-    );
-  };
+    ));
 
   return (
     <section className="min-w-0 space-y-3" aria-label={formatDayLong(day.date)}>
@@ -41,21 +125,27 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
           isToday ? "bg-brand-700 text-white" : isWeekend(day.date) ? "bg-slate-300 text-ink" : "bg-ink text-white"
         }`}
       >
-        <div>
+        <div className="min-w-0">
           <h2 className="text-lg leading-tight font-bold">{formatDayShort(day.date)}</h2>
-          <p className="text-xs opacity-90">
+          <p className="truncate text-xs opacity-90">
             {isToday ? "Heute · " : ""}
             {day.stats.assigned} eingeteilt · {day.stats.available} frei · {day.stats.absent} abwesend
           </p>
         </div>
         {canEdit && (
-          <button
-            type="button"
-            onClick={() => open({ kind: "pickSiteForDay", date: day.date })}
-            className="min-h-10 rounded-lg bg-white/15 px-3 text-sm font-semibold hover:bg-white/25"
-          >
-            + Baustelle
-          </button>
+          <div className="flex shrink-0 gap-1">
+            <button
+              type="button"
+              onClick={() => open({ kind: "copyDay", date: day.date })}
+              className="min-h-10 rounded-lg bg-white/15 px-2 text-sm font-semibold hover:bg-white/25"
+              title="Einteilung dieses Tages auf einen anderen Tag übernehmen"
+            >
+              ⧉ Tag
+            </button>
+            <button type="button" onClick={() => open({ kind: "pickSiteForDay", date: day.date })} className="min-h-10 rounded-lg bg-white/15 px-2 text-sm font-semibold hover:bg-white/25">
+              + Baustelle
+            </button>
+          </div>
         )}
       </header>
 
@@ -68,7 +158,7 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
               <button
                 key={a.employee.id}
                 type="button"
-                onClick={empClick(a.employee.id)}
+                onClick={() => open({ kind: "employee", date: day.date, employeeId: a.employee.id })}
                 title={`${a.employee.firstName} ${a.employee.lastName}: ${a.type?.name}`}
                 className={`inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 text-xs font-semibold ring-1 ring-line ${a.employee.id === ownEmployeeId ? "bg-brand-50 ring-2 ring-brand-600" : "bg-slate-50"}`}
               >
@@ -84,12 +174,21 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
 
       {/* Baustellen */}
       {day.sites.length === 0 && (
-        <div className="rounded-xl border-2 border-dashed border-line bg-white/60 p-4 text-center text-sm text-muted">Noch keine Baustellen eingeplant.</div>
+        <div className="rounded-xl border-2 border-dashed border-line bg-white/60 p-4 text-center text-sm text-muted">
+          Noch keine Baustellen eingeplant.{canEdit && " Fahrzeug aus dem Pool auf eine Baustelle ziehen oder „+ Baustelle“."}
+        </div>
       )}
       {day.sites.map((g) => (
-        <article key={g.site.id} className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-line" style={{ borderLeft: `6px solid ${g.site.color}` }}>
-          <div className="flex items-start gap-2 border-b border-line px-3 py-2">
-            <div className="min-w-0 flex-1">
+        <Drop
+          key={g.site.id}
+          as="article"
+          id={`site:${day.date}:${g.site.id}`}
+          data={{ kind: "site", accepts: "vehicle", date: day.date, siteId: g.site.id }}
+          canEdit={canEdit}
+          className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-line"
+        >
+          <div className="flex items-start gap-2 border-b border-line px-3 py-2" style={{ boxShadow: `inset 6px 0 0 ${g.site.color}` }}>
+            <div className="min-w-0 flex-1 pl-1.5">
               <h3 className="leading-tight font-bold">{g.site.name}</h3>
               {g.site.address && (
                 <a href={mapsUrl(g.site.address)} target="_blank" rel="noopener noreferrer" className="block truncate text-xs text-brand-700 underline">
@@ -109,56 +208,95 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
               </button>
             )}
           </div>
-          <ul className="divide-y divide-line">
+          <ul className="divide-y divide-line" style={{ boxShadow: `inset 6px 0 0 ${g.site.color}` }}>
             {g.items.map((it) => (
-              <li key={it.assignment.id} className="space-y-1.5 px-3 py-2">
+              <Drop
+                key={it.assignment.id}
+                as="li"
+                id={`vehdrop:${day.date}:${it.vehicle.id}:${it.assignment.id}`}
+                data={{ kind: "vehicle", accepts: "employee", date: day.date, vehicleId: it.vehicle.id }}
+                canEdit={canEdit}
+                className="space-y-1.5 py-2 pr-3 pl-4"
+              >
                 <div className="flex items-center gap-2">
                   <span className="shrink-0 rounded bg-slate-800 px-1.5 font-mono text-xs leading-6 font-bold text-white">
                     {timeRange(it.assignment.startMin, it.assignment.endMin)}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <VehicleLabel
-                      vehicle={it.vehicle}
-                      crewCount={it.crew.length}
+                    <DraggableVehicle
+                      slot={it}
+                      date={day.date}
+                      assignment={it.assignment}
+                      siteId={g.site.id}
+                      canEdit={canEdit}
+                      suffix={it.assignment.id}
                       onClick={() => open({ kind: "vehicle", date: day.date, vehicleId: it.vehicle.id, assignmentId: it.assignment.id })}
                     />
                   </div>
                 </div>
                 {it.crew.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">{it.crew.map((e) => chip(e.id))}</div>
-                ) : null}
+                  <div className="flex flex-wrap gap-1">{crewChips(it.crew, it.vehicle, it.assignment.id)}</div>
+                ) : (
+                  canEdit && <p className="text-xs text-muted">Mitarbeiter hierher ziehen</p>
+                )}
                 {it.assignment.note && <p className="text-xs text-muted italic">{it.assignment.note}</p>}
                 <WarningList warnings={it.crewWarnings} />
-              </li>
+              </Drop>
             ))}
           </ul>
-        </article>
+        </Drop>
       ))}
 
       {/* Pool */}
-      <div className="rounded-xl bg-slate-50 p-2 ring-1 ring-line">
+      <Drop
+        id={`pool:${day.date}`}
+        data={{ kind: "pool", accepts: "both", date: day.date }}
+        canEdit={canEdit}
+        className="rounded-xl bg-slate-50 p-2 ring-1 ring-line"
+      >
         <h3 className="mb-2 text-sm font-bold">Nicht eingeteilt</h3>
         <div className="mb-3">
           <h4 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">Mitarbeiter ({day.poolEmployees.filter((p) => !p.absence).length} verfügbar)</h4>
           {day.poolEmployees.length === 0 ? (
             <p className="text-sm text-muted">Alle eingeteilt.</p>
           ) : (
-            <div className="flex flex-wrap gap-1">{day.poolEmployees.map((p) => chip(p.employee.id))}</div>
+            <div className="flex flex-wrap gap-1">
+              {day.poolEmployees.map((p) => (
+                <DraggableEmployee
+                  key={p.employee.id}
+                  employee={p.employee}
+                  date={day.date}
+                  fromVehicleId={null}
+                  day={day}
+                  idx={idx}
+                  canEdit={canEdit}
+                  own={p.employee.id === ownEmployeeId}
+                  open={open}
+                  suffix="pool"
+                />
+              ))}
+            </div>
           )}
         </div>
         <div>
           <h4 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">Fahrzeuge ohne Baustelle ({day.poolVehicles.length})</h4>
           <div className="space-y-1.5">
             {day.poolVehicles.map((p) => (
-              <div key={p.vehicle.id} className={`rounded-lg bg-white px-2 py-1 ring-1 ring-line ${p.crew.length ? "" : "opacity-90"}`}>
-                <VehicleLabel vehicle={p.vehicle} crewCount={p.crew.length} onClick={() => open({ kind: "vehicle", date: day.date, vehicleId: p.vehicle.id })} />
-                {p.crew.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{p.crew.map((e) => chip(e.id))}</div>}
+              <Drop
+                key={p.vehicle.id}
+                id={`vehdrop:${day.date}:${p.vehicle.id}:pool`}
+                data={{ kind: "vehicle", accepts: "employee", date: day.date, vehicleId: p.vehicle.id }}
+                canEdit={canEdit}
+                className="rounded-lg bg-white px-2 py-1 ring-1 ring-line"
+              >
+                <DraggableVehicle slot={p} date={day.date} assignment={null} siteId={null} canEdit={canEdit} suffix="pool" onClick={() => open({ kind: "vehicle", date: day.date, vehicleId: p.vehicle.id })} />
+                {p.crew.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{crewChips(p.crew, p.vehicle, "pool")}</div>}
                 <WarningList warnings={p.crewWarnings} />
-              </div>
+              </Drop>
             ))}
           </div>
         </div>
-      </div>
+      </Drop>
     </section>
   );
 }

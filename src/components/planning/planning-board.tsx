@@ -7,7 +7,9 @@ import { formatDayShort, isIsoDate } from "@/lib/dates";
 import { normalizeStart, stepDay, visibleDays } from "@/lib/planning-days";
 import type { PlanningData } from "@/lib/planning-types";
 import { buildDay, buildIndexes } from "@/lib/planning-view";
+import { EmployeeChip, VehicleLabel } from "./chips";
 import { DayColumn } from "./day-column";
+import { PlanningDnd, type DragData, type DropData } from "./dnd";
 import { PlanningSheets, type Sheet } from "./sheets";
 import { Toasts } from "./toasts";
 import { usePlanningActions, usePlanningData } from "./use-planning";
@@ -56,6 +58,85 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
     if (data && idx) for (const d of days) m.set(d, buildDay(data, idx, d));
     return m;
   }, [data, idx, days]);
+
+  /** Ablegen auswerten: was wurde wohin gezogen, verschieben oder kopieren? */
+  function handleDrop(drag: DragData, drop: DropData, copy: boolean) {
+    if (!data || !idx) return;
+    const sameDay = drag.date === drop.date;
+    if (drag.type === "employee") {
+      const e = idx.employees.get(drag.employeeId)!;
+      const name = `${e.firstName} ${e.lastName}`;
+      if (drop.kind === "vehicle") {
+        const v = idx.vehicles.get(drop.vehicleId)!;
+        if (sameDay) {
+          if (drag.fromVehicleId === drop.vehicleId) return;
+          if (copy) actions.notify("warning", ["Ein Mitarbeiter kann pro Tag nur auf einem Fahrzeug sein – wird verschoben."]);
+          void actions.run("crew-assign", { date: drag.date, employeeId: e.id, vehicleId: v.id, expectedFromVehicleId: drag.fromVehicleId }, `${name} → ${v.licensePlate}.`);
+          return;
+        }
+        const toExpected = dayViews.get(drop.date)?.seatOf.get(e.id) ?? null;
+        if (toExpected === v.id && (copy || !drag.fromVehicleId)) return;
+        void actions.run(
+          "crew-transfer",
+          { fromDate: drag.date, toDate: drop.date, employeeId: e.id, fromVehicleId: drag.fromVehicleId, toVehicleId: v.id, toExpectedVehicleId: toExpected, copy },
+          `${name} ${copy ? "kopiert" : "verschoben"} → ${v.licensePlate} (${formatDayShort(drop.date)})`,
+        );
+        return;
+      }
+      // in den Pool
+      if (sameDay && drag.fromVehicleId) {
+        void actions.run("crew-remove", { date: drag.date, employeeId: e.id, expectedFromVehicleId: drag.fromVehicleId }, `${name} zurück in den Pool.`);
+      } else if (!sameDay) {
+        actions.notify("warning", ["Zum Entfernen bitte in den Pool desselben Tages ziehen."]);
+      }
+      return;
+    }
+
+    // Fahrzeug
+    const v = idx.vehicles.get(drag.vehicleId)!;
+    if (drop.kind === "site") {
+      if (sameDay && !copy && drag.siteId === drop.siteId) return;
+      setSheet({ kind: "dropTime", drag, toDate: drop.date, toSiteId: drop.siteId, copy });
+      return;
+    }
+    if (drop.kind === "pool") {
+      if (sameDay) {
+        if (drag.assignmentId && !copy && drag.assignmentVersion !== null) {
+          const site = drag.siteId ? idx.sites.get(drag.siteId) : undefined;
+          void actions.run("assignment-delete", { id: drag.assignmentId, version: drag.assignmentVersion }, `${v.licensePlate} von „${site?.name ?? "Baustelle"}“ zurück in den Pool.`);
+        }
+        return;
+      }
+      void actions.run(
+        "vehicle-transfer",
+        { fromDate: drag.date, toDate: drop.date, vehicleId: v.id, assignmentId: drag.assignmentId, fromVersion: drag.vdVersion, toSiteId: null, copy },
+        `${v.licensePlate} ${copy ? "kopiert" : "verschoben"} nach ${formatDayShort(drop.date)} (ohne Baustelle).`,
+      );
+    }
+  }
+
+  function renderOverlay(drag: DragData, copy: boolean) {
+    if (!idx) return null;
+    const badge = copy ? <span className="absolute -top-3 -right-3 rounded-full bg-amber-400 px-2 text-xs leading-6 font-bold text-ink shadow">+ Kopie</span> : null;
+    if (drag.type === "employee") {
+      const e = idx.employees.get(drag.employeeId);
+      return e ? (
+        <div className="relative inline-block rotate-2 shadow-2xl">
+          <EmployeeChip employee={e} department={idx.departments.get(e.departmentId)} />
+          {badge}
+        </div>
+      ) : null;
+    }
+    const v = idx.vehicles.get(drag.vehicleId);
+    const crew = data?.vehicleDays.find((x) => x.date === drag.date && x.vehicleId === drag.vehicleId)?.crew ?? [];
+    return v ? (
+      <div className="relative w-72 rotate-1 rounded-lg bg-white p-2 shadow-2xl ring-2 ring-brand-600">
+        <VehicleLabel vehicle={v} crewCount={crew.length} />
+        <p className="mt-1 truncate text-xs text-muted">{crew.map((c) => idx.employees.get(c.employeeId)?.shortName).join(", ") || "ohne Besatzung"}</p>
+        {badge}
+      </div>
+    ) : null;
+  }
 
   function go(next: string) {
     setStart(normalizeStart(next, hideWeekends));
@@ -119,16 +200,25 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
         ))}
       </div>
 
+      {canEdit && (
+        <p className="no-print hidden text-sm text-muted md:block">
+          Ziehen zum Verschieben – auch in eine andere Tagesspalte. Mit gedrückter <kbd className="rounded border border-line bg-white px-1">Strg</kbd> oder{" "}
+          <kbd className="rounded border border-line bg-white px-1">Alt</kbd> wird kopiert. Antippen öffnet die Aktionen.
+        </p>
+      )}
+
       {!data || !idx ? (
         <div className="rounded-xl bg-white p-8 text-center text-muted ring-1 ring-line">Lade Planung …</div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-3">
-          {days.map((d, i) => (
-            <div key={d} className={i === mobileDay ? "" : "hidden md:block"}>
-              <DayColumn day={dayViews.get(d)!} idx={idx} today={today} canEdit={canEdit} ownEmployeeId={ownEmployeeId} open={setSheet} />
-            </div>
-          ))}
-        </div>
+        <PlanningDnd enabled={canEdit} onDrop={handleDrop} renderOverlay={renderOverlay}>
+          <div className="grid gap-4 md:grid-cols-3">
+            {days.map((d, i) => (
+              <div key={d} className={i === mobileDay ? "" : "hidden md:block"}>
+                <DayColumn day={dayViews.get(d)!} idx={idx} today={today} canEdit={canEdit} ownEmployeeId={ownEmployeeId} open={setSheet} />
+              </div>
+            ))}
+          </div>
+        </PlanningDnd>
       )}
 
       {data && idx && (

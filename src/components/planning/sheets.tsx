@@ -8,7 +8,10 @@ import { QualificationBadge } from "@/components/qualification-badge";
 import { formatDayShort, formatRange, mapsUrl } from "@/lib/dates";
 import { QUALIFICATION_LABELS, type Qualification } from "@/lib/constants";
 import { findOverlap, suggestSlot, timeRange } from "@/lib/planning-logic";
+import { addDays } from "@/lib/dates";
 import type { PlanningAction } from "@/lib/planning-schemas";
+import type { DragData } from "./dnd";
+import type { RunOptions, RunResult } from "./use-planning";
 import type { PlanningData } from "@/lib/planning-types";
 import type { DayView, Indexes } from "@/lib/planning-view";
 import { formatMinutes, gridOptions } from "@/lib/time";
@@ -21,9 +24,14 @@ export type Sheet =
   | { kind: "pickSite"; date: string; vehicleId: string; assignmentId?: string }
   | { kind: "pickVehicleForSite"; date: string; siteId: string }
   | { kind: "pickSiteForDay"; date: string }
-  | { kind: "time"; date: string; vehicleId: string; siteId: string; assignmentId?: string };
+  | { kind: "time"; date: string; vehicleId: string; siteId: string; assignmentId?: string }
+  /** nach Drag & Drop eines Fahrzeugs auf eine Baustelle */
+  | { kind: "dropTime"; drag: Extract<DragData, { type: "vehicle" }>; toDate: string; toSiteId: string; copy: boolean }
+  | { kind: "copyEmployee"; date: string; employeeId: string }
+  | { kind: "copyVehicle"; date: string; vehicleId: string; assignmentId?: string }
+  | { kind: "copyDay"; date: string };
 
-type Run = (action: PlanningAction, body: unknown, success?: string) => Promise<boolean>;
+type Run = (action: PlanningAction, body: unknown, success?: string, options?: RunOptions) => Promise<RunResult>;
 
 type Props = {
   sheet: Sheet | null;
@@ -86,9 +94,16 @@ function SearchList<T>({
 export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run, busy }: Props) {
   const close = () => setSheet(null);
   if (!sheet) return <Dialog open={false} onClose={close} title="">{null}</Dialog>;
+  if (sheet.kind === "dropTime") {
+    return <DropTimeDialog key={`${sheet.drag.vehicleId}-${sheet.toDate}-${sheet.toSiteId}`} sheet={sheet} data={data} idx={idx} close={close} run={run} busy={busy} />;
+  }
+  if (sheet.kind === "copyDay") {
+    return <CopyDayDialog key={sheet.date} date={sheet.date} days={[...days.keys()]} close={close} run={run} busy={busy} />;
+  }
   const day = days.get(sheet.date);
   if (!day) return null;
   const dateLabel = formatDayShort(sheet.date);
+  const otherDays = [...days.keys()].filter((d) => d !== sheet.date);
 
   // ---------------- Mitarbeiter ----------------
   if (sheet.kind === "employee") {
@@ -118,6 +133,9 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
               <Action onClick={() => setSheet({ kind: "pickVehicleForEmployee", date: sheet.date, employeeId: e.id })}>
                 🚐 {vehicle ? "Auf anderes Fahrzeug setzen …" : "Zuweisen zu Fahrzeug …"}
               </Action>
+              {vehicle && (
+                <Action onClick={() => setSheet({ kind: "copyEmployee", date: sheet.date, employeeId: e.id })}>⧉ Auf anderen Tag kopieren …</Action>
+              )}
               {vehicle && (
                 <Action
                   disabled={busy}
@@ -159,6 +177,11 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
               )}
               <Action onClick={() => setSheet({ kind: "pickSite", date: sheet.date, vehicleId: v.id })}>➕ {vd?.assignments.length ? "Weitere Baustelle einplanen …" : "Auf Baustelle einplanen …"}</Action>
               <Action onClick={() => setSheet({ kind: "pickEmployeeForVehicle", date: sheet.date, vehicleId: v.id })}>👷 Mitarbeiter hinzufügen …</Action>
+              {vd && (
+                <Action onClick={() => setSheet({ kind: "copyVehicle", date: sheet.date, vehicleId: v.id, assignmentId: a?.id })}>
+                  ⧉ {a ? "Einsatz mit Besatzung auf anderen Tag kopieren …" : "Mit Besatzung auf anderen Tag kopieren …"}
+                </Action>
+              )}
               {a && site && (
                 <Action
                   disabled={busy}
@@ -365,6 +388,87 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
     );
   }
 
+  // ---------------- Mitarbeiter auf anderen Tag kopieren ----------------
+  if (sheet.kind === "copyEmployee") {
+    const e = idx.employees.get(sheet.employeeId)!;
+    const vehicleId = day.seatOf.get(e.id);
+    const vehicle = vehicleId ? idx.vehicles.get(vehicleId) : undefined;
+    if (!vehicle) return null;
+    return (
+      <Dialog open onClose={close} title={`${e.firstName} ${e.lastName} kopieren`}>
+        <div className="space-y-2">
+          <p className="text-muted">Auf {vehicle.licensePlate} an folgendem Tag einteilen:</p>
+          {otherDays.map((d) => {
+            const target = days.get(d)!;
+            const there = target.seatOf.get(e.id) ?? null;
+            const abs = target.absent.find((x) => x.employee.id === e.id);
+            return (
+              <Action
+                key={d}
+                disabled={busy || there === vehicle.id}
+                onClick={async () => {
+                  close();
+                  await run(
+                    "crew-transfer",
+                    { fromDate: sheet.date, toDate: d, employeeId: e.id, fromVehicleId: vehicle.id, toVehicleId: vehicle.id, toExpectedVehicleId: there, copy: true },
+                    `${e.firstName} ${e.lastName} am ${formatDayShort(d)} auf ${vehicle.licensePlate}.`,
+                  );
+                }}
+              >
+                <span className="flex-1">{formatDayShort(d)}</span>
+                <span className="text-sm font-normal text-muted">
+                  {there === vehicle.id ? "schon dort" : there ? `jetzt auf ${idx.vehicles.get(there)?.licensePlate} (wird umgesetzt)` : abs ? `abwesend (${abs.type?.code})` : "frei"}
+                </span>
+              </Action>
+            );
+          })}
+        </div>
+      </Dialog>
+    );
+  }
+
+  // ---------------- Fahrzeug/Einsatz auf anderen Tag kopieren ----------------
+  if (sheet.kind === "copyVehicle") {
+    const v = idx.vehicles.get(sheet.vehicleId)!;
+    const vd = data.vehicleDays.find((x) => x.date === sheet.date && x.vehicleId === v.id);
+    const a = sheet.assignmentId ? vd?.assignments.find((x) => x.id === sheet.assignmentId) : undefined;
+    const site = a ? idx.sites.get(a.siteId) : undefined;
+    return (
+      <Dialog open onClose={close} title={`${v.licensePlate} kopieren`}>
+        <div className="space-y-2">
+          <p className="text-muted">
+            {a && site ? `„${site.name}“ ${timeRange(a.startMin, a.endMin)} mit Besatzung` : "Fahrzeug mit Besatzung (ohne Baustelle)"} kopieren nach:
+          </p>
+          {otherDays.map((d) => (
+            <Action
+              key={d}
+              disabled={busy}
+              onClick={async () => {
+                close();
+                await run(
+                  "vehicle-transfer",
+                  {
+                    fromDate: sheet.date,
+                    toDate: d,
+                    vehicleId: v.id,
+                    assignmentId: a?.id ?? null,
+                    fromVersion: vd?.version ?? null,
+                    toSiteId: a?.siteId ?? null,
+                    ...(a ? { startMin: a.startMin, endMin: a.endMin } : {}),
+                    copy: true,
+                  },
+                  `${v.licensePlate} nach ${formatDayShort(d)} kopiert.`,
+                );
+              }}
+            >
+              {formatDayShort(d)}
+            </Action>
+          ))}
+        </div>
+      </Dialog>
+    );
+  }
+
   // ---------------- Zeitfenster ----------------
   if (sheet.kind === "time") {
     return <TimeDialog key={`${sheet.vehicleId}-${sheet.siteId}-${sheet.assignmentId}`} sheet={sheet} data={data} idx={idx} close={close} run={run} busy={busy} />;
@@ -391,9 +495,115 @@ function TimeDialog({
   const site = idx.sites.get(sheet.siteId)!;
   const vd = data.vehicleDays.find((v) => v.date === sheet.date && v.vehicleId === vehicle.id);
   const current = sheet.assignmentId ? vd?.assignments.find((a) => a.id === sheet.assignmentId) : undefined;
-  const others = useMemo(() => (vd?.assignments ?? []).filter((a) => a.id !== sheet.assignmentId), [vd, sheet.assignmentId]);
+  const others = (vd?.assignments ?? []).filter((a) => a.id !== sheet.assignmentId);
+  return (
+    <TimeWindowDialog
+      title={current ? "Zeit ändern" : "Zeitfenster festlegen"}
+      intro={
+        <>
+          <strong>{vehicle.licensePlate}</strong> ({vehicle.name}) auf <strong>{site.name}</strong> · {formatDayShort(sheet.date)}
+        </>
+      }
+      initial={current ? { startMin: current.startMin, endMin: current.endMin } : null}
+      others={others}
+      data={data}
+      idx={idx}
+      submitLabel={current ? "Zeit speichern" : "Einplanen"}
+      close={close}
+      busy={busy}
+      onSubmit={async (start, end) => {
+        if (current) await run("assignment-update", { id: current.id, version: current.version, startMin: start, endMin: end }, `Zeit auf ${timeRange(start, end)} geändert.`);
+        else await run("assignment-create", { date: sheet.date, vehicleId: vehicle.id, siteId: site.id, startMin: start, endMin: end }, `${vehicle.licensePlate} auf „${site.name}“ ${timeRange(start, end)} eingeplant.`);
+      }}
+    />
+  );
+}
+
+/** Zeitwahl nach Drag & Drop eines Fahrzeugs auf eine Baustelle (gleicher oder anderer Tag) */
+function DropTimeDialog({
+  sheet,
+  data,
+  idx,
+  close,
+  run,
+  busy,
+}: {
+  sheet: Extract<Sheet, { kind: "dropTime" }>;
+  data: PlanningData;
+  idx: Indexes;
+  close: () => void;
+  run: Run;
+  busy: boolean;
+}) {
+  const { drag, toDate, toSiteId, copy } = sheet;
+  const vehicle = idx.vehicles.get(drag.vehicleId)!;
+  const site = idx.sites.get(toSiteId)!;
+  const sameDay = drag.date === toDate;
+  const targetVd = data.vehicleDays.find((v) => v.date === toDate && v.vehicleId === vehicle.id);
+  // Beim Verschieben am selben Tag zählt der eigene Einsatz nicht als Überschneidung
+  const others = (targetVd?.assignments ?? []).filter((a) => !(sameDay && !copy && a.id === drag.assignmentId));
+  const keep = drag.startMin !== null && drag.endMin !== null && !findOverlap(others, drag.startMin, drag.endMin) ? { startMin: drag.startMin, endMin: drag.endMin } : null;
+  const verb = copy ? "kopieren" : "verschieben";
+  return (
+    <TimeWindowDialog
+      title={`${vehicle.licensePlate} ${drag.assignmentId ? verb : "einplanen"}`}
+      intro={
+        <>
+          <strong>{vehicle.licensePlate}</strong> {drag.assignmentId || !sameDay ? "mit Besatzung " : ""}auf <strong>{site.name}</strong> · {formatDayShort(toDate)}
+          {copy && <span className="ml-2 rounded bg-amber-200 px-1.5 text-sm font-bold">Kopie</span>}
+          {!sameDay && <span className="mt-1 block text-sm text-muted">Abwesende oder am Zieltag schon eingeteilte Mitarbeiter werden ausgelassen und gemeldet.</span>}
+        </>
+      }
+      initial={keep}
+      others={others}
+      data={data}
+      idx={idx}
+      submitLabel={copy ? "Kopieren" : drag.assignmentId ? "Verschieben" : "Einplanen"}
+      close={close}
+      busy={busy}
+      onSubmit={async (start, end) => {
+        const done = `${vehicle.licensePlate} auf „${site.name}“ ${timeRange(start, end)} (${formatDayShort(toDate)}).`;
+        if (sameDay && drag.assignmentId && !copy) {
+          await run("assignment-update", { id: drag.assignmentId, version: drag.assignmentVersion, siteId: toSiteId, startMin: start, endMin: end }, done);
+        } else if (sameDay) {
+          await run("assignment-create", { date: toDate, vehicleId: vehicle.id, siteId: toSiteId, startMin: start, endMin: end }, done);
+        } else {
+          await run(
+            "vehicle-transfer",
+            { fromDate: drag.date, toDate, vehicleId: vehicle.id, assignmentId: drag.assignmentId, fromVersion: drag.vdVersion, toSiteId, startMin: start, endMin: end, copy },
+            done,
+          );
+        }
+      }}
+    />
+  );
+}
+
+function TimeWindowDialog({
+  title,
+  intro,
+  initial,
+  others,
+  data,
+  idx,
+  submitLabel,
+  close,
+  busy,
+  onSubmit,
+}: {
+  title: string;
+  intro: ReactNode;
+  initial: { startMin: number; endMin: number } | null;
+  others: { id: string; siteId: string; startMin: number; endMin: number }[];
+  data: PlanningData;
+  idx: Indexes;
+  submitLabel: string;
+  close: () => void;
+  busy: boolean;
+  onSubmit: (start: number, end: number) => Promise<void>;
+}) {
   const { defaultStartMin: ds, defaultEndMin: de } = data.settings;
-  const suggestion = current ? { startMin: current.startMin, endMin: current.endMin } : suggestSlot(others, ds, de);
+  const suggestion = useMemo(() => initial ?? suggestSlot(others, ds, de), [initial, others, ds, de]);
   const [start, setStart] = useState(suggestion?.startMin ?? ds);
   const [end, setEnd] = useState(suggestion?.endMin ?? de);
   const clash = findOverlap(others, start, end);
@@ -406,23 +616,28 @@ function TimeDialog({
   const options = gridOptions(0, 24 * 60);
 
   return (
-    <Dialog open onClose={close} title={current ? "Zeit ändern" : "Zeitfenster festlegen"}>
+    <Dialog open onClose={close} title={title}>
       <form
         className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault();
           close();
-          if (current) await run("assignment-update", { id: current.id, version: current.version, startMin: start, endMin: end }, `Zeit auf ${timeRange(start, end)} geändert.`);
-          else await run("assignment-create", { date: sheet.date, vehicleId: vehicle.id, siteId: site.id, startMin: start, endMin: end }, `${vehicle.licensePlate} auf „${site.name}“ ${timeRange(start, end)} eingeplant.`);
+          await onSubmit(start, end);
         }}
       >
-        <p>
-          <strong>{vehicle.licensePlate}</strong> ({vehicle.name}) auf <strong>{site.name}</strong> · {formatDayShort(sheet.date)}
-        </p>
+        <p>{intro}</p>
         {!suggestion && <p className="rounded-lg bg-amber-50 p-2 text-amber-900">Für dieses Fahrzeug ist an diesem Tag kein Zeitfenster mehr frei.</p>}
         <div className="flex flex-wrap gap-2">
           {presets.map((p) => (
-            <button key={p.label} type="button" onClick={() => { setStart(p.s); setEnd(p.e); }} className={`min-h-11 rounded-lg border px-3 text-sm font-semibold ${start === p.s && end === p.e ? "border-ink bg-slate-100" : "border-line"}`}>
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => {
+                setStart(p.s);
+                setEnd(p.e);
+              }}
+              className={`min-h-11 rounded-lg border px-3 text-sm font-semibold ${start === p.s && end === p.e ? "border-ink bg-slate-100" : "border-line"}`}
+            >
               {p.label}
             </button>
           ))}
@@ -462,16 +677,93 @@ function TimeDialog({
           </div>
         )}
         {invalid && <p className="font-semibold text-red-700">Das Ende muss nach dem Beginn liegen.</p>}
-        {clash && !invalid && <p className="font-semibold text-red-700">Überschneidet sich mit {timeRange(clash.startMin, clash.endMin)} ({idx.sites.get(clash.siteId)?.name}).</p>}
+        {clash && !invalid && (
+          <p className="font-semibold text-red-700">
+            Überschneidet sich mit {timeRange(clash.startMin, clash.endMin)} ({idx.sites.get(clash.siteId)?.name}).
+          </p>
+        )}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={close}>
             Abbrechen
           </Button>
           <Button type="submit" disabled={busy || invalid || !!clash}>
-            {current ? "Zeit speichern" : "Einplanen"}
+            {submitLabel}
           </Button>
         </div>
       </form>
+    </Dialog>
+  );
+}
+
+/** Einteilung eines Tages auf einen anderen Tag übernehmen, mit Rückfrage bei belegtem Zieltag */
+function CopyDayDialog({ date, days, close, run, busy }: { date: string; days: string[]; close: () => void; run: Run; busy: boolean }) {
+  const later = days.filter((d) => d > date);
+  const [target, setTarget] = useState(later[0] ?? addDays(date, 1));
+  const [question, setQuestion] = useState<string | null>(null);
+
+  async function copy(mode?: "merge" | "replace") {
+    const res = await run("day-copy", { fromDate: date, toDate: target, ...(mode ? { mode } : {}) }, undefined, { silentCodes: ["target_not_empty"] });
+    if (!res.ok && res.error?.code === "target_not_empty") {
+      setQuestion(res.error.message);
+      return;
+    }
+    close();
+  }
+
+  return (
+    <Dialog open onClose={close} title="Tag übernehmen">
+      {question ? (
+        <div className="space-y-3">
+          <p className="rounded-lg bg-amber-50 p-3 font-semibold text-amber-950">{question}</p>
+          <p>Was soll mit der vorhandenen Einteilung am {formatDayShort(target)} passieren?</p>
+          <Action disabled={busy} onClick={() => copy("merge")}>
+            ➕ Zusammenführen – Vorhandenes behalten, Fehlendes ergänzen
+          </Action>
+          <Action
+            tone="danger"
+            disabled={busy}
+            onClick={() => {
+              if (confirm(`Die komplette Einteilung am ${formatDayShort(target)} wird gelöscht und ersetzt. Fortfahren?`)) void copy("replace");
+            }}
+          >
+            ♻ Zieltag ersetzen – vorhandene Einteilung löschen
+          </Action>
+          <Action onClick={close}>Abbrechen</Action>
+        </div>
+      ) : (
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void copy();
+          }}
+        >
+          <p>
+            Die Einteilung vom <strong>{formatDayShort(date)}</strong> (Fahrzeuge, Besatzung, Baustellen und Zeiten) auf einen anderen Tag kopieren. Abwesende Mitarbeiter werden ausgelassen und gemeldet.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {days
+              .filter((d) => d !== date)
+              .map((d) => (
+                <button key={d} type="button" onClick={() => setTarget(d)} className={`min-h-11 rounded-lg border px-3 font-semibold ${target === d ? "border-ink bg-slate-100" : "border-line"}`}>
+                  {formatDayShort(d)}
+                </button>
+              ))}
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-sm font-semibold">oder Zieltag wählen</span>
+            <Input type="date" value={target} onChange={(e) => e.target.value && setTarget(e.target.value)} />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={close}>
+              Abbrechen
+            </Button>
+            <Button type="submit" disabled={busy || target === date}>
+              Übernehmen nach {formatDayShort(target)}
+            </Button>
+          </div>
+        </form>
+      )}
     </Dialog>
   );
 }
