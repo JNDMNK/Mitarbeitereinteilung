@@ -41,3 +41,39 @@ describe("Logo-Dateityp", () => {
     expect(detectImageType(new TextEncoder().encode("<svg xmlns='http://www.w3.org/2000/svg'>"))).toBeNull();
   });
 });
+
+import { addDays, formatDayShort, isWeekend, weekday } from "@/lib/dates";
+import { employeeCreateSchema, siteCreateSchema, vehicleCreateSchema } from "@/lib/masterdata-schemas";
+
+describe("Datumshelfer", () => {
+  it("rechnet über Monats- und Sommerzeitgrenzen", () => {
+    expect(addDays("2026-03-28", 1)).toBe("2026-03-29");
+    expect(addDays("2026-03-29", 1)).toBe("2026-03-30");
+    expect(addDays("2026-10-25", 1)).toBe("2026-10-26");
+    expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+    expect(addDays("2026-03-01", -1)).toBe("2026-02-28");
+  });
+  it("erkennt Wochentage", () => {
+    expect(weekday("2026-11-23")).toBe(1);
+    expect(isWeekend("2026-11-28")).toBe(true);
+    expect(formatDayShort("2026-11-23")).toBe("Mo, 23.11.");
+  });
+});
+
+describe("Stammdaten-Validierung", () => {
+  const dep = "dep1";
+  it("Mitarbeiter: Kürzel wird großgeschrieben", () => {
+    const r = employeeCreateSchema.parse({ firstName: "Max", lastName: "Müller", shortName: "mmu", qualification: "GESELLE", departmentId: dep });
+    expect(r.shortName).toBe("MMU");
+    expect(r.phone).toBeNull();
+  });
+  it("Fahrzeug: Fahrer nicht zusätzlich Mitfahrer", () => {
+    const base = { licensePlate: "wü-ab 1", name: "X", seats: 3 };
+    expect(vehicleCreateSchema.safeParse({ ...base, defaultDriverId: "a", defaultMemberIds: ["a"] }).success).toBe(false);
+    expect(vehicleCreateSchema.parse({ ...base, defaultDriverId: "a", defaultMemberIds: ["b"] }).licensePlate).toBe("WÜ-AB 1");
+  });
+  it("Baustelle: Ende nicht vor Beginn, leere Daten erlaubt", () => {
+    expect(siteCreateSchema.safeParse({ name: "X", color: "#112233", startDate: "2026-02-01", endDate: "2026-01-01" }).success).toBe(false);
+    expect(siteCreateSchema.parse({ name: "X", color: "#112233", startDate: "", endDate: "" }).startDate).toBeNull();
+  });
+});

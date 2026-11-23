@@ -77,7 +77,7 @@ export function UserAdmin({ users, employees, currentUserId }: { users: UserRow[
             <Input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Benutzername oder Name" />
           </Field>
         </div>
-        <div className="w-44">
+        <div className="min-w-0 md:w-44">
           <Field label="Rolle">
             <Select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as "" | Role)}>
               <option value="">alle</option>
