@@ -20,7 +20,7 @@
   <DonateText/>
   <DonateLink/>
   <Requires>Reverse Proxy (z. B. Nginx Proxy Manager) mit HTTPS, wenn die App von außen erreichbar sein soll.</Requires>
-  <Config Name="WebUI-Port" Target="3000" Default="3000" Mode="tcp" Description="Port auf dem Unraid-Server. Der Reverse Proxy leitet auf diesen Port weiter." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="WebUI-Port" Target="3000" Default="3010" Mode="tcp" Description="Port auf dem Unraid-Server, auf den der Reverse Proxy weiterleitet. Bewusst nicht 3000: diesen Port nutzt der Nginx Proxy Manager intern selbst." Type="Port" Display="always" Required="true" Mask="false">3010</Config>
   <Config Name="Daten" Target="/data" Default="/mnt/user/appdata/einteilung" Mode="rw" Description="Datenbank, Logo und Backups. Diesen Ordner sichern!" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/einteilung</Config>
   <Config Name="APP_URL" Target="APP_URL" Default="" Mode="" Description="Öffentliche Adresse der App, genau so wie im Browser, z. B. https://einteilung.meinefirma.de (ohne / am Ende). Wichtig für Login-Cookies und Sicherheitsprüfung." Type="Variable" Display="always" Required="true" Mask="false">https://einteilung.example.de</Config>
   <Config Name="SESSION_SECRET" Target="SESSION_SECRET" Default="" Mode="" Description="Langer Zufallswert (mind. 32 Zeichen). Im Unraid-Terminal erzeugen: openssl rand -base64 48 . Nach dem Einrichten nicht mehr ändern (sonst werden alle abgemeldet)." Type="Variable" Display="always" Required="true" Mask="true"></Config>

@@ -45,7 +45,7 @@ Die ausgegebene Zeile kopieren – das ist der `SESSION_SECRET`.
 
 | Feld | Was eintragen |
 |---|---|
-| **WebUI-Port** | `3000` (oder ein anderer freier Port) |
+| **WebUI-Port** | `3010` (vorbelegt; bitte **nicht 3000** – den nutzt der Nginx Proxy Manager intern) |
 | **Daten** | `/mnt/user/appdata/einteilung` (vorbelegt) |
 | **APP_URL** | Die Adresse, unter der die App später im Browser aufgerufen wird, z. B. `https://einteilung.meinefirma.de` – ohne `/` am Ende |
 | **SESSION_SECRET** | Den Wert aus Schritt 2 |
@@ -62,19 +62,20 @@ Unter **Show more settings** (optional): `TRUST_PROXY` (1 = hinter Nginx), `TZ`,
 [bootstrap] Erster Admin "admin" angelegt. Passwortänderung beim ersten Login erforderlich.
 ```
 
-> Ohne Reverse Proxy (nur im Heimnetz testen): `APP_URL` auf `http://<Unraid-IP>:3000` und `TRUST_PROXY` auf `0` setzen.
+> Ohne Reverse Proxy (nur im Heimnetz testen): `APP_URL` auf `http://<Unraid-IP>:3010` und `TRUST_PROXY` auf `0` setzen.
 
 ---
 
 ## Reverse Proxy
 
-Die App sollte von außen **nur über HTTPS** erreichbar sein. Der Proxy leitet auf `http://<Unraid-IP>:3000` weiter.
+Die App sollte von außen **nur über HTTPS** erreichbar sein. Der Proxy leitet auf `http://<Unraid-IP>:3010` weiter
+(den WebUI-Port aus dem Template).
 
 ### Nginx Proxy Manager (NPM)
 
 1. **Hosts → Proxy Hosts → Add Proxy Host**
    - *Domain Names*: `einteilung.meinefirma.de`
-   - *Scheme*: `http` · *Forward Hostname/IP*: IP des Unraid-Servers · *Forward Port*: `3000`
+   - *Scheme*: `http` · *Forward Hostname/IP*: LAN-IP des Unraid-Servers (nicht `localhost`) · *Forward Port*: `3010`
    - *Block Common Exploits*: an
 2. Reiter **SSL**: *Request a new SSL Certificate* (Let's Encrypt), **Force SSL** an, **HTTP/2 Support** an, **HSTS Enabled** an.
 3. Reiter **Advanced** – dieses Feld einfügen (nötig für Live-Aktualisierung und Backup-Upload):
@@ -107,7 +108,7 @@ server {
     client_max_body_size 50m;
 
     location / {
-        proxy_pass http://192.168.1.10:3000;   # IP des Unraid-Servers
+        proxy_pass http://192.168.1.10:3010;   # LAN-IP des Unraid-Servers + WebUI-Port
         proxy_http_version 1.1;
         proxy_set_header Host              $host;
         proxy_set_header X-Real-IP         $remote_addr;
@@ -193,12 +194,12 @@ Docker Compose: siehe [`docker-compose.yml`](docker-compose.yml).
 | Problem | Ursache / Lösung |
 |---|---|
 | Container startet nicht, Log: „SESSION_SECRET fehlt“ | Wert aus `openssl rand -base64 48` eintragen |
-| Domain zeigt `{"status":"OK","setup":true,"version":{…}}` | Das ist die Antwort des **Nginx Proxy Managers selbst** (seine interne API läuft auf Port 3000). Im Proxy Host als *Forward Hostname* die **LAN-IP des Unraid-Servers** eintragen – nicht `localhost`/`127.0.0.1` – und als Port den WebUI-Port der App. Gegenprobe im Heimnetz: `http://<Unraid-IP>:3000/api/health` muss `{"status":"ok"}` liefern. |
+| Domain zeigt `{"status":"OK","setup":true,"version":{…}}` | Das ist die Antwort des **Nginx Proxy Managers selbst** – seine interne API läuft auf Port 3000. Ursache: Ziel `localhost`/`127.0.0.1` im Proxy Host, oder der Proxy Manager läuft im Netzwerkmodus „host“ und die App nutzt ebenfalls Port 3000. Lösung: WebUI-Port der App auf z. B. `3010` ändern und im Proxy Host *LAN-IP des Unraid-Servers* + `3010` eintragen. Gegenprobe: `http://<Unraid-IP>:3010/api/health` → `{"status":"ok"}`; Domain danach im privaten Fenster testen. |
 | 502 Bad Gateway | App läuft nicht oder falscher Port/IP im Proxy Host. Container-Log prüfen und die Gegenprobe oben machen. |
-| Login klappt nicht / „Ungültige Herkunft der Anfrage“ | Die App wird unter einer anderen Adresse aufgerufen als in `APP_URL` eingetragen. Immer genau die `APP_URL` verwenden. Bei `https://…` funktioniert der Login nicht über `http://<IP>:3000` (Cookies nur über HTTPS). |
+| Login klappt nicht / „Ungültige Herkunft der Anfrage“ | Die App wird unter einer anderen Adresse aufgerufen als in `APP_URL` eingetragen. Immer genau die `APP_URL` verwenden. Bei `https://…` funktioniert der Login nicht über `http://<IP>:3010` (Cookies nur über HTTPS). |
 | Zu viele Anmeldeversuche | Nach 5 Fehlversuchen ist ein Konto 15 Min. gesperrt; Admin kann unter Stammdaten → Benutzer entsperren |
 | Admin-Passwort vergessen | Anderen Admin bitten, es zurückzusetzen. Gibt es keinen: Container stoppen, `einteilung.db` sichern, Benutzer per SQLite-Werkzeug entfernen – beim Start wird der Admin aus `INITIAL_ADMIN_*` neu angelegt (nur wenn gar kein Benutzer existiert) |
-| Gesundheitszustand | `http://<Unraid-IP>:3000/api/health` liefert `{"status":"ok"}` |
+| Gesundheitszustand | `http://<Unraid-IP>:3010/api/health` liefert `{"status":"ok"}` |
 
 ---
 

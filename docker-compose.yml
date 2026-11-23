@@ -5,7 +5,8 @@ services:
     container_name: einteilung
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      # Host-Port 3010: 3000 nutzt der Nginx Proxy Manager intern (Konflikt im Host-Netzwerk)
+      - "3010:3000"
     volumes:
       - /mnt/user/appdata/einteilung:/data
     environment:
