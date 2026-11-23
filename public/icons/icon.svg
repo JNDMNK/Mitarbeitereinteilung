@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#a50d26"/>
+  <!-- Planungsraster -->
+  <g fill="#ffffff" opacity="0.28">
+    <rect x="72" y="72" width="104" height="56" rx="12"/>
+    <rect x="204" y="72" width="104" height="56" rx="12"/>
+    <rect x="336" y="72" width="104" height="56" rx="12"/>
+  </g>
+  <!-- Transporter -->
+  <g fill="#ffffff">
+    <path d="M64 196h232a24 24 0 0 1 24 24v148H64a24 24 0 0 1-24-24V220a24 24 0 0 1 24-24z"/>
+    <path d="M332 244h64c10 0 19 5 24 13l40 60c3 4 4 9 4 14v13a24 24 0 0 1-24 24h-108z"/>
+  </g>
+  <path d="M356 268h40l32 48h-72z" fill="#a50d26"/>
+  <g fill="#a50d26"><rect x="72" y="228" width="72" height="56" rx="10"/><rect x="164" y="228" width="72" height="56" rx="10"/></g>
+  <g fill="#ffffff" stroke="#a50d26" stroke-width="16">
+    <circle cx="140" cy="372" r="40"/>
+    <circle cx="380" cy="372" r="40"/>
+  </g>
+</svg>

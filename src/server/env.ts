@@ -6,12 +6,14 @@ function read(name: string): string | undefined {
 }
 
 const isProd = process.env.NODE_ENV === "production";
+// Während `next build` (z. B. im Docker-Build) gibt es noch keine Laufzeit-Geheimnisse
+const isBuild = process.env.NEXT_PHASE === "phase-production-build";
 
 function sessionSecret(): string {
   const s = read("SESSION_SECRET");
   if (s && s.length >= 32) return s;
-  if (isProd) {
-    throw new Error("SESSION_SECRET fehlt oder ist kürzer als 32 Zeichen.");
+  if (isProd && !isBuild) {
+    throw new Error("SESSION_SECRET fehlt oder ist kürzer als 32 Zeichen. Bitte einen langen Zufallswert setzen (z. B. openssl rand -base64 48).");
   }
   return "dev-only-insecure-session-secret-0123456789";
 }

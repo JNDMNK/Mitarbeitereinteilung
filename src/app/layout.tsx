@@ -5,6 +5,8 @@ export const metadata: Metadata = {
   title: { default: "Einteilung", template: "%s · Einteilung" },
   description: "Tägliche Einteilung von Monteuren, Fahrzeugen und Baustellen",
   robots: { index: false, follow: false },
+  icons: { icon: "/icons/favicon-32.png", apple: "/icons/apple-touch-icon.png" },
+  appleWebApp: { capable: true, title: "Einteilung", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

@@ -1,0 +1,20 @@
+# Beispiel für den Betrieb mit Docker Compose (Unraid: siehe README / unraid/einteilung.xml)
+services:
+  einteilung:
+    image: ghcr.io/jndmnk/mitarbeitereinteilung:latest
+    container_name: einteilung
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - /mnt/user/appdata/einteilung:/data
+    environment:
+      APP_URL: "https://einteilung.example.de"
+      # Langer Zufallswert, z. B.: openssl rand -base64 48
+      SESSION_SECRET: "bitte-aendern-mindestens-32-zeichen-langer-zufallswert"
+      INITIAL_ADMIN_USER: "admin"
+      INITIAL_ADMIN_PASSWORD: "bitte-aendern-123"
+      TRUST_PROXY: "1"
+      TZ: "Europe/Berlin"
+      PUID: "99"
+      PGID: "100"

@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Mitarbeitereinteilung</Name>
+  <Repository>ghcr.io/jndmnk/mitarbeitereinteilung:latest</Repository>
+  <Registry>https://github.com/JNDMNK/Mitarbeitereinteilung/pkgs/container/mitarbeitereinteilung</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/JNDMNK/Mitarbeitereinteilung/issues</Support>
+  <Project>https://github.com/JNDMNK/Mitarbeitereinteilung</Project>
+  <Overview>Tägliche Einteilung von Monteuren auf Fahrzeuge und von Fahrzeugen auf Baustellen. 3-Tages-Planung mit Drag &amp; Drop, Zeitleiste, Abwesenheiten, "Meine Einteilung" für Mitarbeiter. Daten (SQLite, Logo) liegen unter /data. Für den Zugriff von außen hinter einem Reverse Proxy (HTTPS) betreiben – siehe README.</Overview>
+  <Category>Productivity: Tools:</Category>
+  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/JNDMNK/Mitarbeitereinteilung/main/unraid/einteilung.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/JNDMNK/Mitarbeitereinteilung/main/public/icons/icon-512.png</Icon>
+  <ExtraParams>--restart=unless-stopped</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Reverse Proxy (z. B. Nginx Proxy Manager) mit HTTPS, wenn die App von außen erreichbar sein soll.</Requires>
+  <Config Name="WebUI-Port" Target="3000" Default="3000" Mode="tcp" Description="Port auf dem Unraid-Server. Der Reverse Proxy leitet auf diesen Port weiter." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="Daten" Target="/data" Default="/mnt/user/appdata/einteilung" Mode="rw" Description="Datenbank, Logo und Backups. Diesen Ordner sichern!" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/einteilung</Config>
+  <Config Name="APP_URL" Target="APP_URL" Default="" Mode="" Description="Öffentliche Adresse der App, genau so wie im Browser, z. B. https://einteilung.meinefirma.de (ohne / am Ende). Wichtig für Login-Cookies und Sicherheitsprüfung." Type="Variable" Display="always" Required="true" Mask="false">https://einteilung.example.de</Config>
+  <Config Name="SESSION_SECRET" Target="SESSION_SECRET" Default="" Mode="" Description="Langer Zufallswert (mind. 32 Zeichen). Im Unraid-Terminal erzeugen: openssl rand -base64 48 . Nach dem Einrichten nicht mehr ändern (sonst werden alle abgemeldet)." Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="INITIAL_ADMIN_USER" Target="INITIAL_ADMIN_USER" Default="admin" Mode="" Description="Benutzername des ersten Admins. Wird nur beim allerersten Start verwendet." Type="Variable" Display="always" Required="true" Mask="false">admin</Config>
+  <Config Name="INITIAL_ADMIN_PASSWORD" Target="INITIAL_ADMIN_PASSWORD" Default="" Mode="" Description="Start-Passwort des ersten Admins (mind. 10 Zeichen). Muss beim ersten Login geändert werden." Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="TRUST_PROXY" Target="TRUST_PROXY" Default="1" Mode="" Description="Anzahl Reverse Proxys vor der App (1 = Nginx Proxy Manager/SWAG). 0, wenn ohne Proxy betrieben." Type="Variable" Display="advanced" Required="false" Mask="false">1</Config>
+  <Config Name="TZ" Target="TZ" Default="Europe/Berlin" Mode="" Description="Zeitzone" Type="Variable" Display="advanced" Required="false" Mask="false">Europe/Berlin</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="Benutzer-ID für die Dateien unter /data (Unraid: 99 = nobody)" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Gruppen-ID für die Dateien unter /data (Unraid: 100 = users)" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="SEED_DEMO" Target="SEED_DEMO" Default="0" Mode="" Description="1 = beim ersten Start Beispiel-Mitarbeiter, -Fahrzeuge und -Baustellen anlegen (zum Ausprobieren)." Type="Variable" Display="advanced" Required="false" Mask="false">0</Config>
+</Container>
