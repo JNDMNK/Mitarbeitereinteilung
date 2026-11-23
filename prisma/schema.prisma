@@ -1,0 +1,295 @@
+// =============================================================================
+// Mitarbeitereinteilung – Datenmodell (Entwurf)
+// -----------------------------------------------------------------------------
+// Konventionen (bewusst gewählt, damit SQLite <-> PostgreSQL portabel bleibt):
+//  * Kalendertage als String "YYYY-MM-DD"  -> keine Zeitzonen-Verschiebung,
+//    lexikografisch sortier-/vergleichbar, identisch in SQLite und PostgreSQL.
+//  * Uhrzeiten als Minuten seit Mitternacht (Int), Vielfache von 15
+//    (420 = 07:00). Raster und Überschneidungen prüft die App serverseitig.
+//  * Aufzählungen (Rolle, Status, Ausbildungsstand) als String + Validierung
+//    in der App (zod). Werte siehe Kommentare.
+//  * Zeitpunkte (Login, Protokoll) als DateTime (UTC).
+//  * `version` = optimistische Sperre: jede Änderung schickt die gelesene
+//    Version mit; passt sie nicht mehr -> 409 + Hinweis an den Benutzer.
+//  * Stammdaten werden deaktiviert (`active = false`), nicht gelöscht.
+// Wechsel auf PostgreSQL: `provider` unten ändern, DATABASE_URL setzen,
+// Migrationen neu erzeugen. Die Modelle selbst bleiben unverändert.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ---------------------------------------------------------------------------
+// Benutzer, Sitzungen, Einstellungen
+// ---------------------------------------------------------------------------
+
+model User {
+  id               String    @id @default(cuid())
+  username         String    @unique
+  passwordHash     String
+  /// "ADMIN" | "PLANNER" (Einteiler) | "EMPLOYEE" (Mitarbeiter)
+  role             String
+  /// Pflicht bei role = EMPLOYEE (serverseitig geprüft), sonst optional
+  employeeId       String?   @unique
+  employee         Employee? @relation(fields: [employeeId], references: [id])
+  active           Boolean   @default(true)
+  lastLoginAt      DateTime?
+  /// Login-Sperre nach Fehlversuchen
+  failedLogins     Int       @default(0)
+  lockedUntil      DateTime?
+  /// Muss beim nächsten Login das Passwort ändern (z. B. nach Reset durch Admin)
+  mustChangePassword Boolean @default(false)
+  /// Benutzereinstellung: Wochenende in der Planung ausblenden
+  hideWeekends     Boolean   @default(false)
+  /// Benutzereinstellung: "cards" | "timeline"
+  planningView     String    @default("cards")
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  sessions  Session[]
+  auditLogs AuditLog[]
+}
+
+/// Serverseitige Sitzungen: widerrufbar (Passwort-Reset, Deaktivierung).
+/// Im Cookie steht nur ein zufälliges Token, gespeichert wird dessen SHA-256.
+model Session {
+  id         String   @id // SHA-256 des Session-Tokens
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  csrfToken  String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  ip         String?
+  userAgent  String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Genau eine Zeile (id = 1).
+model AppSettings {
+  id               Int      @id @default(1)
+  companyName      String   @default("Mein Betrieb")
+  /// Dateiname unter /data/uploads, null = Standardlogo
+  logoFile         String?
+  defaultStartMin  Int      @default(420) // 07:00
+  defaultEndMin    Int      @default(960) // 16:00
+  version          Int      @default(1)
+  updatedAt        DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Stammdaten
+// ---------------------------------------------------------------------------
+
+model Department {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  color     String     // "#RRGGBB"
+  sortOrder Int        @default(0)
+  active    Boolean    @default(true)
+  version   Int        @default(1)
+  employees Employee[]
+}
+
+model Employee {
+  id           String     @id @default(cuid())
+  firstName    String
+  lastName     String
+  /// Kürzel, z. B. "MMU"
+  shortName    String     @unique
+  /// "AZUBI_1" | "AZUBI_2" | "AZUBI_3" | "AZUBI_4" | "GESELLE" | "MEISTER"
+  qualification String
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  phone        String?
+  active       Boolean    @default(true)
+  version      Int        @default(1)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  user              User?
+  absences          Absence[]
+  crewEntries       CrewMember[]
+  defaultDriverOf   Vehicle[]              @relation("VehicleDefaultDriver")
+  defaultMemberOf   VehicleDefaultMember[]
+
+  @@index([departmentId])
+  @@index([active, lastName])
+}
+
+model Vehicle {
+  id              String    @id @default(cuid())
+  licensePlate    String    @unique
+  name            String    // Bezeichnung, z. B. "Sprinter 1"
+  type            String?   // z. B. "Transporter", "PKW", "LKW"
+  seats           Int
+  /// Standard-Fahrer / "Besitzer"
+  defaultDriverId String?
+  defaultDriver   Employee? @relation("VehicleDefaultDriver", fields: [defaultDriverId], references: [id])
+  note            String?
+  active          Boolean   @default(true)
+  sortOrder       Int       @default(0)
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  defaultMembers VehicleDefaultMember[]
+  days           VehicleDay[]
+}
+
+/// Weitere Standard-Mitfahrer (zusätzlich zum Standard-Fahrer).
+model VehicleDefaultMember {
+  vehicleId  String
+  vehicle    Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  sortOrder  Int      @default(0)
+
+  @@id([vehicleId, employeeId])
+}
+
+model Site {
+  id          String   @id @default(cuid())
+  name        String
+  address     String?
+  customer    String?
+  orderNumber String?
+  /// Zeitraum, "YYYY-MM-DD", beide optional
+  startDate   String?
+  endDate     String?
+  /// "PLANNED" | "ACTIVE" | "DONE"
+  status      String   @default("PLANNED")
+  note        String?
+  color       String   // "#RRGGBB"
+  active      Boolean  @default(true)
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignments SiteAssignment[]
+
+  @@index([status, active])
+}
+
+model AbsenceType {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  code      String    @unique // "U", "K", "BS", ...
+  color     String
+  sortOrder Int       @default(0)
+  active    Boolean   @default(true)
+  version   Int       @default(1)
+  absences  Absence[]
+}
+
+model Absence {
+  id         String      @id @default(cuid())
+  employeeId String
+  employee   Employee    @relation(fields: [employeeId], references: [id])
+  typeId     String
+  type       AbsenceType @relation(fields: [typeId], references: [id])
+  /// ganze Tage, inklusive: "YYYY-MM-DD"
+  startDate  String
+  endDate    String
+  note       String?
+  version    Int         @default(1)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([employeeId, startDate, endDate])
+  @@index([startDate, endDate])
+}
+
+// ---------------------------------------------------------------------------
+// Einteilung
+// ---------------------------------------------------------------------------
+
+/// Ein Fahrzeug ist an einem Tag "im Einsatz". Entsteht beim ersten Einteilen
+/// (dabei werden die Standard-Mitarbeiter vorbelegt). Ohne SiteAssignment
+/// steht das Fahrzeug samt Besatzung im Pool "Nicht eingeteilt".
+model VehicleDay {
+  id        String   @id @default(cuid())
+  date      String   // "YYYY-MM-DD"
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
+  note      String?
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  crew        CrewMember[]
+  assignments SiteAssignment[]
+
+  @@unique([date, vehicleId])
+  @@index([date])
+}
+
+/// Fahrzeugbesatzung. `date` ist bewusst redundant zu VehicleDay.date, damit
+/// die Datenbank "ein Mitarbeiter pro Tag auf genau einem Fahrzeug" erzwingt.
+model CrewMember {
+  id           String     @id @default(cuid())
+  vehicleDayId String
+  vehicleDay   VehicleDay @relation(fields: [vehicleDayId], references: [id], onDelete: Cascade)
+  date         String
+  employeeId   String
+  employee     Employee   @relation(fields: [employeeId], references: [id])
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+
+  @@unique([date, employeeId])
+  @@index([vehicleDayId])
+}
+
+/// Baustelleneinsatz eines Fahrzeugs an einem Tag. Mehrere pro VehicleDay
+/// möglich; Zeitfenster dürfen sich nicht überschneiden (App-Prüfung in
+/// einer Transaktion, da SQLite keine Exclusion-Constraints kennt).
+model SiteAssignment {
+  id           String     @id @default(cuid())
+  vehicleDayId String
+  vehicleDay   VehicleDay @relation(fields: [vehicleDayId], references: [id], onDelete: Cascade)
+  siteId       String
+  site         Site       @relation(fields: [siteId], references: [id])
+  startMin     Int        // Minuten seit 0:00, Vielfaches von 15
+  endMin       Int        // > startMin, max. 1440
+  note         String?
+  version      Int        @default(1)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([vehicleDayId, startMin])
+  @@index([siteId])
+}
+
+// ---------------------------------------------------------------------------
+// Änderungsprotokoll
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// z. B. "crew.move", "assignment.create", "employee.update", "auth.login_failed"
+  action     String
+  entityType String
+  entityId   String?
+  /// betroffener Planungstag, falls zutreffend (Filter im Protokoll)
+  date       String?
+  /// lesbarer Satz, z. B. "Max Muster von WÜ-AB 123 nach WÜ-CD 456 verschoben"
+  summary    String
+  /// JSON-Text mit Vorher/Nachher (String statt Json -> portabel)
+  details    String?
+
+  @@index([createdAt])
+  @@index([date])
+  @@index([entityType, entityId])
+}
