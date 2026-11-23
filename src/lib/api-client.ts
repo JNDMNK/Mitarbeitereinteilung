@@ -16,6 +16,24 @@ function csrfToken(): string {
   return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? "";
 }
 
+/** Datei-Upload (multipart) mit CSRF-Header */
+export async function apiUpload<T = unknown>(url: string, form: FormData): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { Accept: "application/json", "X-CSRF-Token": csrfToken() },
+      body: form,
+      credentials: "same-origin",
+    });
+  } catch {
+    throw new ApiClientError(0, "Keine Verbindung zum Server. Bitte Netzwerk prüfen.");
+  }
+  const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+  if (!res.ok) throw new ApiClientError(res.status, data.error ?? `Fehler ${res.status}`, data.code);
+  return data as T;
+}
+
 /** fetch-Wrapper: JSON, CSRF-Header, deutsche Fehlermeldungen */
 export async function api<T = unknown>(
   url: string,

@@ -7,4 +7,5 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/planung", label: "Planung", short: "Planung", permission: "planning.view", icon: "📅" },
   { href: "/abwesenheiten", label: "Abwesenheiten", short: "Abwesend", permission: "absences.view", icon: "🏖️" },
   { href: "/stammdaten", label: "Stammdaten", short: "Daten", permission: "masterdata.edit", icon: "🗂️" },
+  { href: "/einstellungen", label: "Einstellungen", short: "Admin", permission: "admin.settings", icon: "🛠️" },
 ];

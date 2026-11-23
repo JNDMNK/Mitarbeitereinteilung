@@ -47,7 +47,8 @@ export function proxy(request: NextRequest) {
 
   if (pathname.startsWith("/api/")) {
     const res = NextResponse.next();
-    res.headers.set("Cache-Control", "no-store");
+    // Logo setzt eigene Cache-Header (versionierte URL)
+    if (pathname !== "/api/logo") res.headers.set("Cache-Control", "no-store");
     return applySecurityHeaders(res);
   }
 

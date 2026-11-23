@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 
 const TONES = {
-  error: "border-red-300 bg-red-50 text-red-900",
+  error: "border-red-400 bg-red-50 text-red-900 font-medium",
   success: "border-green-300 bg-green-50 text-green-900",
-  info: "border-brand-100 bg-brand-50 text-brand-800",
+  info: "border-slate-300 bg-slate-50 text-slate-900",
   warning: "border-amber-300 bg-amber-50 text-amber-900",
 };
 

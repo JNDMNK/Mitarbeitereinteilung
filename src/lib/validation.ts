@@ -56,3 +56,23 @@ export const userPrefsSchema = z.object({
   hideWeekends: z.boolean().optional(),
   planningView: z.enum(["cards", "timeline"]).optional(),
 });
+
+const gridMinute = (label: string) =>
+  z
+    .number()
+    .int()
+    .min(0)
+    .max(24 * 60)
+    .refine((v) => v % 15 === 0, `${label} muss im 15-Minuten-Raster liegen.`);
+
+export const settingsSchema = z
+  .object({
+    version: z.number().int().positive(),
+    companyName: z.string().trim().min(1, "Bitte einen Firmennamen angeben.").max(80),
+    defaultStartMin: gridMinute("Arbeitsbeginn"),
+    defaultEndMin: gridMinute("Arbeitsende"),
+  })
+  .refine((d) => d.defaultEndMin > d.defaultStartMin, {
+    message: "Das Arbeitsende muss nach dem Arbeitsbeginn liegen.",
+    path: ["defaultEndMin"],
+  });
