@@ -8,7 +8,7 @@ import { QualificationBadge } from "@/components/qualification-badge";
 import { formatDayShort, formatRange, mapsUrl } from "@/lib/dates";
 import { QUALIFICATION_LABELS, type Qualification } from "@/lib/constants";
 import { findOverlap, suggestSlot, timeRange } from "@/lib/planning-logic";
-import { addDays } from "@/lib/dates";
+import { addDays, formatDateTimeShort } from "@/lib/dates";
 import type { NewSite, PlanningAction } from "@/lib/planning-schemas";
 import type { DragData } from "./dnd";
 import type { RunOptions, RunResult } from "./use-planning";
@@ -124,6 +124,16 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
             <QualificationBadge q={e.qualification} /> {QUALIFICATION_LABELS[e.qualification as Qualification]} · {idx.departments.get(e.departmentId)?.name} · {dateLabel}
           </p>
           <p className="font-semibold">{vehicle ? `Eingeteilt auf ${vehicle.licensePlate} (${vehicle.name})` : "Nicht eingeteilt"}</p>
+          {vehicle &&
+            (() => {
+              const row = data.vehicleDays.find((v) => v.date === sheet.date && v.vehicleId === vehicle.id)?.crew.find((c) => c.employeeId === e.id);
+              const by = row?.assignedById ? idx.planners.get(row.assignedById) : undefined;
+              return by ? (
+                <p className="text-sm text-muted">
+                  eingeteilt von <strong className="font-mono">{by.initials}</strong> ({by.name}), {formatDateTimeShort(row!.createdAt)}
+                </p>
+              ) : null;
+            })()}
           {absent && (
             <p className="rounded-lg bg-red-50 p-2 font-semibold text-red-800">
               Abwesend: {absent.type?.name} {formatRange(absent.absence.startDate, absent.absence.endDate)}
@@ -177,6 +187,12 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
             {dateLabel}
             {site && a ? ` · ${site.name}, ${timeRange(a.startMin, a.endMin)}` : vd?.assignments.length ? ` · ${vd.assignments.length} Einsatz/Einsätze` : " · ohne Baustelle"}
           </p>
+          {a?.updatedById && idx.planners.get(a.updatedById) && (
+            <p className="text-sm text-muted">
+              zuletzt geplant von <strong className="font-mono">{idx.planners.get(a.updatedById)!.initials}</strong> ({idx.planners.get(a.updatedById)!.name}),{" "}
+              {formatDateTimeShort(a.updatedAt)}
+            </p>
+          )}
           {canEdit ? (
             <>
               {a && site && (
@@ -273,8 +289,8 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
   // ---------------- Mitarbeiter für Fahrzeug wählen ----------------
   if (sheet.kind === "pickEmployeeForVehicle") {
     const v = idx.vehicles.get(sheet.vehicleId)!;
-    const available = day.poolEmployees.filter((p) => !p.absence).map((p) => p.employee);
-    const absent = day.poolEmployees.filter((p) => p.absence).map((p) => p.employee);
+    const available = day.poolEmployees.map((p) => p.employee);
+    const absent = day.absent.filter((a) => a.employee.active && !day.seatOf.has(a.employee.id)).map((a) => a.employee);
     const elsewhere = data.employees.filter((e) => e.active && day.seatOf.has(e.id) && day.seatOf.get(e.id) !== v.id);
     return (
       <Dialog open onClose={close} title={`Mitarbeiter auf ${v.licensePlate}`}>

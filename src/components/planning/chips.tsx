@@ -14,8 +14,11 @@ export function EmployeeChip({
   dragRef,
   dragProps,
   dragging,
+  assignedBy,
 }: {
   employee: PEmployee;
+  /** z. B. "ESC (Erik Schmidt), 23.11. 14:05" */
+  assignedBy?: string;
   department?: PDepartment;
   absenceType?: PAbsenceType;
   own?: boolean;
@@ -43,7 +46,7 @@ export function EmployeeChip({
     own ? "bg-brand-50 font-bold ring-2 ring-brand-600" : absent ? "bg-slate-100 text-slate-500 ring-line" : "bg-white ring-line"
   } ${onClick ? "cursor-pointer hover:ring-2 hover:ring-brand-600 active:bg-slate-50" : ""} ${dragProps && Object.keys(dragProps).length ? "touch-manipulation select-none [-webkit-touch-callout:none]" : ""} ${dragging ? "opacity-30" : ""}`;
   const style = { borderLeftColor: department?.color ?? "#94a3b8" };
-  const title = `${employee.firstName} ${employee.lastName}${absenceType ? ` – ${absenceType.name}` : ""}${own ? " (Sie)" : ""}`;
+  const title = `${employee.firstName} ${employee.lastName}${absenceType ? ` – ${absenceType.name}` : ""}${own ? " (Sie)" : ""}${assignedBy ? `\neingeteilt von ${assignedBy}` : ""}`;
   return onClick ? (
     <button type="button" ref={dragRef} {...dragProps} onClick={onClick} className={cls} style={style} title={title}>
       {body}
@@ -108,5 +111,14 @@ export function WarningList({ warnings }: { warnings: Warning[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Kleines Kürzel „wer hat geplant“ */
+export function ByBadge({ initials, title }: { initials: string; title: string }) {
+  return (
+    <span className="shrink-0 rounded bg-slate-100 px-1 font-mono text-[11px] leading-5 font-bold text-slate-700 ring-1 ring-slate-300" title={title}>
+      ✎ {initials}
+    </span>
   );
 }

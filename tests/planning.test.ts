@@ -91,9 +91,10 @@ describe("Tagesansicht aufbauen", () => {
     absenceTypes: [{ id: "t", name: "Urlaub", code: "U", color: "#00ff00" }],
     absences: [{ id: "x", employeeId: "u", typeId: "t", startDate: "2026-11-30", endDate: "2026-12-02", note: null }],
     vehicleDays: [
-      { id: "vd1", date: "2026-12-01", vehicleId: "v1", note: null, version: 1, crew: [{ id: "c1", employeeId: "a", sortOrder: 0 }], assignments: [{ id: "as1", siteId: "s1", startMin: 420, endMin: 960, note: null, version: 1 }] },
-      { id: "vd2", date: "2026-12-01", vehicleId: "v2", note: null, version: 1, crew: [{ id: "c2", employeeId: "b", sortOrder: 0 }], assignments: [] },
+      { id: "vd1", date: "2026-12-01", vehicleId: "v1", note: null, version: 1, crew: [{ id: "c1", employeeId: "a", sortOrder: 0, assignedById: null, createdAt: "" }], assignments: [{ id: "as1", siteId: "s1", startMin: 420, endMin: 960, note: null, version: 1, updatedById: null, updatedAt: "" }] },
+      { id: "vd2", date: "2026-12-01", vehicleId: "v2", note: null, version: 1, crew: [{ id: "c2", employeeId: "b", sortOrder: 0, assignedById: null, createdAt: "" }], assignments: [] },
     ],
+    planners: [],
     settings: { defaultStartMin: 420, defaultEndMin: 960 },
   };
   const day = buildDay(data, buildIndexes(data), "2026-12-01");
@@ -105,9 +106,19 @@ describe("Tagesansicht aufbauen", () => {
     expect(day.poolVehicles.map((v) => v.vehicle.id)).toEqual(["v2", "v3"]);
     expect(day.poolVehicles[0].crewWarnings.some((w) => w.text.includes("Nur Azubis"))).toBe(true);
   });
-  it("Pool: verfügbare Mitarbeiter, abwesende ausgegraut am Ende", () => {
-    expect(day.poolEmployees.map((p) => [p.employee.id, !!p.absence])).toEqual([["c", false], ["u", true]]);
+  it("Pool: nur verfügbare Mitarbeiter, Abwesende nur in der Abwesenheitsleiste", () => {
+    expect(day.poolEmployees.map((p) => p.employee.id)).toEqual(["c"]);
     expect(day.absent.map((a) => a.type?.code)).toEqual(["U"]);
     expect(day.stats).toEqual({ assigned: 2, available: 1, absent: 1 });
+  });
+});
+
+import { userInitials } from "@/lib/initials";
+describe("Kürzel für 'eingeteilt von'", () => {
+  it("eigenes Kürzel vor Mitarbeiter-Kürzel vor Benutzername", () => {
+    expect(userInitials({ username: "x", initials: "jn", employee: { shortName: "MMU" } })).toBe("JN");
+    expect(userInitials({ username: "max", employee: { shortName: "MMU" } })).toBe("MMU");
+    expect(userInitials({ username: "stefan.schmidt" })).toBe("SSC");
+    expect(userInitials({ username: "einteiler" })).toBe("EIN");
   });
 });

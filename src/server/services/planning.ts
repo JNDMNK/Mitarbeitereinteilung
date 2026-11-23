@@ -15,6 +15,7 @@ import type {
   NewSite,
 } from "@/lib/planning-schemas";
 import type { PlanningData, PlanningResult } from "@/lib/planning-types";
+import { userInitials } from "@/lib/initials";
 import { audit } from "../audit";
 import { db, type Tx } from "../db";
 import { ApiError, badRequest, conflict, notFound } from "../errors";
@@ -34,8 +35,14 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
         vehicleId: true,
         note: true,
         version: true,
-        crew: { select: { id: true, employeeId: true, sortOrder: true }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
-        assignments: { select: { id: true, siteId: true, startMin: true, endMin: true, note: true, version: true }, orderBy: { startMin: "asc" } },
+        crew: {
+          select: { id: true, employeeId: true, sortOrder: true, assignedById: true, createdAt: true },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        },
+        assignments: {
+          select: { id: true, siteId: true, startMin: true, endMin: true, note: true, version: true, updatedById: true, updatedAt: true },
+          orderBy: { startMin: "asc" },
+        },
       },
     }),
     db.absence.findMany({
@@ -50,8 +57,11 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
   const usedEmployees = new Set(vehicleDays.flatMap((v) => v.crew.map((c) => c.employeeId)));
   const usedVehicles = new Set(vehicleDays.map((v) => v.vehicleId));
   const usedSites = new Set(vehicleDays.flatMap((v) => v.assignments.map((a) => a.siteId)));
+  const plannerIds = new Set(
+    vehicleDays.flatMap((v) => [...v.crew.map((c) => c.assignedById), ...v.assignments.map((a) => a.updatedById)]).filter((x): x is string => !!x),
+  );
 
-  const [employees, vehicles, sites] = await Promise.all([
+  const [employees, vehicles, sites, planners] = await Promise.all([
     db.employee.findMany({
       where: { OR: [{ active: true }, { id: { in: [...usedEmployees] } }] },
       select: { id: true, firstName: true, lastName: true, shortName: true, qualification: true, departmentId: true, phone: true, active: true },
@@ -77,6 +87,10 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
       select: { id: true, name: true, address: true, customer: true, orderNumber: true, startDate: true, endDate: true, status: true, note: true, color: true, active: true, adHoc: true },
       orderBy: { name: "asc" },
     }),
+    db.user.findMany({
+      where: { id: { in: [...plannerIds] } },
+      select: { id: true, username: true, initials: true, employee: { select: { firstName: true, lastName: true, shortName: true } } },
+    }),
   ]);
 
   return {
@@ -91,7 +105,16 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
     departments,
     absenceTypes,
     absences,
-    vehicleDays,
+    vehicleDays: vehicleDays.map((v) => ({
+      ...v,
+      crew: v.crew.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() })),
+      assignments: v.assignments.map((a) => ({ ...a, updatedAt: a.updatedAt.toISOString() })),
+    })),
+    planners: planners.map((u) => ({
+      id: u.id,
+      initials: userInitials(u),
+      name: u.employee ? `${u.employee.firstName} ${u.employee.lastName}` : u.username,
+    })),
     settings: { defaultStartMin: settings.defaultStartMin, defaultEndMin: settings.defaultEndMin },
   };
 }
@@ -125,7 +148,7 @@ async function absentOn(tx: Tx, employeeId: string, date: string) {
  * Fahrzeug-Tag holen oder anlegen. Beim Anlegen wird die Standard-Besatzung
  * vorbelegt – außer abwesende, inaktive oder anderweitig eingeteilte Mitarbeiter.
  */
-async function ensureVehicleDay(tx: Tx, date: string, vehicleId: string, messages: string[], prefill = true) {
+async function ensureVehicleDay(tx: Tx, actorId: string, date: string, vehicleId: string, messages: string[], prefill = true) {
   const existing = await tx.vehicleDay.findUnique({ where: { date_vehicleId: { date, vehicleId } } });
   if (existing) return existing;
 
@@ -154,7 +177,7 @@ async function ensureVehicleDay(tx: Tx, date: string, vehicleId: string, message
     else if (busy) skipped.push(`${e.shortName} (schon auf ${busy.vehicleDay.vehicle.licensePlate})`);
     else if (added.length >= vehicle.seats) skipped.push(`${e.shortName} (kein Sitzplatz frei)`);
     else {
-      await tx.crewMember.create({ data: { vehicleDayId: vd.id, date, employeeId: empId, sortOrder: added.length } });
+      await tx.crewMember.create({ data: { vehicleDayId: vd.id, date, employeeId: empId, sortOrder: added.length, assignedById: actorId } });
       added.push(e.shortName);
     }
   }
@@ -225,11 +248,11 @@ async function assignCrewTx(
     await cleanupVehicleDay(tx, current.vehicleDayId);
   }
   // Einzelne Person auf ein Fahrzeug: keine Vorbelegung (die gibt es beim Einplanen des Fahrzeugs)
-  const vd = await ensureVehicleDay(tx, p.date, p.vehicleId, messages, false);
+  const vd = await ensureVehicleDay(tx, actorId, p.date, p.vehicleId, messages, false);
   const already = await tx.crewMember.findUnique({ where: { date_employeeId: { date: p.date, employeeId: p.employeeId } } });
   if (!already) {
     const count = await tx.crewMember.count({ where: { vehicleDayId: vd.id } });
-    await tx.crewMember.create({ data: { vehicleDayId: vd.id, date: p.date, employeeId: p.employeeId, sortOrder: count } });
+    await tx.crewMember.create({ data: { vehicleDayId: vd.id, date: p.date, employeeId: p.employeeId, sortOrder: count, assignedById: actorId } });
   }
   await bumpVehicleDay(tx, vd.id);
 
@@ -353,10 +376,10 @@ export async function createAssignment(actorId: string, input: z.infer<typeof as
     const site = await resolveSite(tx, actorId, input.siteId, input.newSite, input.date);
     if (!site.active) throw badRequest("Bitte eine aktive Baustelle wählen.");
     const vehicle = await loadVehicle(tx, input.vehicleId);
-    const vd = await ensureVehicleDay(tx, input.date, input.vehicleId, messages);
+    const vd = await ensureVehicleDay(tx, actorId, input.date, input.vehicleId, messages);
     await assertNoOverlap(tx, vd.id, input.startMin, input.endMin);
     await tx.siteAssignment.create({
-      data: { vehicleDayId: vd.id, siteId: site.id, startMin: input.startMin, endMin: input.endMin, note: input.note || null },
+      data: { vehicleDayId: vd.id, siteId: site.id, startMin: input.startMin, endMin: input.endMin, note: input.note || null, updatedById: actorId },
     });
     await bumpVehicleDay(tx, vd.id);
     warnings.push(...siteWarnings(site, input.date).map((w) => w.text));
@@ -392,7 +415,7 @@ export async function updateAssignment(actorId: string, input: z.infer<typeof as
 
     const res = await tx.siteAssignment.updateMany({
       where: { id: cur.id, version: input.version },
-      data: { siteId: site.id, startMin: start, endMin: end, ...(input.note !== undefined ? { note: input.note || null } : {}), version: { increment: 1 } },
+      data: { siteId: site.id, startMin: start, endMin: end, ...(input.note !== undefined ? { note: input.note || null } : {}), updatedById: actorId, version: { increment: 1 } },
     });
     if (res.count !== 1) throw conflict();
     await bumpVehicleDay(tx, cur.vehicleDayId);
@@ -465,6 +488,7 @@ export async function releaseVehicle(actorId: string, input: z.infer<typeof vehi
 /** Besatzung in einen Ziel-Fahrzeug-Tag übernehmen; Abwesende/anderweitig Eingeteilte werden ausgelassen */
 async function copyCrewInto(
   tx: Tx,
+  actorId: string,
   targetVdId: string,
   toDate: string,
   crew: { employeeId: string; employee: { firstName: string; lastName: string; shortName: string; active: boolean } }[],
@@ -487,7 +511,7 @@ async function copyCrewInto(
       continue;
     }
     const count = await tx.crewMember.count({ where: { vehicleDayId: targetVdId } });
-    await tx.crewMember.create({ data: { vehicleDayId: targetVdId, date: toDate, employeeId: c.employeeId, sortOrder: count } });
+    await tx.crewMember.create({ data: { vehicleDayId: targetVdId, date: toDate, employeeId: c.employeeId, sortOrder: count, assignedById: actorId } });
     added++;
   }
   return added;
@@ -522,10 +546,10 @@ export async function transferVehicle(actorId: string, input: z.infer<typeof veh
     // Ziel-Fahrzeug-Tag: mitgebrachte Besatzung statt Standard-Besatzung
     let target = await tx.vehicleDay.findUnique({ where: { date_vehicleId: { date: input.toDate, vehicleId: input.vehicleId } } });
     if (!target) {
-      target = src && src.crew.length > 0 ? await tx.vehicleDay.create({ data: { date: input.toDate, vehicleId: input.vehicleId } }) : await ensureVehicleDay(tx, input.toDate, input.vehicleId, messages);
+      target = src && src.crew.length > 0 ? await tx.vehicleDay.create({ data: { date: input.toDate, vehicleId: input.vehicleId } }) : await ensureVehicleDay(tx, actorId, input.toDate, input.vehicleId, messages);
     }
     const skipped = { absent: [] as string[], busy: [] as string[] };
-    const added = src ? await copyCrewInto(tx, target.id, input.toDate, src.crew, skipped) : 0;
+    const added = src ? await copyCrewInto(tx, actorId, target.id, input.toDate, src.crew, skipped) : 0;
     warnings.push(...skippedWarnings(skipped));
 
     let siteName = "";
@@ -534,7 +558,9 @@ export async function transferVehicle(actorId: string, input: z.infer<typeof veh
       if (!site || !site.active) throw badRequest("Bitte eine aktive Baustelle wählen.");
       siteName = site.name;
       await assertNoOverlap(tx, target.id, input.startMin!, input.endMin!);
-      await tx.siteAssignment.create({ data: { vehicleDayId: target.id, siteId: site.id, startMin: input.startMin!, endMin: input.endMin!, note: srcAssignment?.note ?? null } });
+      await tx.siteAssignment.create({
+        data: { vehicleDayId: target.id, siteId: site.id, startMin: input.startMin!, endMin: input.endMin!, note: srcAssignment?.note ?? null, updatedById: actorId },
+      });
       warnings.push(...siteWarnings(site, input.toDate).map((w) => w.text));
     }
     await bumpVehicleDay(tx, target.id);
@@ -624,12 +650,14 @@ export async function copyDay(actorId: string, input: z.infer<typeof dayCopySche
           skippedOther.push(`${vd.vehicle.licensePlate} ${timeRange(a.startMin, a.endMin)} „${a.site.name}“ (Zeit belegt)`);
           continue;
         }
-        const created = await tx.siteAssignment.create({ data: { vehicleDayId: target.id, siteId: a.siteId, startMin: a.startMin, endMin: a.endMin, note: a.note } });
+        const created = await tx.siteAssignment.create({
+          data: { vehicleDayId: target.id, siteId: a.siteId, startMin: a.startMin, endMin: a.endMin, note: a.note, updatedById: actorId },
+        });
         existing.push(created);
         assignments++;
         for (const w of siteWarnings(a.site, input.toDate)) siteWarn.add(`„${a.site.name}“: ${w.text}`);
       }
-      people += await copyCrewInto(tx, target.id, input.toDate, vd.crew, skipped);
+      people += await copyCrewInto(tx, actorId, target.id, input.toDate, vd.crew, skipped);
       await bumpVehicleDay(tx, target.id);
       await cleanupVehicleDay(tx, target.id);
       vehicles++;

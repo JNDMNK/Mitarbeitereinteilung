@@ -193,7 +193,13 @@ das Plugin stoppt den Container während der Sicherung, dadurch ist die Datenban
 
 **Manuell:** Container stoppen, Ordner kopieren, Container starten.
 
-Ein Export/Import der Datenbank direkt im Admin-Bereich folgt in einem späteren Schritt.
+**In der App** (Admin → Einstellungen → Datensicherung):
+
+- **Jetzt sichern & herunterladen** – konsistente Kopie der Datenbank, auch während des Betriebs.
+- **Automatisch:** täglich eine Sicherung nach `backups/` (die letzten 14 Tage), dort auch herunterladbar.
+- **Sicherung einspielen** – prüft die Datei (gültig, nicht beschädigt, mindestens ein aktiver Admin,
+  nicht aus einer neueren App-Version), sichert vorher den aktuellen Stand (`vor-import-…`) und bringt ältere
+  Sicherungen automatisch auf den aktuellen Datenbank-Stand. Danach müssen sich alle neu anmelden.
 
 ---
 

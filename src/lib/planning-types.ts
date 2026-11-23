@@ -38,8 +38,20 @@ export type PSite = {
 export type PDepartment = { id: string; name: string; color: string; sortOrder: number };
 export type PAbsenceType = { id: string; name: string; code: string; color: string };
 export type PAbsence = { id: string; employeeId: string; typeId: string; startDate: string; endDate: string; note: string | null };
-export type PCrew = { id: string; employeeId: string; sortOrder: number };
-export type PAssignment = { id: string; siteId: string; startMin: number; endMin: number; note: string | null; version: number };
+export type PCrew = { id: string; employeeId: string; sortOrder: number; assignedById: string | null; createdAt: string };
+export type PAssignment = {
+  id: string;
+  siteId: string;
+  startMin: number;
+  endMin: number;
+  note: string | null;
+  version: number;
+  /** wer den Einsatz zuletzt geplant/geändert hat */
+  updatedById: string | null;
+  updatedAt: string;
+};
+/** Benutzer, die eingeteilt haben (für Kürzel-Anzeige) */
+export type PPlanner = { id: string; initials: string; name: string };
 export type PVehicleDay = {
   id: string;
   date: string;
@@ -60,6 +72,7 @@ export type PlanningData = {
   absenceTypes: PAbsenceType[];
   absences: PAbsence[];
   vehicleDays: PVehicleDay[];
+  planners: PPlanner[];
   settings: { defaultStartMin: number; defaultEndMin: number };
 };
 

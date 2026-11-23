@@ -31,7 +31,7 @@ export function DesktopNav({ items }: { items: NavItem[] }) {
 /** Untere Tab-Leiste auf dem Smartphone: große Touchflächen */
 export function MobileNav({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
-  const all = [...items, { href: "/konto", label: "Konto", short: "Konto", icon: "⚙️", permission: "planning.view" as const }];
+  const all = [...items.filter((i) => !i.desktopOnly), { href: "/konto", label: "Konto", short: "Konto", icon: "⚙️", permission: "planning.view" as const }];
   return (
     <nav
       className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] md:hidden"

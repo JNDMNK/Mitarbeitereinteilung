@@ -107,3 +107,19 @@ export function weekdayShort(iso: string): string {
 export function navigationUrl(address: string): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
 }
+
+/** "23.11. 14:05" (Europe/Berlin) aus einem ISO-Zeitstempel */
+export function formatDateTimeShort(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("de-DE", { timeZone: TZ, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(",", "");
+}
+
+/** Beginn eines Kalendertags in Europe/Berlin als UTC-Zeitpunkt (Sommer-/Winterzeit-korrekt) */
+export function berlinDayStart(iso: string): Date {
+  const utcMidnight = new Date(`${iso}T00:00:00Z`);
+  const asBerlin = new Date(utcMidnight.toLocaleString("en-US", { timeZone: TZ }));
+  const asUtc = new Date(utcMidnight.toLocaleString("en-US", { timeZone: "UTC" }));
+  const offsetMs = asBerlin.getTime() - asUtc.getTime();
+  return new Date(utcMidnight.getTime() - offsetMs);
+}

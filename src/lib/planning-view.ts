@@ -31,6 +31,7 @@ export function buildIndexes(data: PlanningData) {
     sites: new Map(data.sites.map((s) => [s.id, s])),
     departments: new Map(data.departments.map((d) => [d.id, d])),
     types: new Map(data.absenceTypes.map((t) => [t.id, t])),
+    planners: new Map((data.planners ?? []).map((p) => [p.id, p])),
   };
 }
 export type Indexes = ReturnType<typeof buildIndexes>;
@@ -86,14 +87,12 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
   sites.sort((a, b) => a.items[0].assignment.startMin - b.items[0].assignment.startMin || a.site.name.localeCompare(b.site.name));
 
   const depOrder = (e: PEmployee) => idx.departments.get(e.departmentId)?.sortOrder ?? 999;
+  // Pool = nur verfügbare Mitarbeiter; Abwesende stehen ausschließlich in der Abwesenheitsleiste
   const poolEmployees: PoolEmployee[] = data.employees
-    .filter((e) => e.active && !seatOf.has(e.id))
+    .filter((e) => e.active && !seatOf.has(e.id) && !absentIds.has(e.id))
     .sort((a, b) => depOrder(a) - depOrder(b) || a.lastName.localeCompare(b.lastName))
-    .map((e) => ({ employee: e, absence: absent.find((x) => x.employee.id === e.id) }));
-  // verfügbare zuerst, abwesende ans Ende
-  poolEmployees.sort((a, b) => Number(!!a.absence) - Number(!!b.absence));
+    .map((e) => ({ employee: e }));
 
-  const activeCount = data.employees.filter((e) => e.active).length;
   return {
     date,
     absent,
@@ -101,6 +100,6 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
     poolVehicles,
     poolEmployees,
     seatOf,
-    stats: { assigned: seatOf.size, available: activeCount - seatOf.size - poolEmployees.filter((p) => p.absence).length, absent: absent.length },
+    stats: { assigned: seatOf.size, available: poolEmployees.length, absent: absent.length },
   };
 }

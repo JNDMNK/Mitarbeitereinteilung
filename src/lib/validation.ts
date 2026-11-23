@@ -32,8 +32,18 @@ export const changePasswordSchema = z
 
 export const roleSchema = z.enum(ROLES);
 
+const initialsSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .max(4, "Das Kürzel darf höchstens 4 Zeichen haben.")
+  .regex(/^[A-ZÄÖÜ0-9]*$/, "Das Kürzel darf nur Buchstaben und Ziffern enthalten.")
+  .nullish()
+  .transform((v) => (v ? v : null));
+
 export const createUserSchema = z.object({
   username: usernameSchema,
+  initials: initialsSchema,
   password: passwordSchema,
   role: roleSchema,
   employeeId: z.string().min(1).nullable().optional(),
@@ -43,6 +53,7 @@ export const createUserSchema = z.object({
 export const updateUserSchema = z.object({
   version: z.number().int().positive(),
   username: usernameSchema.optional(),
+  initials: initialsSchema,
   role: roleSchema.optional(),
   employeeId: z.string().min(1).nullable().optional(),
   active: z.boolean().optional(),

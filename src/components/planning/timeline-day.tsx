@@ -164,7 +164,7 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
       {/* Pool-Mitarbeiter: auf eine Fahrzeugzeile ziehen oder antippen */}
       <div className="rounded-xl bg-slate-50 p-2 ring-1 ring-line">
         <h3 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">
-          Nicht eingeteilt ({day.poolEmployees.filter((p) => !p.absence).length} verfügbar){canEdit ? " – auf ein Fahrzeug ziehen" : ""}
+          Nicht eingeteilt ({day.poolEmployees.length} verfügbar){canEdit ? " – auf ein Fahrzeug ziehen" : ""}
         </h3>
         <div className="flex flex-wrap gap-1">
           {day.poolEmployees.length === 0 && <span className="text-sm text-muted">Alle eingeteilt.</span>}
@@ -322,7 +322,8 @@ function Bar({
 
   const left = toPercent(Math.max(shown.startMin, axis.startMin), axis);
   const width = toPercent(Math.min(shown.endMin, axis.endMin), axis) - left;
-  const label = `${site?.name ?? "?"} · ${timeRange(shown.startMin, shown.endMin)}`;
+  const by = a.updatedById ? idx.planners.get(a.updatedById) : undefined;
+  const label = `${site?.name ?? "?"} · ${timeRange(shown.startMin, shown.endMin)}${by ? ` · geplant von ${by.initials}` : ""}`;
 
   return (
     <div
@@ -355,6 +356,7 @@ function Bar({
         {site?.name}
         <span className="block font-mono font-semibold opacity-90">
           {timeRange(shown.startMin, shown.endMin)}
+          {by && <span className="ml-1 opacity-80">✎ {by.initials}</span>}
           {clash && <span className="ml-1 rounded bg-red-700 px-1 text-white">Überschneidung</span>}
         </span>
       </span>

@@ -13,6 +13,7 @@ import { ROLE_LABELS, ROLES, type Role } from "@/lib/roles";
 type UserRow = {
   id: string;
   username: string;
+  initials: string | null;
   role: string;
   active: boolean;
   lastLoginAt: string | null;
@@ -103,6 +104,7 @@ export function UserAdmin({ users, employees, currentUserId }: { users: UserRow[
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-lg font-bold">{u.username}</span>
+                {u.initials && <span className="font-mono text-sm font-semibold text-muted">{u.initials}</span>}
                 <span className="rounded-full bg-brand-50 px-2 py-0.5 text-sm font-semibold text-brand-800">{ROLE_LABELS[u.role as Role] ?? u.role}</span>
                 {!u.active && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-sm font-semibold">inaktiv</span>}
                 {u.lockedUntil && <span className="rounded-full bg-red-100 px-2 py-0.5 text-sm font-semibold text-red-800">gesperrt</span>}
@@ -189,13 +191,14 @@ function UserForm({
       if (user) {
         await api(`/api/users/${user.id}`, {
           method: "PATCH",
-          body: { version: user.version, username: f.get("username"), role, employeeId },
+          body: { version: user.version, username: f.get("username"), initials: f.get("initials") || null, role, employeeId },
         });
         onDone(`Benutzer "${f.get("username")}" gespeichert.`);
       } else {
         await api("/api/users", {
           body: {
             username: f.get("username"),
+            initials: f.get("initials") || null,
             password: f.get("password"),
             role,
             employeeId,
@@ -215,6 +218,9 @@ function UserForm({
       {error && <Alert tone="error">{error}</Alert>}
       <Field label="Benutzername" hint="Kleinbuchstaben, Ziffern, . _ -">
         <Input name="username" defaultValue={user?.username} required autoCapitalize="none" autoComplete="off" spellCheck={false} />
+      </Field>
+      <Field label="Kürzel (optional)" hint="Erscheint in der Planung bei „eingeteilt von“. Leer = Kürzel des verknüpften Mitarbeiters bzw. aus dem Benutzernamen.">
+        <Input name="initials" defaultValue={user?.initials ?? ""} maxLength={4} className="w-28 font-mono uppercase" autoComplete="off" />
       </Field>
       {!user && (
         <Field label="Start-Passwort" hint={`Mindestens ${PASSWORD_MIN_LENGTH} Zeichen.`}>

@@ -11,6 +11,7 @@ import { badRequest, conflict, notFound } from "../errors";
 export const userListSelect = {
   id: true,
   username: true,
+  initials: true,
   role: true,
   active: true,
   lastLoginAt: true,
@@ -50,6 +51,7 @@ export async function createUser(actorId: string, input: z.infer<typeof createUs
     const user = await tx.user.create({
       data: {
         username: input.username,
+        initials: input.initials ?? null,
         passwordHash,
         role: input.role,
         employeeId: input.employeeId ?? null,
@@ -91,6 +93,7 @@ export async function updateUser(actorId: string, userId: string, input: z.infer
       where: { id: userId, version: input.version },
       data: {
         username: input.username ?? current.username,
+        ...(input.initials !== undefined ? { initials: input.initials } : {}),
         role,
         employeeId,
         active,
@@ -101,6 +104,7 @@ export async function updateUser(actorId: string, userId: string, input: z.infer
 
     const changes: string[] = [];
     if (input.username && input.username !== current.username) changes.push(`Benutzername → ${input.username}`);
+    if (input.initials !== undefined && input.initials !== current.initials) changes.push(`Kürzel → ${input.initials ?? "–"}`);
     if (role !== current.role) changes.push(`Rolle → ${ROLE_LABELS[role]}`);
     if (employeeId !== current.employeeId) changes.push("Mitarbeiter-Verknüpfung geändert");
     if (active !== current.active) changes.push(active ? "aktiviert" : "deaktiviert");

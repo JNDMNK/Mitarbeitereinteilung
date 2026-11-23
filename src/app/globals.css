@@ -38,10 +38,29 @@ dialog::backdrop {
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
   .no-print {
     display: none !important;
   }
   body {
     background: white;
+  }
+  main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  /* Farben (Baustellenpunkte) mitdrucken */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-page {
+    break-after: page;
+  }
+  .print-page:last-child {
+    break-after: auto;
   }
 }

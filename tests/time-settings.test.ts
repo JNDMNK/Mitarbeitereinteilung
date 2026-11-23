@@ -98,3 +98,11 @@ describe("Monats- und Bereichshelfer", () => {
     expect(formatRange("2026-12-01", "2026-12-01")).toBe("01.12.2026");
   });
 });
+
+import { berlinDayStart } from "@/lib/dates";
+describe("Tagesbeginn Europe/Berlin", () => {
+  it("Winterzeit (UTC+1) und Sommerzeit (UTC+2)", () => {
+    expect(berlinDayStart("2026-01-15").toISOString()).toBe("2026-01-14T23:00:00.000Z");
+    expect(berlinDayStart("2026-07-15").toISOString()).toBe("2026-07-14T22:00:00.000Z");
+  });
+});

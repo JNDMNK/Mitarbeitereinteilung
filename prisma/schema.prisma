@@ -49,12 +49,16 @@ model User {
   hideWeekends     Boolean   @default(false)
   /// Benutzereinstellung: "cards" | "timeline"
   planningView     String    @default("cards")
+  /// Kürzel für "eingeteilt von" (sonst Kürzel des verknüpften Mitarbeiters bzw. Benutzername)
+  initials         String?
   version          Int       @default(1)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
   sessions  Session[]
   auditLogs AuditLog[]
+  crewAssigned        CrewMember[]     @relation("CrewAssignedBy")
+  assignmentsUpdated  SiteAssignment[] @relation("AssignmentUpdatedBy")
 }
 
 /// Serverseitige Sitzungen: widerrufbar (Passwort-Reset, Deaktivierung).
@@ -246,6 +250,9 @@ model CrewMember {
   employeeId   String
   employee     Employee   @relation(fields: [employeeId], references: [id])
   sortOrder    Int        @default(0)
+  /// wer den Mitarbeiter eingeteilt hat
+  assignedById String?
+  assignedBy   User?      @relation("CrewAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
   createdAt    DateTime   @default(now())
 
   @@unique([date, employeeId])
@@ -264,6 +271,9 @@ model SiteAssignment {
   startMin     Int        // Minuten seit 0:00, Vielfaches von 15
   endMin       Int        // > startMin, max. 1440
   note         String?
+  /// wer den Einsatz zuletzt geplant/geändert hat
+  updatedById  String?
+  updatedBy    User?      @relation("AssignmentUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   version      Int        @default(1)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt

@@ -5,7 +5,8 @@ import { formatDayLong, formatDayShort, isWeekend, mapsUrl } from "@/lib/dates";
 import { timeRange } from "@/lib/planning-logic";
 import type { PEmployee, PVehicle } from "@/lib/planning-types";
 import type { DayView, Indexes, VehicleSlot } from "@/lib/planning-view";
-import { EmployeeChip, VehicleLabel, WarningList } from "./chips";
+import { formatDateTimeShort } from "@/lib/dates";
+import { ByBadge, EmployeeChip, VehicleLabel, WarningList } from "./chips";
 import { dropZoneClass, useDragItem, useDropZone, type DragData, type DropData } from "./dnd";
 import type { Sheet } from "./sheets";
 
@@ -28,10 +29,12 @@ export function DraggableEmployee({
   own,
   open,
   suffix,
+  assignedBy,
 }: {
   employee: PEmployee;
   date: string;
   fromVehicleId: string | null;
+  assignedBy?: string;
   day: DayView;
   idx: Indexes;
   canEdit: boolean;
@@ -54,8 +57,17 @@ export function DraggableEmployee({
       dragRef={drag.ref}
       dragProps={drag.props}
       dragging={drag.isDragging}
+      assignedBy={assignedBy}
     />
   );
+}
+
+/** "ESC (Erik Schmidt), 23.11. 14:05" */
+export function plannerText(idx: Indexes, userId: string | null | undefined, at?: string): string | undefined {
+  if (!userId) return undefined;
+  const p = idx.planners.get(userId);
+  if (!p) return undefined;
+  return `${p.initials} (${p.name})${at ? `, ${formatDateTimeShort(at)}` : ""}`;
 }
 
 function DraggableVehicle({
@@ -101,13 +113,17 @@ export function Drop({ id, data, canEdit, className, children, as = "div" }: { i
 }
 
 export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Props) {
-  const crewChips = (crew: PEmployee[], vehicle: PVehicle, suffix: string) =>
+  const crewChips = (crew: PEmployee[], vehicle: PVehicle, suffix: string, slot?: VehicleSlot) =>
     crew.map((e) => (
       <DraggableEmployee
         key={e.id}
         employee={e}
         date={day.date}
         fromVehicleId={vehicle.id}
+        assignedBy={(() => {
+          const row = slot?.vehicleDay?.crew.find((c) => c.employeeId === e.id);
+          return plannerText(idx, row?.assignedById, row?.createdAt);
+        })()}
         day={day}
         idx={idx}
         canEdit={canEdit}
@@ -172,6 +188,12 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
                   <span className="shrink-0 rounded bg-slate-800 px-1.5 font-mono text-xs leading-6 font-bold text-white">
                     {timeRange(it.assignment.startMin, it.assignment.endMin)}
                   </span>
+                  {it.assignment.updatedById && idx.planners.get(it.assignment.updatedById) && (
+                    <ByBadge
+                      initials={idx.planners.get(it.assignment.updatedById)!.initials}
+                      title={`Zuletzt geplant von ${plannerText(idx, it.assignment.updatedById, it.assignment.updatedAt)}`}
+                    />
+                  )}
                   <div className="min-w-0 flex-1">
                     <DraggableVehicle
                       slot={it}
@@ -185,7 +207,7 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
                   </div>
                 </div>
                 {it.crew.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">{crewChips(it.crew, it.vehicle, it.assignment.id)}</div>
+                  <div className="flex flex-wrap gap-1">{crewChips(it.crew, it.vehicle, it.assignment.id, it)}</div>
                 ) : (
                   canEdit && <p className="text-xs text-muted">Mitarbeiter hierher ziehen</p>
                 )}
@@ -206,7 +228,7 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
       >
         <h3 className="mb-2 text-sm font-bold">Nicht eingeteilt</h3>
         <div className="mb-3">
-          <h4 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">Mitarbeiter ({day.poolEmployees.filter((p) => !p.absence).length} verfügbar)</h4>
+          <h4 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">Mitarbeiter ({day.poolEmployees.length} verfügbar)</h4>
           {day.poolEmployees.length === 0 ? (
             <p className="text-sm text-muted">Alle eingeteilt.</p>
           ) : (
@@ -240,7 +262,7 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
                 className="rounded-lg bg-white px-2 py-1 ring-1 ring-line"
               >
                 <DraggableVehicle slot={p} date={day.date} assignment={null} siteId={null} canEdit={canEdit} suffix="pool" onClick={() => open({ kind: "vehicle", date: day.date, vehicleId: p.vehicle.id })} />
-                {p.crew.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{crewChips(p.crew, p.vehicle, "pool")}</div>}
+                {p.crew.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{crewChips(p.crew, p.vehicle, "pool", p)}</div>}
                 <WarningList warnings={p.crewWarnings} />
               </Drop>
             ))}
@@ -266,8 +288,18 @@ export function DayHeader({ day, today, canEdit, open, sticky = true }: { day: D
             {day.stats.assigned} eingeteilt · {day.stats.available} frei · {day.stats.absent} abwesend
           </p>
         </div>
+        <div className="no-print flex shrink-0 gap-1">
+          <a
+            href={`/druck?datum=${day.date}`}
+            target="_blank"
+            rel="noopener"
+            className="flex min-h-10 items-center rounded-lg bg-white/15 px-2 text-sm font-semibold hover:bg-white/25"
+            title="Druckansicht dieses Tages"
+          >
+            🖨
+          </a>
         {canEdit && (
-          <div className="flex shrink-0 gap-1">
+          <>
             <button
               type="button"
               onClick={() => open({ kind: "copyDay", date: day.date })}
@@ -279,8 +311,9 @@ export function DayHeader({ day, today, canEdit, open, sticky = true }: { day: D
             <button type="button" onClick={() => open({ kind: "pickSiteForDay", date: day.date })} className="min-h-10 rounded-lg bg-white/15 px-2 text-sm font-semibold hover:bg-white/25">
               + Baustelle
             </button>
-          </div>
+          </>
         )}
+        </div>
       </header>
   );
 }

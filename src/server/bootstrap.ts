@@ -5,6 +5,7 @@ import { hashPassword } from "./auth/password";
 import { purgeExpiredSessions } from "./auth/session";
 import { audit } from "./audit";
 import { ensureDefaultDepartment, seedBase, seedDemo } from "./seed-data";
+import { autoBackupIfDue } from "./services/backup";
 
 /**
  * Wird beim Serverstart ausgeführt (instrumentation.ts):
@@ -54,6 +55,11 @@ export async function bootstrap() {
       console.warn("[bootstrap] Keine Benutzer vorhanden und INITIAL_ADMIN_USER/INITIAL_ADMIN_PASSWORD nicht gesetzt.");
     }
   }
+
+  // Tägliche automatische Datensicherung nach DATA_DIR/backups (letzte 14 Tage)
+  const runBackup = () => void autoBackupIfDue().catch((err) => console.error("[backup] Automatische Sicherung fehlgeschlagen:", err));
+  setTimeout(runBackup, 60_000).unref();
+  setInterval(runBackup, 6 * 60 * 60 * 1000).unref();
 
   await purgeExpiredSessions();
   setInterval(() => void purgeExpiredSessions().catch(() => {}), 6 * 60 * 60 * 1000).unref();

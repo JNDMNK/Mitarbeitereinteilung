@@ -260,6 +260,14 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
               ))}
             </div>
           </div>
+          <a
+            href={`/druck?datum=${from}&tage=3`}
+            target="_blank"
+            rel="noopener"
+            className="hidden min-h-11 items-center rounded-lg border border-line px-3 font-semibold hover:bg-slate-50 md:flex"
+          >
+            🖨 Drucken
+          </a>
           <span className="ml-auto hidden items-center gap-3 text-sm text-muted md:flex" aria-live="polite">
             {query.isFetching ? "Aktualisiere …" : query.isError ? "Verbindung gestört – Daten evtl. veraltet" : ""}
             <LiveIndicator status={liveStatus} />

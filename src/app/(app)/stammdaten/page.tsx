@@ -13,6 +13,7 @@ const SECTIONS: { href: string; title: string; text: string; permission: Permiss
   { href: "/stammdaten/abteilungen", title: "Abteilungen", text: "Name und Farbe", permission: "admin.masterdata" },
   { href: "/stammdaten/abwesenheitsarten", title: "Abwesenheitsarten", text: "Urlaub, Krank, Berufsschule …", permission: "admin.masterdata" },
   { href: "/stammdaten/benutzer", title: "Benutzer", text: "Logins, Rollen, Passwörter", permission: "admin.users" },
+  { href: "/protokoll", title: "Änderungsprotokoll", text: "Wer hat wann was eingeteilt oder geändert", permission: "audit.view" },
 ];
 
 export default async function MasterDataPage() {
