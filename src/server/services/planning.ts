@@ -12,6 +12,7 @@ import type {
   dayCopySchema,
   vehicleReleaseSchema,
   vehicleTransferSchema,
+  NewSite,
 } from "@/lib/planning-schemas";
 import type { PlanningData, PlanningResult } from "@/lib/planning-types";
 import { audit } from "../audit";
@@ -73,7 +74,7 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
     }),
     db.site.findMany({
       where: { OR: [{ active: true, status: { not: "DONE" } }, { id: { in: [...usedSites] } }] },
-      select: { id: true, name: true, address: true, customer: true, orderNumber: true, startDate: true, endDate: true, status: true, note: true, color: true, active: true },
+      select: { id: true, name: true, address: true, customer: true, orderNumber: true, startDate: true, endDate: true, status: true, note: true, color: true, active: true, adHoc: true },
       orderBy: { name: "asc" },
     }),
   ]);
@@ -300,6 +301,34 @@ export async function transferCrew(actorId: string, input: z.infer<typeof crewTr
 // Baustelleneinsätze
 // ---------------------------------------------------------------------------
 
+const ADHOC_COLORS = ["#0d9488", "#2563eb", "#7c3aed", "#c026d3", "#ea580c", "#65a30d", "#0891b2", "#db2777"];
+
+/** Bestehende Baustelle laden oder freie Baustelle anlegen */
+async function resolveSite(tx: Tx, actorId: string, siteId: string | undefined, newSite: NewSite | undefined, date: string) {
+  if (newSite) {
+    // gleichnamigen, aktiven freien Eintrag wiederverwenden (z. B. am Folgetag erneut eingegeben)
+    const existing = await tx.site.findFirst({ where: { adHoc: true, active: true, name: newSite.name, address: newSite.address } });
+    if (existing) return existing;
+    let h = 0;
+    for (const ch of newSite.name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const site = await tx.site.create({
+      data: { name: newSite.name, address: newSite.address, status: "ACTIVE", adHoc: true, color: ADHOC_COLORS[h % ADHOC_COLORS.length] },
+    });
+    await audit(tx, {
+      userId: actorId,
+      action: "site.create",
+      entityType: "Site",
+      entityId: site.id,
+      date,
+      summary: `Freie Baustelle „${site.name}“ in der Planung angelegt`,
+    });
+    return site;
+  }
+  const site = siteId ? await tx.site.findUnique({ where: { id: siteId } }) : null;
+  if (!site) throw badRequest("Bitte eine Baustelle wählen.");
+  return site;
+}
+
 async function assertNoOverlap(tx: Tx, vehicleDayId: string, start: number, end: number, exceptId?: string) {
   const others = await tx.siteAssignment.findMany({
     where: { vehicleDayId, ...(exceptId ? { id: { not: exceptId } } : {}) },
@@ -315,8 +344,8 @@ export async function createAssignment(actorId: string, input: z.infer<typeof as
   const messages: string[] = [];
   const warnings: string[] = [];
   await db.$transaction(async (tx) => {
-    const site = await tx.site.findUnique({ where: { id: input.siteId } });
-    if (!site || !site.active) throw badRequest("Bitte eine aktive Baustelle wählen.");
+    const site = await resolveSite(tx, actorId, input.siteId, input.newSite, input.date);
+    if (!site.active) throw badRequest("Bitte eine aktive Baustelle wählen.");
     const vehicle = await loadVehicle(tx, input.vehicleId);
     const vd = await ensureVehicleDay(tx, input.date, input.vehicleId, messages);
     await assertNoOverlap(tx, vd.id, input.startMin, input.endMin);
@@ -347,7 +376,11 @@ export async function updateAssignment(actorId: string, input: z.infer<typeof as
     const start = input.startMin ?? cur.startMin;
     const end = input.endMin ?? cur.endMin;
     if (end <= start) throw badRequest("Das Ende muss nach dem Beginn liegen.");
-    const site = input.siteId && input.siteId !== cur.siteId ? await tx.site.findUnique({ where: { id: input.siteId } }) : cur.site;
+    const site = input.newSite
+      ? await resolveSite(tx, actorId, undefined, input.newSite, date)
+      : input.siteId && input.siteId !== cur.siteId
+        ? await tx.site.findUnique({ where: { id: input.siteId } })
+        : cur.site;
     if (!site || (!site.active && site.id !== cur.siteId)) throw badRequest("Bitte eine aktive Baustelle wählen.");
     await assertNoOverlap(tx, cur.vehicleDayId, start, end, cur.id);
 

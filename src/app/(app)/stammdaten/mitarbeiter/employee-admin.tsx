@@ -20,7 +20,7 @@ type Employee = {
   active: boolean;
   version: number;
   department: { id: string; name: string; color: string };
-  user?: { id: string; username: string; active: boolean } | null;
+  user?: { id: string; username: string; active: boolean; role: string } | null;
 };
 type Department = { id: string; name: string; color: string; active: boolean };
 
@@ -39,6 +39,7 @@ export function EmployeeAdmin({
   const [qual, setQual] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState<Employee | "new" | null>(null);
+  const [loginFor, setLoginFor] = useState<Employee | null>(null);
 
   const filtered = useMemo(
     () =>
@@ -101,6 +102,16 @@ export function EmployeeAdmin({
             inactive={!e.active}
             actions={
               <>
+                {e.active && !e.user && (
+                  <Button variant="secondary" onClick={() => setLoginFor(e)}>
+                    Login anlegen
+                  </Button>
+                )}
+                {e.active && e.user && !e.user.active && (
+                  <Button variant="secondary" onClick={() => setLoginFor(e)}>
+                    Login freischalten
+                  </Button>
+                )}
                 <Button variant="secondary" onClick={() => setEditing(e)}>
                   Bearbeiten
                 </Button>
@@ -144,6 +155,21 @@ export function EmployeeAdmin({
           </Row>
         ))}
       </ListBox>
+
+      <Dialog open={loginFor !== null} onClose={() => setLoginFor(null)} title={loginFor?.user ? "Login freischalten" : "Login anlegen"}>
+        {loginFor && (
+          <LoginForm
+            key={loginFor.id}
+            employee={loginFor}
+            takenUsernames={takenUsernames}
+            onDone={(text) => {
+              setLoginFor(null);
+              page.setMsg({ tone: "success", text });
+            }}
+            onCancel={() => setLoginFor(null)}
+          />
+        )}
+      </Dialog>
 
       <Dialog open={editing !== null} onClose={() => setEditing(null)} title={editing === "new" ? "Mitarbeiter anlegen" : "Mitarbeiter bearbeiten"}>
         {editing !== null && (
@@ -318,6 +344,74 @@ function EmployeeForm({
         </p>
       )}
       <FormActions busy={form.busy || userTaken} onCancel={onCancel} />
+    </form>
+  );
+}
+
+/** Login für bestehenden Mitarbeiter anlegen bzw. gesperrten Login freischalten */
+function LoginForm({
+  employee,
+  takenUsernames,
+  onDone,
+  onCancel,
+}: {
+  employee: Employee;
+  takenUsernames: string[];
+  onDone: (msg: string) => void;
+  onCancel: () => void;
+}) {
+  const form = useSave();
+  const existing = employee.user;
+  const [username, setUsername] = useState(suggestUsername(employee.firstName, employee.lastName));
+  const [password, setPassword] = useState("");
+  const taken = !existing && takenUsernames.includes(username);
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={async (ev) => {
+        ev.preventDefault();
+        let message = "";
+        const ok = await form.run(async () => {
+          const res = await api<{ message: string }>(`/api/employees/${employee.id}/login`, {
+            body: existing ? { action: "activate", ...(password ? { password } : {}) } : { action: "create", username, password },
+          });
+          message = res.message;
+        }, "");
+        if (ok) onDone(message);
+      }}
+    >
+      {form.msg?.tone === "error" && <MessageBar msg={form.msg} />}
+      <p>
+        <strong>
+          {employee.firstName} {employee.lastName}
+        </strong>{" "}
+        {existing ? (
+          <>
+            hat den gesperrten Login <strong>{existing.username}</strong>.
+          </>
+        ) : (
+          "bekommt einen Login mit der Rolle Mitarbeiter (nur lesen, „Meine Einteilung“)."
+        )}
+      </p>
+      {!existing && (
+        <Field label="Benutzername" error={taken ? "Bereits vergeben" : undefined}>
+          <Input value={username} onChange={(e) => setUsername(e.target.value.toLowerCase())} required autoCapitalize="none" spellCheck={false} />
+        </Field>
+      )}
+      <Field
+        label={existing ? "Neues Start-Passwort (optional)" : "Start-Passwort"}
+        hint={existing ? "Leer lassen, um das bisherige Passwort zu behalten." : `Mind. ${PASSWORD_MIN_LENGTH} Zeichen, muss beim ersten Login geändert werden.`}
+      >
+        <Input
+          type="text"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required={!existing}
+          minLength={PASSWORD_MIN_LENGTH}
+          autoComplete="new-password"
+        />
+      </Field>
+      <FormActions busy={form.busy || taken} onCancel={onCancel} />
     </form>
   );
 }

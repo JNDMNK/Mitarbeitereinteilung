@@ -86,7 +86,7 @@ describe("Tagesansicht aufbauen", () => {
       { id: "v2", licensePlate: "V2", name: "V2", type: null, seats: 2, active: true, sortOrder: 1, defaultIds: [] },
       { id: "v3", licensePlate: "V3", name: "V3", type: null, seats: 2, active: true, sortOrder: 2, defaultIds: [] },
     ],
-    sites: [{ id: "s1", name: "S1", address: null, customer: null, orderNumber: null, startDate: null, endDate: null, status: "ACTIVE", note: null, color: "#000000", active: true }],
+    sites: [{ id: "s1", name: "S1", address: null, customer: null, orderNumber: null, startDate: null, endDate: null, status: "ACTIVE", note: null, color: "#000000", active: true, adHoc: false }],
     departments: [{ id: "d", name: "D", color: "#111111", sortOrder: 0 }],
     absenceTypes: [{ id: "t", name: "Urlaub", code: "U", color: "#00ff00" }],
     absences: [{ id: "x", employeeId: "u", typeId: "t", startDate: "2026-11-30", endDate: "2026-12-02", note: null }],

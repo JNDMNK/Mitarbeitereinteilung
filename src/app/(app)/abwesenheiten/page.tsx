@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LiveRefresh } from "@/components/live/live-refresh";
 import { PageHeader } from "@/components/page-header";
 import { monthEnd, monthStart, todayIso } from "@/lib/dates";
 import { can } from "@/lib/roles";
@@ -32,6 +33,7 @@ export default async function AbsencesPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
+      <LiveRefresh scopes={["absences", "masterdata"]} />
       <PageHeader title="Abwesenheiten" />
       <AbsenceBoard
         from={from}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ColorEntityAdmin } from "@/components/masterdata/color-entity-admin";
 import { BackLink } from "@/components/masterdata/shared";
+import { LiveRefresh } from "@/components/live/live-refresh";
 import { PageHeader } from "@/components/page-header";
 import { requirePagePermission } from "@/server/page-auth";
 import { listDepartments } from "@/server/services/masterdata/departments";
@@ -12,6 +13,7 @@ export default async function DepartmentsPage() {
   const deps = await listDepartments();
   return (
     <>
+      <LiveRefresh scopes={["masterdata"]} />
       <BackLink />
       <PageHeader title="Abteilungen" description="Die Farbe erscheint an den Mitarbeiter-Chips in der Planung." />
       <ColorEntityAdmin

@@ -6,6 +6,7 @@ import type { z } from "zod";
 import { formatMinutes } from "@/lib/time";
 import type { settingsSchema } from "@/lib/validation";
 import { audit } from "../audit";
+import { publishChange } from "../events";
 import { db } from "../db";
 import { env } from "../env";
 import { badRequest, conflict } from "../errors";
@@ -24,7 +25,7 @@ export async function getSettings() {
 }
 
 export async function updateSettings(actorId: string, input: z.infer<typeof settingsSchema>) {
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const current = await tx.appSettings.findUniqueOrThrow({ where: { id: 1 } });
     const res = await tx.appSettings.updateMany({
       where: { id: 1, version: input.version },
@@ -49,6 +50,8 @@ export async function updateSettings(actorId: string, input: z.infer<typeof sett
     });
     return tx.appSettings.findUniqueOrThrow({ where: { id: 1 } });
   });
+  publishChange({ scope: "masterdata", userId: actorId });
+  return result;
 }
 
 /** Dateityp anhand der ersten Bytes erkennen (nicht der Dateiendung trauen). SVG bewusst nicht erlaubt (Skripte). */

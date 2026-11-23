@@ -25,6 +25,18 @@ export const crewRemoveSchema = z.object({
   expectedFromVehicleId: id,
 });
 
+/** Freie Baustelle (nicht aus den Stammdaten) */
+export const newSiteSchema = z.object({
+  name: z.string().trim().min(1, "Bitte einen Namen für die Baustelle angeben.").max(100),
+  address: z
+    .string()
+    .trim()
+    .max(200)
+    .nullish()
+    .transform((v) => (v ? v : null)),
+});
+export type NewSite = z.infer<typeof newSiteSchema>;
+
 const timeWindow = <T extends { startMin?: number; endMin?: number }>(s: z.ZodType<T>) =>
   s.refine((v) => v.startMin === undefined || v.endMin === undefined || v.endMin > v.startMin, {
     message: "Das Ende muss nach dem Beginn liegen.",
@@ -32,14 +44,19 @@ const timeWindow = <T extends { startMin?: number; endMin?: number }>(s: z.ZodTy
   });
 
 export const assignmentCreateSchema = timeWindow(
-  z.object({
-    date,
-    vehicleId: id,
-    siteId: id,
-    startMin: minute,
-    endMin: minute,
-    note: z.string().trim().max(300).nullish(),
-  }),
+  z
+    .object({
+      date,
+      vehicleId: id,
+      /** bestehende Baustelle … */
+      siteId: id.optional(),
+      /** … oder freie Eingabe */
+      newSite: newSiteSchema.optional(),
+      startMin: minute,
+      endMin: minute,
+      note: z.string().trim().max(300).nullish(),
+    })
+    .refine((v) => !!v.siteId !== !!v.newSite, { message: "Bitte eine Baustelle wählen oder frei eingeben.", path: ["siteId"] }),
 );
 
 export const assignmentUpdateSchema = timeWindow(
@@ -47,6 +64,7 @@ export const assignmentUpdateSchema = timeWindow(
     id,
     version: z.number().int().positive(),
     siteId: id.optional(),
+    newSite: newSiteSchema.optional(),
     startMin: minute.optional(),
     endMin: minute.optional(),
     note: z.string().trim().max(300).nullish(),

@@ -15,6 +15,9 @@ import { TimelineDay } from "./timeline-day";
 import { timeRange } from "@/lib/planning-logic";
 import { Toasts } from "./toasts";
 import { usePlanningActions, usePlanningData } from "./use-planning";
+import { useQueryClient } from "@tanstack/react-query";
+import { useDebounced, useLiveEvents, useLiveStatus } from "@/components/live/live-events";
+import { LiveIndicator } from "@/components/live/live-indicator";
 import { useSwipe } from "./use-swipe";
 
 type Props = {
@@ -49,7 +52,12 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
   const days = useMemo(() => visibleDays(start, hideWeekends), [start, hideWeekends]);
   const from = days[0];
   const to = days[days.length - 1];
-  const query = usePlanningData(from, to, initialData);
+  const liveStatus = useLiveStatus();
+  const query = usePlanningData(from, to, initialData, liveStatus === "live");
+  const qc = useQueryClient();
+  const reload = useDebounced(() => qc.invalidateQueries({ queryKey: ["planning"] }), 250);
+  // Änderungen anderer (und eigene aus anderen Tabs) sofort übernehmen
+  useLiveEvents(() => reload());
   const actions = usePlanningActions();
 
   // URL mitführen (Neu laden / Link teilen behält das Datum)
@@ -247,11 +255,15 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
               ))}
             </div>
           </div>
-          <span className="ml-auto hidden text-sm text-muted md:inline" aria-live="polite">
+          <span className="ml-auto hidden items-center gap-3 text-sm text-muted md:flex" aria-live="polite">
             {query.isFetching ? "Aktualisiere …" : query.isError ? "Verbindung gestört – Daten evtl. veraltet" : ""}
+            <LiveIndicator status={liveStatus} />
           </span>
         </div>
-        {query.isError && <p className="mt-1 text-sm font-semibold text-red-700 md:hidden">Verbindung gestört – Daten evtl. veraltet</p>}
+        <div className="mt-1 flex items-center justify-between md:hidden">
+          {query.isError ? <p className="text-sm font-semibold text-red-700">Verbindung gestört – Daten evtl. veraltet</p> : <span />}
+          <LiveIndicator status={liveStatus} />
+        </div>
       </div>
 
       {/* Tages-Reiter (Handy) */}

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AutoRefresh } from "@/components/auto-refresh";
+import { LiveRefresh } from "@/components/live/live-refresh";
 import { PageHeader, Placeholder } from "@/components/page-header";
 import { QualificationBadge } from "@/components/qualification-badge";
 import { addDays, formatDayLong, formatRange, mapsUrl, navigationUrl, todayIso } from "@/lib/dates";
@@ -32,7 +32,7 @@ export default async function MyAssignmentsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <AutoRefresh />
+      <LiveRefresh scopes={["planning", "absences", "masterdata"]} />
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold md:text-3xl">Meine Einteilung</h1>

@@ -14,13 +14,13 @@ export function planningKey(from: string, to: string) {
   return ["planning", from, to] as const;
 }
 
-export function usePlanningData(from: string, to: string, initial?: PlanningData) {
+export function usePlanningData(from: string, to: string, initial?: PlanningData, live = false) {
   return useQuery({
     queryKey: planningKey(from, to),
     queryFn: ({ signal }) => api<PlanningData>(`/api/planning?from=${from}&to=${to}`, { signal }),
     initialData: initial && initial.from === from && initial.to === to ? initial : undefined,
-    // Fallback, bis Echtzeit-Updates (SSE) aktiv sind
-    refetchInterval: 30_000,
+    // Mit Live-Verbindung nur selten zur Sicherheit, ohne alle 20 s
+    refetchInterval: live ? 300_000 : 20_000,
     refetchOnWindowFocus: true,
     staleTime: 5_000,
     placeholderData: (prev) => prev,

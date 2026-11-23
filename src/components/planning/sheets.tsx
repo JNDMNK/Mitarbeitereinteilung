@@ -9,7 +9,7 @@ import { formatDayShort, formatRange, mapsUrl } from "@/lib/dates";
 import { QUALIFICATION_LABELS, type Qualification } from "@/lib/constants";
 import { findOverlap, suggestSlot, timeRange } from "@/lib/planning-logic";
 import { addDays } from "@/lib/dates";
-import type { PlanningAction } from "@/lib/planning-schemas";
+import type { NewSite, PlanningAction } from "@/lib/planning-schemas";
 import type { DragData } from "./dnd";
 import type { RunOptions, RunResult } from "./use-planning";
 import type { PlanningData } from "@/lib/planning-types";
@@ -22,9 +22,11 @@ export type Sheet =
   | { kind: "pickVehicleForEmployee"; date: string; employeeId: string }
   | { kind: "pickEmployeeForVehicle"; date: string; vehicleId: string }
   | { kind: "pickSite"; date: string; vehicleId: string; assignmentId?: string }
-  | { kind: "pickVehicleForSite"; date: string; siteId: string }
+  | { kind: "pickVehicleForSite"; date: string; siteId: string; newSite?: NewSite }
+  /** freie Baustelle eingeben (nicht aus den Stammdaten) */
+  | { kind: "freeSite"; date: string; name: string; vehicleId?: string; assignmentId?: string }
   | { kind: "pickSiteForDay"; date: string }
-  | { kind: "time"; date: string; vehicleId: string; siteId: string; assignmentId?: string }
+  | { kind: "time"; date: string; vehicleId: string; siteId: string; assignmentId?: string; newSite?: NewSite }
   /** nach Drag & Drop eines Fahrzeugs auf eine Baustelle */
   | { kind: "dropTime"; drag: Extract<DragData, { type: "vehicle" }>; toDate: string; toSiteId: string; copy: boolean }
   | { kind: "copyEmployee"; date: string; employeeId: string }
@@ -66,18 +68,22 @@ function SearchList<T>({
   render,
   empty,
   placeholder,
+  extra,
 }: {
   items: { group: string; list: T[] }[];
   filter: (item: T, q: string) => boolean;
   render: (item: T) => ReactNode;
   empty: string;
   placeholder: string;
+  /** zusätzliche Aktion oberhalb der Liste, z. B. „Freie Baustelle …“ */
+  extra?: (query: string) => ReactNode;
 }) {
   const [q, setQ] = useState("");
   const groups = items.map((g) => ({ ...g, list: g.list.filter((i) => filter(i, q.trim().toLowerCase())) })).filter((g) => g.list.length > 0);
   return (
     <div className="space-y-3">
       <Input type="search" placeholder={placeholder} value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+      {extra?.(q.trim())}
       <div className="max-h-[55vh] space-y-3 overflow-y-auto">
         {groups.length === 0 && <p className="p-4 text-center text-muted">{empty}</p>}
         {groups.map((g) => (
@@ -314,8 +320,9 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
     const active = data.sites.filter((s) => s.active && s.status !== "DONE");
     const groups = [
       { group: "Heute schon eingeplant", list: active.filter((s) => usedToday.has(s.id)) },
-      { group: "Aktiv", list: active.filter((s) => !usedToday.has(s.id) && s.status === "ACTIVE") },
-      { group: "Geplant", list: active.filter((s) => !usedToday.has(s.id) && s.status === "PLANNED") },
+      { group: "Aktiv", list: active.filter((s) => !usedToday.has(s.id) && !s.adHoc && s.status === "ACTIVE") },
+      { group: "Geplant", list: active.filter((s) => !usedToday.has(s.id) && !s.adHoc && s.status === "PLANNED") },
+      { group: "Freie Einträge", list: active.filter((s) => !usedToday.has(s.id) && s.adHoc) },
     ];
     const vehicle = sheet.kind === "pickSite" ? idx.vehicles.get(sheet.vehicleId) : null;
     const assignment = sheet.kind === "pickSite" && sheet.assignmentId ? data.vehicleDays.flatMap((v) => v.assignments).find((a) => a.id === sheet.assignmentId) : undefined;
@@ -323,8 +330,23 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
       <Dialog open onClose={close} title={vehicle ? `${vehicle.licensePlate} → Baustelle` : `Baustelle einplanen · ${dateLabel}`}>
         <SearchList
           items={groups}
-          placeholder="Name, Kunde, Adresse"
-          empty="Keine Baustellen gefunden."
+          placeholder="Name, Kunde, Adresse – oder frei eingeben"
+          empty="Keine passende Baustelle – oben frei eingeben."
+          extra={(q) => (
+            <Action
+              onClick={() =>
+                setSheet({
+                  kind: "freeSite",
+                  date: sheet.date,
+                  name: q,
+                  vehicleId: sheet.kind === "pickSite" ? sheet.vehicleId : undefined,
+                  assignmentId: assignment?.id,
+                })
+              }
+            >
+              ✏️ {q ? <>Freie Baustelle „{q}“ …</> : "Freie Baustelle eingeben (nicht aus den Stammdaten) …"}
+            </Action>
+          )}
           filter={(s, q) => !q || `${s.name} ${s.customer ?? ""} ${s.address ?? ""} ${s.orderNumber ?? ""}`.toLowerCase().includes(q)}
           render={(s) => {
             const outside = (s.startDate && sheet.date < s.startDate) || (s.endDate && sheet.date > s.endDate);
@@ -358,7 +380,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
 
   // ---------------- Fahrzeug für Baustelle wählen ----------------
   if (sheet.kind === "pickVehicleForSite") {
-    const site = idx.sites.get(sheet.siteId)!;
+    const site = sheet.newSite ? { id: "", name: sheet.newSite.name } : idx.sites.get(sheet.siteId)!;
     const deployed = new Map<string, { vehicle: (typeof data.vehicles)[number]; crew: number; info: string }>();
     for (const g of day.sites) for (const i of g.items) if (!deployed.has(i.vehicle.id)) deployed.set(i.vehicle.id, { vehicle: i.vehicle, crew: i.crew.length, info: `${g.site.name} ${timeRange(i.assignment.startMin, i.assignment.endMin)}` });
     return (
@@ -372,7 +394,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
           empty="Keine Fahrzeuge gefunden."
           filter={(x, q) => !q || `${x.vehicle.licensePlate} ${x.vehicle.name}`.toLowerCase().includes(q)}
           render={(x) => (
-            <Action key={x.vehicle.id} onClick={() => setSheet({ kind: "time", date: sheet.date, vehicleId: x.vehicle.id, siteId: site.id })}>
+            <Action key={x.vehicle.id} onClick={() => setSheet({ kind: "time", date: sheet.date, vehicleId: x.vehicle.id, siteId: site.id, newSite: sheet.newSite })}>
               <span className="rounded border-2 border-ink px-1.5 font-mono text-sm font-bold">{x.vehicle.licensePlate}</span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate">{x.vehicle.name}</span>
@@ -469,6 +491,11 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
     );
   }
 
+  // ---------------- Freie Baustelle ----------------
+  if (sheet.kind === "freeSite") {
+    return <FreeSiteDialog key={sheet.name} sheet={sheet} data={data} setSheet={setSheet} close={close} run={run} busy={busy} />;
+  }
+
   // ---------------- Zeitfenster ----------------
   if (sheet.kind === "time") {
     return <TimeDialog key={`${sheet.vehicleId}-${sheet.siteId}-${sheet.assignmentId}`} sheet={sheet} data={data} idx={idx} close={close} run={run} busy={busy} />;
@@ -492,7 +519,7 @@ function TimeDialog({
   busy: boolean;
 }) {
   const vehicle = idx.vehicles.get(sheet.vehicleId)!;
-  const site = idx.sites.get(sheet.siteId)!;
+  const site = sheet.newSite ? { id: "", name: sheet.newSite.name } : idx.sites.get(sheet.siteId)!;
   const vd = data.vehicleDays.find((v) => v.date === sheet.date && v.vehicleId === vehicle.id);
   const current = sheet.assignmentId ? vd?.assignments.find((a) => a.id === sheet.assignmentId) : undefined;
   const others = (vd?.assignments ?? []).filter((a) => a.id !== sheet.assignmentId);
@@ -501,7 +528,9 @@ function TimeDialog({
       title={current ? "Zeit ändern" : "Zeitfenster festlegen"}
       intro={
         <>
-          <strong>{vehicle.licensePlate}</strong> ({vehicle.name}) auf <strong>{site.name}</strong> · {formatDayShort(sheet.date)}
+          <strong>{vehicle.licensePlate}</strong> ({vehicle.name}) auf <strong>{site.name}</strong>
+          {sheet.newSite && <span className="ml-1 rounded bg-slate-200 px-1.5 text-xs font-bold">freier Eintrag</span>} · {formatDayShort(sheet.date)}
+          {sheet.newSite?.address && <span className="block text-sm text-muted">📍 {sheet.newSite.address}</span>}
         </>
       }
       initial={current ? { startMin: current.startMin, endMin: current.endMin } : null}
@@ -513,7 +542,12 @@ function TimeDialog({
       busy={busy}
       onSubmit={async (start, end) => {
         if (current) await run("assignment-update", { id: current.id, version: current.version, startMin: start, endMin: end }, `Zeit auf ${timeRange(start, end)} geändert.`);
-        else await run("assignment-create", { date: sheet.date, vehicleId: vehicle.id, siteId: site.id, startMin: start, endMin: end }, `${vehicle.licensePlate} auf „${site.name}“ ${timeRange(start, end)} eingeplant.`);
+        else
+          await run(
+            "assignment-create",
+            { date: sheet.date, vehicleId: vehicle.id, ...(sheet.newSite ? { newSite: sheet.newSite } : { siteId: site.id }), startMin: start, endMin: end },
+            `${vehicle.licensePlate} auf „${site.name}“ ${timeRange(start, end)} eingeplant.`,
+          );
       }}
     />
   );
@@ -764,6 +798,67 @@ function CopyDayDialog({ date, days, close, run, busy }: { date: string; days: s
           </div>
         </form>
       )}
+    </Dialog>
+  );
+}
+
+/** Freie Baustelle: Name + optional Adresse, danach weiter wie gewohnt */
+function FreeSiteDialog({
+  sheet,
+  data,
+  setSheet,
+  close,
+  run,
+  busy,
+}: {
+  sheet: Extract<Sheet, { kind: "freeSite" }>;
+  data: PlanningData;
+  setSheet: (s: Sheet | null) => void;
+  close: () => void;
+  run: Run;
+  busy: boolean;
+}) {
+  const [name, setName] = useState(sheet.name);
+  const [address, setAddress] = useState("");
+  const assignment = sheet.assignmentId ? data.vehicleDays.flatMap((v) => v.assignments).find((a) => a.id === sheet.assignmentId) : undefined;
+  return (
+    <Dialog open onClose={close} title="Freie Baustelle">
+      <form
+        className="space-y-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const newSite = { name: name.trim(), address: address.trim() || null };
+          if (!newSite.name) return;
+          if (assignment) {
+            close();
+            await run("assignment-update", { id: assignment.id, version: assignment.version, newSite }, `Einsatz auf „${newSite.name}“ geändert.`);
+          } else if (sheet.vehicleId) {
+            setSheet({ kind: "time", date: sheet.date, vehicleId: sheet.vehicleId, siteId: "", newSite });
+          } else {
+            setSheet({ kind: "pickVehicleForSite", date: sheet.date, siteId: "", newSite });
+          }
+        }}
+      >
+        <p className="text-sm text-muted">
+          Für einmalige Einsätze ohne Eintrag in den Stammdaten. Bei Bedarf lässt sich der Eintrag später unter Stammdaten → Baustellen zu einer festen Baustelle machen.
+        </p>
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold">Bezeichnung</span>
+          <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} autoFocus placeholder="z. B. Kundendienst Familie Meier" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold">Adresse (optional, für die Navigation)</span>
+          <Input value={address} onChange={(e) => setAddress(e.target.value)} maxLength={200} placeholder="Straße Nr., PLZ Ort" />
+        </label>
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={close}>
+            Abbrechen
+          </Button>
+          <Button type="submit" disabled={busy || !name.trim()}>
+            Weiter
+          </Button>
+        </div>
+      </form>
     </Dialog>
   );
 }

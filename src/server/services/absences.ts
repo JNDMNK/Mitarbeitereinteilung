@@ -3,6 +3,7 @@ import type { z } from "zod";
 import { diffDays, formatDate, formatRange } from "@/lib/dates";
 import type { absenceCreateSchema, absenceUpdateSchema } from "@/lib/masterdata-schemas";
 import { audit } from "../audit";
+import { publishChange } from "../events";
 import { db, type DbOrTx, type Tx } from "../db";
 import { badRequest, conflict, notFound } from "../errors";
 
@@ -67,7 +68,7 @@ function warningFor(days: string[]): string[] {
 
 export async function createAbsence(actorId: string, input: z.infer<typeof absenceCreateSchema>) {
   assertLength(input.startDate, input.endDate);
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const emp = await tx.employee.findUnique({ where: { id: input.employeeId } });
     if (!emp || !emp.active) throw badRequest("Bitte einen aktiven Mitarbeiter wählen.");
     const type = await assertType(tx, input.typeId);
@@ -83,11 +84,13 @@ export async function createAbsence(actorId: string, input: z.infer<typeof absen
     });
     return { absence: a, warnings: warningFor(await assignedDays(tx, emp.id, input.startDate, input.endDate)) };
   });
+  publishChange({ scope: "absences", userId: actorId });
+  return result;
 }
 
 export async function updateAbsence(actorId: string, id: string, input: z.infer<typeof absenceUpdateSchema>) {
   const { version, ...data } = input;
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const cur = await tx.absence.findUnique({ where: { id }, include: { type: true, employee: true } });
     if (!cur) throw notFound("Abwesenheit nicht gefunden (evtl. bereits gelöscht).");
     const start = data.startDate ?? cur.startDate;
@@ -116,10 +119,12 @@ export async function updateAbsence(actorId: string, id: string, input: z.infer<
     const absence = await tx.absence.findUniqueOrThrow({ where: { id }, select: absenceSelect });
     return { absence, warnings: warningFor(await assignedDays(tx, cur.employeeId, start, end)) };
   });
+  publishChange({ scope: "absences", userId: actorId });
+  return result;
 }
 
 export async function deleteAbsence(actorId: string, id: string, version: number) {
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const cur = await tx.absence.findUnique({ where: { id }, include: { type: true, employee: true } });
     if (!cur) throw notFound("Abwesenheit nicht gefunden (evtl. bereits gelöscht).");
     const res = await tx.absence.deleteMany({ where: { id, version } });
@@ -133,4 +138,6 @@ export async function deleteAbsence(actorId: string, id: string, version: number
       summary: `${cur.type.name} von ${cur.employee.firstName} ${cur.employee.lastName} ${formatRange(cur.startDate, cur.endDate)} gelöscht`,
     });
   });
+  publishChange({ scope: "absences", userId: actorId });
+  return result;
 }

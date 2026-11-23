@@ -32,6 +32,8 @@ export type PSite = {
   note: string | null;
   color: string;
   active: boolean;
+  /** freier Eintrag aus der Planung */
+  adHoc: boolean;
 };
 export type PDepartment = { id: string; name: string; color: string; sortOrder: number };
 export type PAbsenceType = { id: string; name: string; code: string; color: string };

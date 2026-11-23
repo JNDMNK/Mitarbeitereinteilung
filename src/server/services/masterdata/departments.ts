@@ -2,6 +2,7 @@ import "server-only";
 import type { z } from "zod";
 import type { absenceTypeSchema, absenceTypeUpdateSchema, departmentSchema, departmentUpdateSchema } from "@/lib/masterdata-schemas";
 import { audit } from "../../audit";
+import { publishChange } from "../../events";
 import { db } from "../../db";
 import { conflict, notFound } from "../../errors";
 import { describeChanges, summaryWith } from "./changes";
@@ -16,16 +17,18 @@ export function listDepartments() {
 }
 
 export async function createDepartment(actorId: string, input: z.infer<typeof departmentSchema>) {
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const d = await tx.department.create({ data: input });
     await audit(tx, { userId: actorId, action: "department.create", entityType: "Department", entityId: d.id, summary: `Abteilung "${d.name}" angelegt` });
     return d;
   });
+  publishChange({ scope: "masterdata", userId: actorId });
+  return result;
 }
 
 export async function updateDepartment(actorId: string, id: string, input: z.infer<typeof departmentUpdateSchema>) {
   const { version, ...data } = input;
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const cur = await tx.department.findUnique({ where: { id } });
     if (!cur) throw notFound("Abteilung nicht gefunden.");
     const res = await tx.department.updateMany({ where: { id, version }, data: { ...data, version: { increment: 1 } } });
@@ -34,6 +37,8 @@ export async function updateDepartment(actorId: string, id: string, input: z.inf
     await audit(tx, { userId: actorId, action: "department.update", entityType: "Department", entityId: id, summary: summaryWith(`Abteilung "${cur.name}" geändert`, changes) });
     return tx.department.findUniqueOrThrow({ where: { id } });
   });
+  publishChange({ scope: "masterdata", userId: actorId });
+  return result;
 }
 
 // ---------------- Abwesenheitsarten ----------------
@@ -43,16 +48,18 @@ export function listAbsenceTypes() {
 }
 
 export async function createAbsenceType(actorId: string, input: z.infer<typeof absenceTypeSchema>) {
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const t = await tx.absenceType.create({ data: input });
     await audit(tx, { userId: actorId, action: "absenceType.create", entityType: "AbsenceType", entityId: t.id, summary: `Abwesenheitsart "${t.name}" (${t.code}) angelegt` });
     return t;
   });
+  publishChange({ scope: "masterdata", userId: actorId });
+  return result;
 }
 
 export async function updateAbsenceType(actorId: string, id: string, input: z.infer<typeof absenceTypeUpdateSchema>) {
   const { version, ...data } = input;
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const cur = await tx.absenceType.findUnique({ where: { id } });
     if (!cur) throw notFound("Abwesenheitsart nicht gefunden.");
     const res = await tx.absenceType.updateMany({ where: { id, version }, data: { ...data, version: { increment: 1 } } });
@@ -61,4 +68,6 @@ export async function updateAbsenceType(actorId: string, id: string, input: z.in
     await audit(tx, { userId: actorId, action: "absenceType.update", entityType: "AbsenceType", entityId: id, summary: summaryWith(`Abwesenheitsart "${cur.name}" geändert`, changes) });
     return tx.absenceType.findUniqueOrThrow({ where: { id } });
   });
+  publishChange({ scope: "masterdata", userId: actorId });
+  return result;
 }

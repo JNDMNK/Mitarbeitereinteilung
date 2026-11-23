@@ -171,6 +171,8 @@ model Site {
   note        String?
   color       String   // "#RRGGBB"
   active      Boolean  @default(true)
+  /// Freier Eintrag aus der Planung (nicht in den Stammdaten gepflegt)
+  adHoc       Boolean  @default(false)
   version     Int      @default(1)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -178,6 +180,7 @@ model Site {
   assignments SiteAssignment[]
 
   @@index([status, active])
+  @@index([adHoc, active])
 }
 
 model AbsenceType {

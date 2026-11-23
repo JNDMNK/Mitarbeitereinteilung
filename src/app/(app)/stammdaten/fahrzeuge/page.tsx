@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BackLink } from "@/components/masterdata/shared";
+import { LiveRefresh } from "@/components/live/live-refresh";
 import { PageHeader } from "@/components/page-header";
 import { db } from "@/server/db";
 import { requirePagePermission } from "@/server/page-auth";
@@ -20,6 +21,7 @@ export default async function VehiclesPage() {
   ]);
   return (
     <>
+      <LiveRefresh scopes={["masterdata"]} />
       <BackLink />
       <PageHeader title="Fahrzeuge" description="Standard-Besatzung wird beim ersten Einteilen eines Tages automatisch vorbelegt." />
       <VehicleAdmin vehicles={vehicles} employees={employees} />

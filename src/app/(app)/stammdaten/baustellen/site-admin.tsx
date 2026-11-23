@@ -21,6 +21,7 @@ type Site = {
   note: string | null;
   color: string;
   active: boolean;
+  adHoc: boolean;
   version: number;
 };
 
@@ -31,15 +32,21 @@ export function SiteAdmin({ sites }: { sites: Site[] }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"" | SiteStatus>("");
   const [showInactive, setShowInactive] = useState(false);
+  const [showAdHoc, setShowAdHoc] = useState(false);
   const [editing, setEditing] = useState<Site | "new" | null>(null);
   const today = todayIso();
+  const adHocCount = sites.filter((s) => s.adHoc && s.active).length;
 
   const filtered = useMemo(
     () =>
       sites.filter(
-        (s) => (showInactive || s.active) && (!status || s.status === status) && matches(query, s.name, s.address, s.customer, s.orderNumber),
+        (s) =>
+          (showInactive || s.active) &&
+          (showAdHoc || !s.adHoc) &&
+          (!status || s.status === status) &&
+          matches(query, s.name, s.address, s.customer, s.orderNumber),
       ),
-    [sites, query, status, showInactive],
+    [sites, query, status, showInactive, showAdHoc],
   );
 
   return (
@@ -66,6 +73,10 @@ export function SiteAdmin({ sites }: { sites: Site[] }) {
             </Select>
           </Field>
         </div>
+        <label className="flex min-h-11 items-center gap-2">
+          <input type="checkbox" className="size-5 accent-brand-600" checked={showAdHoc} onChange={(e) => setShowAdHoc(e.target.checked)} />
+          freie Einträge ({adHocCount})
+        </label>
       </Toolbar>
 
       <ListBox empty="Keine Baustellen gefunden.">
@@ -77,6 +88,20 @@ export function SiteAdmin({ sites }: { sites: Site[] }) {
               inactive={!s.active}
               actions={
                 <>
+                  {s.adHoc && s.active && (
+                    <Button
+                      variant="secondary"
+                      disabled={page.busy}
+                      onClick={() =>
+                        page.run(
+                          () => api(`/api/sites/${s.id}`, { method: "PATCH", body: { version: s.version, adHoc: false } }),
+                          `„${s.name}“ ist jetzt eine feste Baustelle.`,
+                        )
+                      }
+                    >
+                      Als feste Baustelle übernehmen
+                    </Button>
+                  )}
                   <Button variant="secondary" onClick={() => setEditing(s)}>
                     Bearbeiten
                   </Button>
@@ -94,6 +119,7 @@ export function SiteAdmin({ sites }: { sites: Site[] }) {
                 <ColorDot color={s.color} />
                 <span className="text-lg font-bold">{s.name}</span>
                 <Tag tone={STATUS_TONE[s.status as SiteStatus] ?? "slate"}>{SITE_STATUS_LABELS[s.status as SiteStatus] ?? s.status}</Tag>
+                {s.adHoc && <Tag>freier Eintrag</Tag>}
                 {ended && <Tag tone="red">Zeitraum abgelaufen</Tag>}
                 {!s.active && <Tag>inaktiv</Tag>}
               </div>

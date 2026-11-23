@@ -2,6 +2,7 @@ import "server-only";
 import type { z } from "zod";
 import type { vehicleCreateSchema, vehicleUpdateSchema } from "@/lib/masterdata-schemas";
 import { audit } from "../../audit";
+import { publishChange } from "../../events";
 import { db, type Tx } from "../../db";
 import { badRequest, conflict, notFound } from "../../errors";
 import { describeChanges, summaryWith } from "./changes";
@@ -51,7 +52,7 @@ function crewText(names: Map<string, string>, driverId: string | null, memberIds
 
 export async function createVehicle(actorId: string, input: z.infer<typeof vehicleCreateSchema>) {
   const { defaultMemberIds, ...data } = input;
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     await assertCrew(tx, data.seats, data.defaultDriverId, defaultMemberIds);
     const v = await tx.vehicle.create({
       data: {
@@ -62,11 +63,13 @@ export async function createVehicle(actorId: string, input: z.infer<typeof vehic
     await audit(tx, { userId: actorId, action: "vehicle.create", entityType: "Vehicle", entityId: v.id, summary: `Fahrzeug ${v.licensePlate} (${v.name}) angelegt` });
     return tx.vehicle.findUniqueOrThrow({ where: { id: v.id }, select: vehicleSelect });
   });
+  publishChange({ scope: "masterdata", userId: actorId });
+  return result;
 }
 
 export async function updateVehicle(actorId: string, id: string, input: z.infer<typeof vehicleUpdateSchema>) {
   const { version, defaultMemberIds, ...data } = input;
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const cur = await tx.vehicle.findUnique({ where: { id }, include: { defaultMembers: { orderBy: { sortOrder: "asc" } } } });
     if (!cur) throw notFound("Fahrzeug nicht gefunden.");
     const curMembers = cur.defaultMembers.map((m) => m.employeeId);
@@ -107,4 +110,6 @@ export async function updateVehicle(actorId: string, id: string, input: z.infer<
     await audit(tx, { userId: actorId, action: "vehicle.update", entityType: "Vehicle", entityId: id, summary: summaryWith(`Fahrzeug ${cur.licensePlate} geändert`, changes) });
     return tx.vehicle.findUniqueOrThrow({ where: { id }, select: vehicleSelect });
   });
+  publishChange({ scope: "masterdata", userId: actorId });
+  return result;
 }

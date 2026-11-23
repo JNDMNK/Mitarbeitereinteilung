@@ -99,6 +99,8 @@ const siteBase = z.object({
   status: z.enum(SITE_STATUSES).default("PLANNED"),
   note: optionalText(1000),
   color,
+  /** false = als feste Baustelle in die Stammdaten übernehmen */
+  adHoc: z.boolean().optional(),
 });
 const siteRefine = <T extends { startDate?: string | null; endDate?: string | null }>(s: z.ZodType<T>) =>
   s.refine((v) => !v.startDate || !v.endDate || v.startDate <= v.endDate, {
@@ -130,3 +132,13 @@ export const absenceCreateSchema = absenceRefine(absenceBase);
 export const absenceUpdateSchema = absenceRefine(absenceBase.omit({ employeeId: true }).partial().extend({ version }));
 export const absenceDeleteSchema = z.object({ version });
 export const absenceQuerySchema = z.object({ from: isoDate, to: isoDate });
+
+// --- Login eines Mitarbeiters nachträglich anlegen / freischalten ---------
+export const employeeLoginSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("create"), username: usernameSchema, password: passwordSchema }),
+  z.object({
+    action: z.literal("activate"),
+    /** optional neues Start-Passwort (muss beim nächsten Login geändert werden) */
+    password: passwordSchema.optional(),
+  }),
+]);
