@@ -193,6 +193,8 @@ Docker Compose: siehe [`docker-compose.yml`](docker-compose.yml).
 | Problem | Ursache / Lösung |
 |---|---|
 | Container startet nicht, Log: „SESSION_SECRET fehlt“ | Wert aus `openssl rand -base64 48` eintragen |
+| Domain zeigt `{"status":"OK","setup":true,"version":{…}}` | Das ist die Antwort des **Nginx Proxy Managers selbst** (seine interne API läuft auf Port 3000). Im Proxy Host als *Forward Hostname* die **LAN-IP des Unraid-Servers** eintragen – nicht `localhost`/`127.0.0.1` – und als Port den WebUI-Port der App. Gegenprobe im Heimnetz: `http://<Unraid-IP>:3000/api/health` muss `{"status":"ok"}` liefern. |
+| 502 Bad Gateway | App läuft nicht oder falscher Port/IP im Proxy Host. Container-Log prüfen und die Gegenprobe oben machen. |
 | Login klappt nicht / „Ungültige Herkunft der Anfrage“ | Die App wird unter einer anderen Adresse aufgerufen als in `APP_URL` eingetragen. Immer genau die `APP_URL` verwenden. Bei `https://…` funktioniert der Login nicht über `http://<IP>:3000` (Cookies nur über HTTPS). |
 | Zu viele Anmeldeversuche | Nach 5 Fehlversuchen ist ein Konto 15 Min. gesperrt; Admin kann unter Stammdaten → Benutzer entsperren |
 | Admin-Passwort vergessen | Anderen Admin bitten, es zurückzusetzen. Gibt es keinen: Container stoppen, `einteilung.db` sichern, Benutzer per SQLite-Werkzeug entfernen – beim Start wird der Admin aus `INITIAL_ADMIN_*` neu angelegt (nur wenn gar kein Benutzer existiert) |
