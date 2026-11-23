@@ -39,7 +39,7 @@ export function EmployeeChip({
       )}
     </>
   );
-  const cls = `inline-flex max-w-full min-h-9 items-center gap-1.5 rounded-md border-l-4 px-2 py-1 text-sm shadow-sm ring-1 ${
+  const cls = `inline-flex max-w-full min-h-11 md:min-h-9 items-center gap-1.5 rounded-md border-l-4 px-2 py-1 text-sm shadow-sm ring-1 ${
     own ? "bg-brand-50 font-bold ring-2 ring-brand-600" : absent ? "bg-slate-100 text-slate-500 ring-line" : "bg-white ring-line"
   } ${onClick ? "cursor-pointer hover:ring-2 hover:ring-brand-600 active:bg-slate-50" : ""} ${dragProps && Object.keys(dragProps).length ? "touch-manipulation select-none [-webkit-touch-callout:none]" : ""} ${dragging ? "opacity-30" : ""}`;
   const style = { borderLeftColor: department?.color ?? "#94a3b8" };
@@ -80,7 +80,7 @@ export function VehicleLabel({
       </span>
     </>
   );
-  const cls = "flex w-full min-h-9 items-center gap-2 rounded-md text-left";
+  const cls = "flex w-full min-h-11 md:min-h-9 items-center gap-2 rounded-md text-left";
   return onClick ? (
     <button
       type="button"

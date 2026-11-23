@@ -7,6 +7,17 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Alles liegt hinter dem Login und ist dynamisch -> kein Cache-Components-Modell
   cacheComponents: false,
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Service-Worker-Allowed", value: "/" },
+        ],
+      },
+    ];
+  },
   turbopack: {
     rules: {
       "*.css": {

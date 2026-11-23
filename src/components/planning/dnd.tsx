@@ -60,8 +60,10 @@ export function PlanningDnd({
   children,
   onDrop,
   renderOverlay,
+  onDraggingChange,
 }: {
   enabled: boolean;
+  onDraggingChange?: (dragging: boolean) => void;
   children: ReactNode;
   onDrop: (drag: DragData, drop: DropData, copy: boolean) => void;
   renderOverlay: (drag: DragData, copy: boolean) => ReactNode;
@@ -94,12 +96,17 @@ export function PlanningDnd({
       sensors={sensors}
       collisionDetection={collision}
       onDragStart={(e: DragStartEvent) => {
+        onDraggingChange?.(true);
         setActive(e.active.data.current as DragData);
         const ev = e.activatorEvent as MouseEvent | undefined;
         setCopy(!!(ev && (ev.ctrlKey || ev.altKey || ev.metaKey)));
       }}
-      onDragCancel={() => setActive(null)}
+      onDragCancel={() => {
+        onDraggingChange?.(false);
+        setActive(null);
+      }}
       onDragEnd={(e: DragEndEvent) => {
+        onDraggingChange?.(false);
         const drag = e.active.data.current as DragData | undefined;
         const drop = e.over?.data.current as DropData | undefined;
         setActive(null);

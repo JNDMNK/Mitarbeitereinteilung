@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ServiceWorkerRegister } from "@/components/sw-register";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,7 +19,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="de">
-      <body className="min-h-dvh antialiased">{children}</body>
+      <body className="min-h-dvh antialiased">
+        {children}
+        <ServiceWorkerRegister />
+      </body>
     </html>
   );
 }

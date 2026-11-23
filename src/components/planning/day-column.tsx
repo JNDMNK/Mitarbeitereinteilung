@@ -254,7 +254,7 @@ export function DayHeader({ day, today, canEdit, open, sticky = true }: { day: D
   const isToday = day.date === today;
   return (
       <header
-        className={`${sticky ? "sticky top-14 z-20" : ""} flex items-center justify-between gap-2 rounded-xl px-3 py-2 shadow-sm ${
+        className={`${sticky ? "md:sticky md:top-14 md:z-20" : ""} flex items-center justify-between gap-2 rounded-xl px-3 py-2 shadow-sm ${
           isToday ? "bg-brand-700 text-white" : isWeekend(day.date) ? "bg-slate-300 text-ink" : "bg-ink text-white"
         }`}
       >
@@ -296,7 +296,7 @@ export function AbsentBar({ day, ownEmployeeId, open }: { day: DayView; ownEmplo
                 type="button"
                 onClick={() => open({ kind: "employee", date: day.date, employeeId: a.employee.id })}
                 title={`${a.employee.firstName} ${a.employee.lastName}: ${a.type?.name}`}
-                className={`inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 text-xs font-semibold ring-1 ring-line ${a.employee.id === ownEmployeeId ? "bg-brand-50 ring-2 ring-brand-600" : "bg-slate-50"}`}
+                className={`inline-flex min-h-10 md:min-h-8 items-center gap-1 rounded-md px-2 text-sm md:px-1.5 md:text-xs font-semibold ring-1 ring-line ${a.employee.id === ownEmployeeId ? "bg-brand-50 ring-2 ring-brand-600" : "bg-slate-50"}`}
               >
                 <span className="rounded px-1 font-mono leading-5 font-bold text-white" style={{ backgroundColor: a.type?.color }}>
                   {a.type?.code}

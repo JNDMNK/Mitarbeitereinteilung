@@ -94,7 +94,7 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
       <DayHeader day={day} today={today} canEdit={canEdit} open={open} sticky={false} />
       <AbsentBar day={day} ownEmployeeId={ownEmployeeId} open={open} />
 
-      <div ref={scrollRef} className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-line">
+      <div ref={scrollRef} data-no-swipe className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-line">
         <div className="min-w-[860px]">
           {/* Stundenachse */}
           <div className="flex border-b border-line">

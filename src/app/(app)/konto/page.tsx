@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { LogoutButton } from "@/components/logout-button";
+import { InstallApp } from "@/components/install-app";
 import { PageHeader } from "@/components/page-header";
 import { ROLE_LABELS } from "@/lib/roles";
 import { requirePageSession } from "@/server/page-auth";
@@ -32,6 +33,8 @@ export default async function AccountPage() {
           </dl>
           <h2 className="mb-3 mt-6 text-lg font-bold">Ansicht</h2>
           <PreferencesForm hideWeekends={user.hideWeekends} />
+          <h2 className="mb-3 mt-6 text-lg font-bold">App auf dem Handy</h2>
+          <InstallApp />
           <div className="mt-6">
             <LogoutButton />
           </div>

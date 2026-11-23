@@ -1,7 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 import { formatDayShort, isIsoDate } from "@/lib/dates";
 import { normalizeStart, stepDay, visibleDays } from "@/lib/planning-days";
@@ -15,6 +15,7 @@ import { TimelineDay } from "./timeline-day";
 import { timeRange } from "@/lib/planning-logic";
 import { Toasts } from "./toasts";
 import { usePlanningActions, usePlanningData } from "./use-planning";
+import { useSwipe } from "./use-swipe";
 
 type Props = {
   initialStart: string;
@@ -41,6 +42,9 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
   const [start, setStart] = useState(initialStart);
   const [mobileDay, setMobileDay] = useState(0);
   const [sheet, setSheet] = useState<Sheet | null>(null);
+  const [showOptions, setShowOptions] = useState(false);
+  const dragging = useRef(false);
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   const days = useMemo(() => visibleDays(start, hideWeekends), [start, hideWeekends]);
   const from = days[0];
@@ -142,6 +146,26 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
     ) : null;
   }
 
+  /** Handy: zum nächsten/vorherigen Tag wischen; am Rand wird weitergeblättert */
+  function swipeTo(dir: 1 | -1) {
+    if (dir === 1) {
+      if (mobileDay < days.length - 1) setMobileDay(mobileDay + 1);
+      else setStart(stepDay(start, 1, hideWeekends));
+    } else if (mobileDay > 0) {
+      setMobileDay(mobileDay - 1);
+    } else {
+      setStart(stepDay(start, -1, hideWeekends));
+    }
+    // Tages-Reiter wieder ins Bild holen
+    const top = tabsRef.current?.getBoundingClientRect().top ?? 0;
+    if (top < 0) tabsRef.current?.scrollIntoView({ block: "start" });
+  }
+  const swipe = useSwipe({
+    onLeft: () => swipeTo(1),
+    onRight: () => swipeTo(-1),
+    disabled: () => dragging.current || sheet !== null || window.innerWidth >= 768,
+  });
+
   function go(next: string) {
     setStart(normalizeStart(next, hideWeekends));
     setMobileDay(0);
@@ -168,67 +192,93 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
 
   return (
     <div className="space-y-3">
-      {/* Steuerleiste */}
-      <div className="no-print flex flex-wrap items-center gap-2 rounded-xl bg-white p-2 shadow-sm ring-1 ring-line md:p-3">
-        <div className="flex items-center gap-1">
-          <NavButton label="Einen Tag zurück" onClick={() => go(stepDay(from, -1, hideWeekends))}>
-            ◀
-          </NavButton>
-          <button type="button" onClick={() => go(today)} className="min-h-11 rounded-lg border border-line px-3 font-semibold hover:bg-slate-50">
-            Heute
-          </button>
-          <NavButton label="Einen Tag vor" onClick={() => go(stepDay(from, 1, hideWeekends))}>
-            ▶
-          </NavButton>
-        </div>
-        <input
-          type="date"
-          aria-label="Datum wählen"
-          value={from}
-          onChange={(e) => isIsoDate(e.target.value) && go(e.target.value)}
-          className="min-h-11 rounded-lg border border-line px-2"
-        />
-        <label className="flex min-h-11 cursor-pointer items-center gap-2 px-1">
-          <input type="checkbox" className="size-5 accent-brand-600" checked={!hideWeekends} onChange={(e) => toggleWeekends(!e.target.checked)} />
-          Wochenende
-        </label>
-        <div className="flex overflow-hidden rounded-lg border border-line" role="group" aria-label="Ansicht">
-          {(
-            [
-              ["cards", "Karten"],
-              ["timeline", "Zeitleiste"],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={view === key}
-              onClick={() => changeView(key)}
-              className={`min-h-11 px-3 font-semibold ${view === key ? "bg-brand-700 text-white" : "bg-white hover:bg-slate-50"}`}
-            >
-              {label}
+      {/* Steuerleiste: am Handy eine Zeile, Optionen hinter ⚙ */}
+      <div className="no-print rounded-xl bg-white p-2 shadow-sm ring-1 ring-line md:p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1">
+            <NavButton label="Einen Tag zurück" onClick={() => go(stepDay(from, -1, hideWeekends))}>
+              ◀
+            </NavButton>
+            <button type="button" onClick={() => go(today)} className="min-h-11 rounded-lg border border-line px-3 font-semibold hover:bg-slate-50">
+              Heute
             </button>
-          ))}
+            <NavButton label="Einen Tag vor" onClick={() => go(stepDay(from, 1, hideWeekends))}>
+              ▶
+            </NavButton>
+          </div>
+          <input
+            type="date"
+            aria-label="Datum wählen"
+            value={from}
+            onChange={(e) => isIsoDate(e.target.value) && go(e.target.value)}
+            className="min-h-11 min-w-0 flex-1 rounded-lg border border-line px-2 md:flex-none"
+          />
+          <button
+            type="button"
+            aria-expanded={showOptions}
+            aria-controls="planning-options"
+            onClick={() => setShowOptions((v) => !v)}
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-line text-xl md:hidden"
+            title="Ansicht und Wochenende"
+          >
+            ⚙
+          </button>
+          <div id="planning-options" className={`${showOptions ? "flex" : "hidden"} w-full flex-wrap items-center gap-2 md:flex md:w-auto`}>
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 px-1">
+              <input type="checkbox" className="size-5 accent-brand-600" checked={!hideWeekends} onChange={(e) => toggleWeekends(!e.target.checked)} />
+              Wochenende
+            </label>
+            <div className="flex overflow-hidden rounded-lg border border-line" role="group" aria-label="Ansicht">
+              {(
+                [
+                  ["cards", "Karten"],
+                  ["timeline", "Zeitleiste"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={view === key}
+                  onClick={() => changeView(key)}
+                  className={`min-h-11 px-3 font-semibold ${view === key ? "bg-brand-700 text-white" : "bg-white hover:bg-slate-50"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <span className="ml-auto hidden text-sm text-muted md:inline" aria-live="polite">
+            {query.isFetching ? "Aktualisiere …" : query.isError ? "Verbindung gestört – Daten evtl. veraltet" : ""}
+          </span>
         </div>
-        <span className="ml-auto text-sm text-muted" aria-live="polite">
-          {query.isFetching ? "Aktualisiere …" : query.isError ? "Verbindung gestört – Daten evtl. veraltet" : ""}
-        </span>
+        {query.isError && <p className="mt-1 text-sm font-semibold text-red-700 md:hidden">Verbindung gestört – Daten evtl. veraltet</p>}
       </div>
 
       {/* Tages-Reiter (Handy) */}
-      <div className="no-print grid grid-cols-3 gap-1 md:hidden" role="tablist" aria-label="Tag wählen">
-        {days.map((d, i) => (
-          <button
-            key={d}
-            type="button"
-            role="tab"
-            aria-selected={mobileDay === i}
-            onClick={() => setMobileDay(i)}
-            className={`min-h-12 rounded-lg text-sm font-bold ${mobileDay === i ? "bg-brand-700 text-white" : "bg-white ring-1 ring-line"} ${d === today && mobileDay !== i ? "text-brand-700" : ""}`}
-          >
-            {formatDayShort(d)}
-          </button>
-        ))}
+      <div
+        ref={tabsRef}
+        className="no-print sticky top-14 z-20 -mx-3 grid scroll-mt-14 grid-cols-3 gap-1 bg-canvas/95 px-3 py-1 backdrop-blur md:hidden"
+        role="tablist"
+        aria-label="Tag wählen (oder wischen)"
+      >
+        {days.map((d, i) => {
+          const v = dayViews.get(d);
+          return (
+            <button
+              key={d}
+              type="button"
+              role="tab"
+              aria-selected={mobileDay === i}
+              onClick={() => setMobileDay(i)}
+              className={`flex min-h-12 flex-col items-center justify-center rounded-lg leading-tight ${mobileDay === i ? "bg-brand-700 text-white" : "bg-white ring-1 ring-line"} ${d === today && mobileDay !== i ? "text-brand-700" : ""}`}
+            >
+              <span className="text-sm font-bold">
+                {d === today ? "Heute" : formatDayShort(d)}
+              </span>
+              {v && <span className="text-[11px] opacity-80">{v.stats.assigned} eingeteilt</span>}
+            </button>
+          );
+        })}
       </div>
 
       {canEdit && view === "timeline" && (
@@ -246,7 +296,8 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
       {!data || !idx ? (
         <div className="rounded-xl bg-white p-8 text-center text-muted ring-1 ring-line">Lade Planung …</div>
       ) : (
-        <PlanningDnd enabled={canEdit} onDrop={handleDrop} renderOverlay={renderOverlay}>
+        <PlanningDnd enabled={canEdit} onDrop={handleDrop} renderOverlay={renderOverlay} onDraggingChange={(d) => (dragging.current = d)}>
+          <div onTouchStart={swipe.onTouchStart} onTouchEnd={swipe.onTouchEnd}>
           {view === "cards" ? (
             <div className="grid gap-4 md:grid-cols-3">
               {days.map((d, i) => (
@@ -280,6 +331,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
               ))}
             </div>
           )}
+          </div>
         </PlanningDnd>
       )}
 
