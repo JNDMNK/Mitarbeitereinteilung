@@ -136,9 +136,13 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
           )}
           {canEdit && (
             <>
-              <Action onClick={() => setSheet({ kind: "pickVehicleForEmployee", date: sheet.date, employeeId: e.id })}>
-                🚐 {vehicle ? "Auf anderes Fahrzeug setzen …" : "Zuweisen zu Fahrzeug …"}
-              </Action>
+              {absent ? (
+                <p className="text-sm text-muted">Abwesende Mitarbeiter können an diesem Tag nicht eingeteilt werden.</p>
+              ) : (
+                <Action onClick={() => setSheet({ kind: "pickVehicleForEmployee", date: sheet.date, employeeId: e.id })}>
+                  🚐 {vehicle ? "Auf anderes Fahrzeug setzen …" : "Zuweisen zu Fahrzeug …"}
+                </Action>
+              )}
               {vehicle && (
                 <Action onClick={() => setSheet({ kind: "copyEmployee", date: sheet.date, employeeId: e.id })}>⧉ Auf anderen Tag kopieren …</Action>
               )}
@@ -278,7 +282,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
           items={[
             { group: "Verfügbar", list: available },
             { group: "Schon eingeteilt (wird umgesetzt)", list: elsewhere },
-            { group: "Abwesend", list: absent },
+            { group: "Abwesend – nicht einteilbar", list: absent },
           ]}
           placeholder="Name oder Kürzel"
           empty="Keine Mitarbeiter gefunden."
@@ -289,7 +293,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
             return (
               <Action
                 key={e.id}
-                disabled={busy}
+                disabled={busy || !!abs}
                 onClick={async () => {
                   close();
                   await run("crew-assign", { date: sheet.date, employeeId: e.id, vehicleId: v.id, expectedFromVehicleId: from }, `${e.firstName} ${e.lastName} → ${v.licensePlate}.`);
@@ -427,7 +431,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
             return (
               <Action
                 key={d}
-                disabled={busy || there === vehicle.id}
+                disabled={busy || there === vehicle.id || !!abs}
                 onClick={async () => {
                   close();
                   await run(
@@ -439,7 +443,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
               >
                 <span className="flex-1">{formatDayShort(d)}</span>
                 <span className="text-sm font-normal text-muted">
-                  {there === vehicle.id ? "schon dort" : there ? `jetzt auf ${idx.vehicles.get(there)?.licensePlate} (wird umgesetzt)` : abs ? `abwesend (${abs.type?.code})` : "frei"}
+                  {abs ? `abwesend (${abs.type?.code}) – nicht möglich` : there === vehicle.id ? "schon dort" : there ? `jetzt auf ${idx.vehicles.get(there)?.licensePlate} (wird umgesetzt)` : "frei"}
                 </span>
               </Action>
             );

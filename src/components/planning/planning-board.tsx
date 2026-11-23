@@ -84,6 +84,11 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
       const name = `${e.firstName} ${e.lastName}`;
       if (drop.kind === "vehicle") {
         const v = idx.vehicles.get(drop.vehicleId)!;
+        const absent = dayViews.get(drop.date)?.absent.find((a) => a.employee.id === e.id);
+        if (absent && !(sameDay && drag.fromVehicleId === drop.vehicleId)) {
+          actions.notify("error", [`${name} ist am ${formatDayShort(drop.date)} abwesend (${absent.type?.name ?? "Abwesenheit"}) und kann nicht eingeteilt werden.`]);
+          return;
+        }
         if (sameDay) {
           if (drag.fromVehicleId === drop.vehicleId) return;
           if (copy) actions.notify("warning", ["Ein Mitarbeiter kann pro Tag nur auf einem Fahrzeug sein – wird verschoben."]);

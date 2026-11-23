@@ -211,6 +211,14 @@ async function assignCrewTx(
   }
   if (currentVehicleId === p.vehicleId) return;
 
+  // Abwesende können nicht eingeteilt werden (nur zurück in den Pool)
+  const absence = await absentOn(tx, emp.id, p.date);
+  if (absence) {
+    throw badRequest(
+      `${fullName(emp)} ist am ${formatDayShort(p.date)} abwesend (${absence.type.name}) und kann nicht eingeteilt werden. Bitte zuerst die Abwesenheit ändern.`,
+    );
+  }
+
   if (current) {
     await tx.crewMember.delete({ where: { id: current.id } });
     await bumpVehicleDay(tx, current.vehicleDayId);
@@ -227,8 +235,6 @@ async function assignCrewTx(
 
   const crewCount = await tx.crewMember.count({ where: { vehicleDayId: vd.id } });
   if (crewCount > vehicle.seats) warnings.push(`${vehicle.licensePlate} ist am ${formatDayShort(p.date)} überbelegt (${crewCount}/${vehicle.seats}).`);
-  const abs = await absentOn(tx, emp.id, p.date);
-  if (abs) warnings.push(`${fullName(emp)} ist am ${formatDayShort(p.date)} abwesend (${abs.type.name}).`);
 
   await audit(tx, {
     userId: actorId,

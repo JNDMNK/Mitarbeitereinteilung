@@ -42,7 +42,8 @@ export function DraggableEmployee({
 }) {
   const abs = day.absent.find((a) => a.employee.id === employee.id);
   const data: DragData = { type: "employee", date, employeeId: employee.id, fromVehicleId };
-  const drag = useDragItem(`emp:${date}:${employee.id}:${suffix}`, data, !canEdit || !employee.active);
+  // Abwesende im Pool lassen sich nicht einteilen; eingeteilte Abwesende nur zurück in den Pool ziehen
+  const drag = useDragItem(`emp:${date}:${employee.id}:${suffix}`, data, !canEdit || !employee.active || (!!abs && !fromVehicleId));
   return (
     <EmployeeChip
       employee={employee}
