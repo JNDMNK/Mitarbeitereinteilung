@@ -77,3 +77,24 @@ describe("Stammdaten-Validierung", () => {
     expect(siteCreateSchema.parse({ name: "X", color: "#112233", startDate: "", endDate: "" }).startDate).toBeNull();
   });
 });
+
+import { addMonths, diffDays, eachDay, formatRange, monthEnd, monthStart } from "@/lib/dates";
+
+describe("Monats- und Bereichshelfer", () => {
+  it("Monatsgrenzen inkl. Schaltjahr", () => {
+    expect(monthStart("2026-11-23")).toBe("2026-11-01");
+    expect(monthEnd("2026-11-23")).toBe("2026-11-30");
+    expect(monthEnd("2028-02-10")).toBe("2028-02-29");
+    expect(addMonths("2026-12-15", 1)).toBe("2027-01-01");
+    expect(addMonths("2026-01-31", -1)).toBe("2025-12-01");
+  });
+  it("Tage aufzählen und zählen", () => {
+    expect(eachDay("2026-12-30", "2027-01-02")).toEqual(["2026-12-30", "2026-12-31", "2027-01-01", "2027-01-02"]);
+    expect(diffDays("2026-03-28", "2026-03-30")).toBe(2);
+  });
+  it("Zeiträume lesbar formatieren", () => {
+    expect(formatRange("2026-12-01", "2026-12-05")).toBe("01.12.–05.12.2026");
+    expect(formatRange("2026-12-28", "2027-01-02")).toBe("28.12.2026–02.01.2027");
+    expect(formatRange("2026-12-01", "2026-12-01")).toBe("01.12.2026");
+  });
+});

@@ -112,3 +112,21 @@ export const COLOR_PRESETS = [
   "#c8102e", "#ea580c", "#d97706", "#ca8a04", "#65a30d", "#16a34a", "#0d9488",
   "#0891b2", "#2563eb", "#4f46e5", "#7c3aed", "#c026d3", "#db2777", "#64748b",
 ];
+
+// --- Abwesenheiten -------------------------------------------------------
+const absenceBase = z.object({
+  employeeId: id,
+  typeId: id,
+  startDate: isoDate,
+  endDate: isoDate,
+  note: optionalText(300),
+});
+const absenceRefine = <T extends { startDate?: string; endDate?: string }>(s: z.ZodType<T>) =>
+  s.refine((v) => !v.startDate || !v.endDate || v.startDate <= v.endDate, {
+    message: "Das Ende darf nicht vor dem Beginn liegen.",
+    path: ["endDate"],
+  });
+export const absenceCreateSchema = absenceRefine(absenceBase);
+export const absenceUpdateSchema = absenceRefine(absenceBase.omit({ employeeId: true }).partial().extend({ version }));
+export const absenceDeleteSchema = z.object({ version });
+export const absenceQuerySchema = z.object({ from: isoDate, to: isoDate });

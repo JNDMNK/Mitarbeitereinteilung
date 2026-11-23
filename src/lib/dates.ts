@@ -55,3 +55,50 @@ export function isIsoDate(v: unknown): v is string {
 export function mapsUrl(address: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
+
+/** Anzahl Tage von a bis b (b - a) */
+export function diffDays(a: string, b: string): number {
+  return Math.round((toUtcNoon(b).getTime() - toUtcNoon(a).getTime()) / 86_400_000);
+}
+
+/** Alle Tage von..bis (inklusive) */
+export function eachDay(from: string, to: string): string[] {
+  const out: string[] = [];
+  for (let d = from; d <= to; d = addDays(d, 1)) out.push(d);
+  return out;
+}
+
+export function monthStart(iso: string): string {
+  return iso.slice(0, 8) + "01";
+}
+
+export function monthEnd(iso: string): string {
+  const [y, m] = iso.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${iso.slice(0, 8)}${String(last).padStart(2, "0")}`;
+}
+
+export function addMonths(iso: string, months: number): string {
+  const [y, m] = iso.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + months, 1));
+  return d.toISOString().slice(0, 10);
+}
+
+const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+/** "November 2026" */
+export function formatMonth(iso: string): string {
+  const [y, m] = iso.split("-").map(Number);
+  return `${MONTHS[m - 1]} ${y}`;
+}
+
+/** "01.12.–05.12.2026" bzw. "01.12.2026" */
+export function formatRange(from: string, to: string): string {
+  if (from === to) return formatDate(from);
+  const [fy, fm, fd] = from.split("-");
+  const [ty] = to.split("-");
+  return fy === ty ? `${fd}.${fm}.–${formatDate(to)}` : `${formatDate(from)}–${formatDate(to)}`;
+}
+
+export function weekdayShort(iso: string): string {
+  return WEEKDAYS_SHORT[weekday(iso)];
+}
