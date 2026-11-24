@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LiveRefresh } from "@/components/live/live-refresh";
 import { PageHeader, Placeholder } from "@/components/page-header";
 import { QualificationBadge } from "@/components/qualification-badge";
+import { holidayName } from "@/lib/holidays";
 import { addDays, formatDayLong, isoWeek, formatRange, mapsUrl, navigationUrl, todayIso } from "@/lib/dates";
 import { timeRange } from "@/lib/planning-logic";
 import { requirePagePermission } from "@/server/page-auth";
@@ -63,6 +64,7 @@ function DayCard({ day, today, big = false }: { day: MyDay; today: string; big?:
         <h2 className={big ? "text-xl font-bold" : "text-lg font-bold"}>
           {title ? `${title}, ` : ""}
           {formatDayLong(day.date)}
+          {holidayName(day.date) && <span className="ml-2 text-base font-semibold opacity-80">🎉 {holidayName(day.date)}</span>}
         </h2>
         <span className="shrink-0 text-sm font-semibold opacity-80">KW {isoWeek(day.date)}</span>
       </header>

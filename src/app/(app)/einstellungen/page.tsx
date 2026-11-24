@@ -22,6 +22,7 @@ export default async function SettingsPage() {
             companyName={s.companyName}
             defaultStartMin={s.defaultStartMin}
             defaultEndMin={s.defaultEndMin}
+            weekCrews={s.weekCrews}
           />
         </section>
         <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-line">

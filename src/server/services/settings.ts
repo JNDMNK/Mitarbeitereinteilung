@@ -33,6 +33,7 @@ export async function updateSettings(actorId: string, input: z.infer<typeof sett
         companyName: input.companyName,
         defaultStartMin: input.defaultStartMin,
         defaultEndMin: input.defaultEndMin,
+        ...(input.weekCrews !== undefined ? { weekCrews: input.weekCrews } : {}),
         version: { increment: 1 },
       },
     });
@@ -42,7 +43,7 @@ export async function updateSettings(actorId: string, input: z.infer<typeof sett
       action: "settings.update",
       entityType: "AppSettings",
       entityId: "1",
-      summary: `Einstellungen geändert (Firma "${input.companyName}", Arbeitszeit ${formatMinutes(input.defaultStartMin)}–${formatMinutes(input.defaultEndMin)})`,
+      summary: `Einstellungen geändert (Firma "${input.companyName}", Arbeitszeit ${formatMinutes(input.defaultStartMin)}–${formatMinutes(input.defaultEndMin)}${input.weekCrews !== undefined ? `, Wochen-Kolonnen ${input.weekCrews ? "an" : "aus"}` : ""})`,
       details: {
         before: { companyName: current.companyName, start: current.defaultStartMin, end: current.defaultEndMin },
         after: { companyName: input.companyName, start: input.defaultStartMin, end: input.defaultEndMin },

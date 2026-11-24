@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { formatDayLong, formatDayShort, isWeekend, isoWeek, mapsUrl } from "@/lib/dates";
+import { holidayName } from "@/lib/holidays";
 import { timeRange } from "@/lib/planning-logic";
 import type { PEmployee, PVehicle } from "@/lib/planning-types";
 import type { DayView, Indexes, VehicleSlot } from "@/lib/planning-view";
@@ -326,10 +327,11 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
 
 export function DayHeader({ day, today, canEdit, open, sticky = true }: { day: DayView; today: string; canEdit: boolean; open: (s: Sheet) => void; sticky?: boolean }) {
   const isToday = day.date === today;
+  const holiday = holidayName(day.date);
   return (
       <header
         className={`${sticky ? "md:sticky md:top-14 md:z-20" : ""} flex items-center justify-between gap-2 rounded-xl px-3 py-2 shadow-sm ${
-          isToday ? "bg-brand-700 text-white" : isWeekend(day.date) ? "bg-slate-300 text-ink" : "bg-ink text-white"
+          isToday ? "bg-brand-700 text-white" : isWeekend(day.date) || holiday ? "bg-slate-300 text-ink" : "bg-ink text-white"
         }`}
       >
         <div className="min-w-0">
@@ -338,6 +340,7 @@ export function DayHeader({ day, today, canEdit, open, sticky = true }: { day: D
           </h2>
           <p className="truncate text-xs opacity-90">
             {isToday ? "Heute · " : ""}
+            {holiday ? <strong>🎉 {holiday} · </strong> : null}
             {day.stats.assigned} eingeteilt · {day.stats.available} frei · {day.stats.absent} abwesend
           </p>
         </div>

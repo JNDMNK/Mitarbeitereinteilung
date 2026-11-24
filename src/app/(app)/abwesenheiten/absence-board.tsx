@@ -10,6 +10,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/field";
 import { api } from "@/lib/api-client";
 import { addMonths, eachDay, formatDayLong, isoWeek, formatMonth, formatRange, isWeekend, weekdayShort } from "@/lib/dates";
+import { holidayName } from "@/lib/holidays";
 
 type Absence = {
   id: string;
@@ -275,7 +276,8 @@ export function AbsenceBoard(props: {
                   <th
                     key={d}
                     data-today={d === today ? "" : undefined}
-                    className={`min-w-9 border-b border-line px-0 py-1 text-center font-semibold ${isWeekend(d) ? "bg-slate-200" : "bg-white"} ${d === today ? "bg-brand-700! text-white" : ""}`}
+                    title={holidayName(d) ?? undefined}
+                    className={`min-w-9 border-b border-line px-0 py-1 text-center font-semibold ${isWeekend(d) || holidayName(d) ? "bg-slate-200" : "bg-white"} ${d === today ? "bg-brand-700! text-white" : ""}`}
                   >
                     <div className="text-[11px] leading-tight">{weekdayShort(d)}</div>
                     <div className="leading-tight">{Number(d.slice(8))}</div>
@@ -331,7 +333,7 @@ export function AbsenceBoard(props: {
                               }}
                               onClick={(ev) => onCellClick(ev, e, d, lastPointerType.current)}
                               className={`h-10 border-b border-line p-0.5 text-center ${
-                                !inPeriod(e, d) ? "bg-[repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9_4px,#e2e8f0_4px,#e2e8f0_8px)]" : isWeekend(d) ? "bg-slate-100" : ""
+                                !inPeriod(e, d) ? "bg-[repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9_4px,#e2e8f0_4px,#e2e8f0_8px)]" : isWeekend(d) || holidayName(d) ? "bg-slate-100" : ""
                               } ${d === today ? "border-x-2 border-x-brand-700" : ""} ${canEdit && e.active && inPeriod(e, d) ? "cursor-pointer hover:bg-brand-50" : ""}`}
                             >
                               {a ? (

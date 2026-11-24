@@ -84,6 +84,7 @@ export const settingsSchema = z
     companyName: z.string().trim().min(1, "Bitte einen Firmennamen angeben.").max(80),
     defaultStartMin: gridMinute("Arbeitsbeginn"),
     defaultEndMin: gridMinute("Arbeitsende"),
+    weekCrews: z.boolean().optional(),
   })
   .refine((d) => d.defaultEndMin > d.defaultStartMin, {
     message: "Das Arbeitsende muss nach dem Arbeitsbeginn liegen.",

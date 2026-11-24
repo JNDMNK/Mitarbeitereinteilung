@@ -1,7 +1,8 @@
 import "server-only";
 import type { z } from "zod";
 import { isAvailableOn } from "@/lib/constants";
-import { formatDayShort, formatRange } from "@/lib/dates";
+import { formatDayShort, formatRange, weekdayShort } from "@/lib/dates";
+import { isFirstWorkdayOfWeek, remainingWorkdaysOfWeek } from "@/lib/holidays";
 import { absenceOn, findOverlap, siteWarnings, timeRange } from "@/lib/planning-logic";
 import type {
   assignmentCreateSchema,
@@ -228,6 +229,7 @@ async function ensureVehicleDay(tx: Tx, actorId: string, date: string, vehicleId
   }
   if (added.length) messages.push(`Standard-Besatzung von ${vehicle.licensePlate} vorbelegt: ${added.join(", ")}.`);
   if (skipped.length) messages.push(`Nicht vorbelegt: ${skipped.join(", ")}.`);
+  if (added.length) await fillWeekFromDay(tx, actorId, date, messages, [vehicleId]);
   return vd;
 }
 
@@ -242,7 +244,9 @@ async function bumpVehicleDay(tx: Tx, vehicleDayId: string) {
 }
 
 function finish(userId: string, dates: string[], messages: string[], warnings: string[]): PlanningResult {
-  publishChange({ scope: "planning", dates: [...new Set(dates)], userId });
+  // Wochen-Kolonnen können die restlichen Tage der Woche mit ändern
+  const all = dates.flatMap((d) => (isFirstWorkdayOfWeek(d) ? [d, ...remainingWorkdaysOfWeek(d)] : [d]));
+  publishChange({ scope: "planning", dates: [...new Set(all)], userId });
   return { ok: true, messages, warnings };
 }
 
@@ -260,6 +264,7 @@ async function assignCrewTx(
   p: { date: string; employeeId: string; vehicleId: string; expectedFrom: string | null },
   messages: string[],
   warnings: string[],
+  week = true,
 ) {
   const emp = await loadEmployee(tx, p.employeeId);
   if (!emp.active) throw badRequest(`${fullName(emp)} ist deaktiviert.`);
@@ -319,9 +324,10 @@ async function assignCrewTx(
       ? `${fullName(emp)} von ${current.vehicleDay.vehicle.licensePlate} nach ${vehicle.licensePlate} verschoben (${formatDayShort(p.date)})`
       : `${fullName(emp)} auf ${vehicle.licensePlate} eingeteilt (${formatDayShort(p.date)})`,
   });
+  if (week) await syncWeek(tx, actorId, p.date, [{ employeeId: emp.id, fromVehicleId: currentVehicleId, toVehicleId: p.vehicleId }], messages);
 }
 
-async function removeCrewTx(tx: Tx, actorId: string, p: { date: string; employeeId: string; expectedFrom: string }) {
+async function removeCrewTx(tx: Tx, actorId: string, p: { date: string; employeeId: string; expectedFrom: string }, messages: string[] = [], week = true) {
   const emp = await loadEmployee(tx, p.employeeId);
   const current = await tx.crewMember.findUnique({
     where: { date_employeeId: { date: p.date, employeeId: p.employeeId } },
@@ -341,6 +347,130 @@ async function removeCrewTx(tx: Tx, actorId: string, p: { date: string; employee
     date: p.date,
     summary: `${fullName(emp)} von ${current.vehicleDay.vehicle.licensePlate} entfernt (${formatDayShort(p.date)})`,
   });
+  if (week) await syncWeek(tx, actorId, p.date, [{ employeeId: emp.id, fromVehicleId: current.vehicleDay.vehicleId, toVehicleId: null }], messages);
+}
+
+// ---------------------------------------------------------------------------
+// Wochen-Kolonnen: Einteilung am ersten Arbeitstag gilt für die restliche Woche
+// ---------------------------------------------------------------------------
+
+type WeekChange = { employeeId: string; fromVehicleId: string | null; toVehicleId: string | null };
+
+async function weekCrewsEnabled(tx: Tx) {
+  const s = await tx.appSettings.findUnique({ where: { id: 1 }, select: { weekCrews: true } });
+  return s?.weekCrews ?? true;
+}
+
+/**
+ * Änderungen vom ersten Arbeitstag der Woche auf die restlichen Arbeitstage übertragen.
+ * - Neu eingeteilt: an freien Tagen auf dasselbe Fahrzeug (Abwesende, Praktikanten,
+ *   anderweitig Eingeteilte und belegte Fahrzeuge werden ausgelassen).
+ * - Verschoben/entfernt: nur dort mitziehen, wo die Person noch auf dem alten Fahrzeug sitzt.
+ * Räume werden nicht übertragen. Manuelle Einteilungen an späteren Tagen bleiben unangetastet.
+ */
+async function syncWeek(tx: Tx, actorId: string, date: string, changes: WeekChange[], messages: string[]) {
+  if (changes.length === 0 || !isFirstWorkdayOfWeek(date)) return;
+  const days = remainingWorkdaysOfWeek(date);
+  if (days.length === 0 || !(await weekCrewsEnabled(tx))) return;
+
+  const vehicleIds = [...new Set(changes.flatMap((c) => [c.fromVehicleId, c.toVehicleId]).filter(Boolean) as string[])];
+  const vehicles = new Map((await tx.vehicle.findMany({ where: { id: { in: vehicleIds } } })).map((v) => [v.id, v]));
+  const isRoom = (id: string | null) => !!id && vehicles.get(id)?.kind === "ROOM";
+
+  let added = 0;
+  let moved = 0;
+  let removed = 0;
+  const skipped: string[] = [];
+  const names: string[] = [];
+
+  for (const c of changes) {
+    const emp = await tx.employee.findUnique({ where: { id: c.employeeId } });
+    if (!emp || emp.qualification === "PRAKTIKANT") continue;
+    if (isRoom(c.toVehicleId)) continue; // Lager/Schulung gilt nur für den Tag
+    const from = isRoom(c.fromVehicleId) ? null : c.fromVehicleId;
+    const to = c.toVehicleId;
+    if (!from && !to) continue;
+    let touched = false;
+
+    for (const d of days) {
+      const current = await tx.crewMember.findUnique({ where: { date_employeeId: { date: d, employeeId: emp.id } }, include: { vehicleDay: true } });
+      // Bereits eingeteilt: nur mitziehen, wenn die Person dort noch auf dem alten Fahrzeug sitzt
+      if (current && (!from || current.vehicleDay.vehicleId !== from || current.vehicleDay.vehicleId === to)) continue;
+      if (!current && !to) continue;
+
+      const removeCurrent = async () => {
+        if (!current) return;
+        await tx.crewMember.delete({ where: { id: current.id } });
+        await bumpVehicleDay(tx, current.vehicleDayId);
+        await cleanupVehicleDay(tx, current.vehicleDayId);
+      };
+      if (!to) {
+        await removeCurrent();
+        removed++;
+        touched = true;
+        continue;
+      }
+
+      // Kann die Person an diesem Tag auf `to`? Sonst bleibt alles, wie es ist.
+      const vehicle = vehicles.get(to)!;
+      const label = `${emp.shortName} ${weekdayShort(d)}`;
+      if (!emp.active || !vehicle.active) continue;
+      if (!isAvailableOn(emp, d)) {
+        skipped.push(`${label} (nicht im Betrieb)`);
+        continue;
+      }
+      const abs = await absentOn(tx, emp.id, d);
+      if (abs) {
+        skipped.push(`${label} (${abs.type.name})`);
+        continue;
+      }
+      if (await vehicleBlock(tx, vehicle, d)) {
+        skipped.push(`${label} (${vehicle.licensePlate} nicht verfügbar)`);
+        continue;
+      }
+      const existingVd = await tx.vehicleDay.findUnique({ where: { date_vehicleId: { date: d, vehicleId: to } } });
+      const seatsTaken = existingVd ? await tx.crewMember.count({ where: { vehicleDayId: existingVd.id } }) : 0;
+      if (seatsTaken >= vehicle.seats) {
+        skipped.push(`${label} (${vehicle.licensePlate} voll)`);
+        continue;
+      }
+      await removeCurrent();
+      const vd = existingVd ?? (await ensureVehicleDay(tx, actorId, d, to, [], false));
+      await tx.crewMember.create({ data: { vehicleDayId: vd.id, date: d, employeeId: emp.id, sortOrder: seatsTaken, assignedById: actorId } });
+      await bumpVehicleDay(tx, vd.id);
+      if (current) moved++;
+      else added++;
+      touched = true;
+    }
+    if (touched) names.push(emp.shortName);
+  }
+
+  const total = added + moved + removed;
+  if (total > 0) {
+    const range = `${weekdayShort(days[0])}–${weekdayShort(days[days.length - 1])}`;
+    const parts = [added && `${added} eingeteilt`, moved && `${moved} umgesetzt`, removed && `${removed} entfernt`].filter(Boolean).join(", ");
+    messages.push(`Wochen-Kolonne übernommen (${range}): ${parts}.`);
+    await audit(tx, {
+      userId: actorId,
+      action: "crew.week",
+      entityType: "CrewMember",
+      entityId: date,
+      date,
+      summary: `Wochen-Kolonne ab ${formatDayShort(date)} auf ${range} übertragen (${parts}): ${names.join(", ")}`,
+    });
+  }
+  if (skipped.length) messages.push(`Für die Woche nicht übernommen: ${skipped.join(", ")}.`);
+}
+
+/** Gesamte Besatzung (optional nur bestimmter Fahrzeuge) eines ersten Arbeitstags in die Woche übernehmen */
+async function fillWeekFromDay(tx: Tx, actorId: string, date: string, messages: string[], vehicleIds?: string[]) {
+  if (!isFirstWorkdayOfWeek(date)) return;
+  const crew = await tx.crewMember.findMany({
+    where: { date, ...(vehicleIds ? { vehicleDay: { vehicleId: { in: vehicleIds } } } : {}) },
+    include: { vehicleDay: true },
+    orderBy: { sortOrder: "asc" },
+  });
+  await syncWeek(tx, actorId, date, crew.map((c) => ({ employeeId: c.employeeId, fromVehicleId: null, toVehicleId: c.vehicleDay.vehicleId })), messages);
 }
 
 export async function assignCrew(actorId: string, input: z.infer<typeof crewAssignSchema>): Promise<PlanningResult> {
@@ -353,8 +483,9 @@ export async function assignCrew(actorId: string, input: z.infer<typeof crewAssi
 }
 
 export async function removeCrew(actorId: string, input: z.infer<typeof crewRemoveSchema>): Promise<PlanningResult> {
-  await db.$transaction((tx) => removeCrewTx(tx, actorId, { date: input.date, employeeId: input.employeeId, expectedFrom: input.expectedFromVehicleId }));
-  return finish(actorId, [input.date], [], []);
+  const messages: string[] = [];
+  await db.$transaction((tx) => removeCrewTx(tx, actorId, { date: input.date, employeeId: input.employeeId, expectedFrom: input.expectedFromVehicleId }, messages));
+  return finish(actorId, [input.date], messages, []);
 }
 
 /** Mitarbeiter auf ein Fahrzeug an einem anderen Tag verschieben oder kopieren */
@@ -370,7 +501,7 @@ export async function transferCrew(actorId: string, input: z.infer<typeof crewTr
       warnings,
     );
     if (!input.copy && input.fromVehicleId && input.fromDate !== input.toDate) {
-      await removeCrewTx(tx, actorId, { date: input.fromDate, employeeId: input.employeeId, expectedFrom: input.fromVehicleId });
+      await removeCrewTx(tx, actorId, { date: input.fromDate, employeeId: input.employeeId, expectedFrom: input.fromVehicleId }, messages);
     }
   });
   return finish(actorId, [input.fromDate, input.toDate], messages, warnings);
@@ -513,12 +644,14 @@ export async function deleteAssignment(actorId: string, input: z.infer<typeof as
 
 /** Fahrzeug für den Tag komplett freigeben: Besatzung zurück in den Pool, Einsätze löschen */
 export async function releaseVehicle(actorId: string, input: z.infer<typeof vehicleReleaseSchema>): Promise<PlanningResult> {
+  const releaseMessages: string[] = [];
   await db.$transaction(async (tx) => {
     const vd = await tx.vehicleDay.findUnique({
       where: { date_vehicleId: { date: input.date, vehicleId: input.vehicleId } },
       include: { vehicle: true, _count: { select: { crew: true, assignments: true } } },
     });
     if (!vd) return;
+    const crewBefore = await tx.crewMember.findMany({ where: { vehicleDayId: vd.id }, select: { employeeId: true } });
     const res = await tx.vehicleDay.deleteMany({ where: { id: vd.id, version: input.version } });
     if (res.count !== 1) throw conflict("Das Fahrzeug wurde inzwischen von jemand anderem geändert. Die Ansicht wird aktualisiert.");
     await audit(tx, {
@@ -529,8 +662,9 @@ export async function releaseVehicle(actorId: string, input: z.infer<typeof vehi
       date: input.date,
       summary: `${vd.vehicle.licensePlate} für ${formatDayShort(input.date)} freigegeben (${vd._count.crew} Personen zurück in den Pool, ${vd._count.assignments} Einsätze entfernt)`,
     });
+    await syncWeek(tx, actorId, input.date, crewBefore.map((c) => ({ employeeId: c.employeeId, fromVehicleId: input.vehicleId, toVehicleId: null })), releaseMessages);
   });
-  return finish(actorId, [input.date], [], []);
+  return finish(actorId, [input.date], releaseMessages, []);
 }
 
 // ---------------------------------------------------------------------------
@@ -628,6 +762,7 @@ export async function transferVehicle(actorId: string, input: z.infer<typeof veh
     const crewCount = await tx.crewMember.count({ where: { vehicleDayId: target.id } });
     if (crewCount > vehicle.seats) warnings.push(`${vehicle.licensePlate} ist am ${formatDayShort(input.toDate)} überbelegt (${crewCount}/${vehicle.seats}).`);
     await cleanupVehicleDay(tx, target.id);
+    if (added > 0) await fillWeekFromDay(tx, actorId, input.toDate, messages, [input.vehicleId]);
 
     // Quelle aufräumen (nur beim Verschieben)
     if (!input.copy && src) {
@@ -732,6 +867,7 @@ export async function copyDay(actorId: string, input: z.infer<typeof dayCopySche
     messages.push(
       `Einteilung von ${formatDayShort(input.fromDate)} nach ${formatDayShort(input.toDate)} übernommen${input.mode === "replace" ? " (Zieltag ersetzt)" : input.mode === "merge" ? " (zusammengeführt)" : ""}: ${vehicles} Fahrzeuge, ${assignments} Einsätze, ${people} Personen.`,
     );
+    await fillWeekFromDay(tx, actorId, input.toDate, messages);
     warnings.push(...skippedWarnings(skipped));
     if (skippedOther.length) warnings.push(`Nicht übernommen: ${skippedOther.join(", ")}.`);
     warnings.push(...siteWarn);

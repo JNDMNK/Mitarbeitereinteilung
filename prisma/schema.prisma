@@ -92,6 +92,8 @@ model AppSettings {
   autoDeleteSiteDays     Int @default(30)
   autoDeleteEmployeeDays Int @default(30)
   autoDeleteVehicleDays  Int @default(30)
+  /// Einteilung am ersten Arbeitstag der Woche automatisch für die restliche Woche übernehmen (außer Praktikanten)
+  weekCrews              Boolean @default(true)
   version          Int      @default(1)
   updatedAt        DateTime @updatedAt
 }

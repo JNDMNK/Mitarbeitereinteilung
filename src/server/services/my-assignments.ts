@@ -1,5 +1,6 @@
 import "server-only";
-import { addDays, eachDay, isWeekend } from "@/lib/dates";
+import { addDays, eachDay } from "@/lib/dates";
+import { isDayOff } from "@/lib/holidays";
 import { db } from "../db";
 
 export type MyDay = {
@@ -87,6 +88,6 @@ export async function getMyAssignments(employeeId: string, from: string, days = 
         sites: (vd?.assignments ?? []).map((a) => ({ ...a.site, startMin: a.startMin, endMin: a.endMin, assignmentNote: a.note })),
       };
     })
-    // Wochenende nur zeigen, wenn dort etwas ansteht
-    .filter((d, i) => i === 0 || !isWeekend(d.date) || d.vehicle || d.absence);
+    // Wochenende/Feiertage nur zeigen, wenn dort etwas ansteht
+    .filter((d, i) => i === 0 || !isDayOff(d.date) || d.vehicle || d.absence);
 }

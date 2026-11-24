@@ -288,14 +288,14 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
             aria-controls="planning-options"
             onClick={() => setShowOptions((v) => !v)}
             className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-line text-xl md:hidden"
-            title="Ansicht und Wochenende"
+            title="Ansicht, Wochenende und Feiertage"
           >
             ⚙
           </button>
           <div id="planning-options" className={`${showOptions ? "flex" : "hidden"} w-full flex-wrap items-center gap-2 md:flex md:w-auto`}>
             <label className="flex min-h-11 cursor-pointer items-center gap-2 px-1">
               <input type="checkbox" className="size-5 accent-brand-600" checked={!hideWeekends} onChange={(e) => toggleWeekends(!e.target.checked)} />
-              Wochenende
+              Wochenende &amp; Feiertage
             </label>
             <details className="relative">
               <summary className={`flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg border px-3 font-semibold ${hiddenDeps.length ? "border-brand-600 bg-brand-50 text-brand-800" : "border-line hover:bg-slate-50"}`}>

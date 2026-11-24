@@ -12,7 +12,7 @@ import { formatMinutes, gridOptions } from "@/lib/time";
 type Msg = { tone: "success" | "error"; text: string } | null;
 const errText = (err: unknown, fallback: string) => (err instanceof ApiClientError ? err.message : fallback);
 
-export function SettingsForm(props: { version: number; companyName: string; defaultStartMin: number; defaultEndMin: number }) {
+export function SettingsForm(props: { version: number; companyName: string; defaultStartMin: number; defaultEndMin: number; weekCrews: boolean }) {
   const router = useRouter();
   const [msg, setMsg] = useState<Msg>(null);
   const [busy, setBusy] = useState(false);
@@ -34,6 +34,7 @@ export function SettingsForm(props: { version: number; companyName: string; defa
               companyName: f.get("companyName"),
               defaultStartMin: Number(f.get("defaultStartMin")),
               defaultEndMin: Number(f.get("defaultEndMin")),
+              weekCrews: f.get("weekCrews") === "on",
             },
           });
           setMsg({ tone: "success", text: "Einstellungen gespeichert." });
@@ -70,6 +71,16 @@ export function SettingsForm(props: { version: number; companyName: string; defa
         </Field>
       </div>
       <p className="text-sm text-muted">Wird bei neuen Baustelleneinsätzen als Zeitfenster vorgeschlagen.</p>
+      <label className="flex items-start gap-3">
+        <input type="checkbox" name="weekCrews" defaultChecked={props.weekCrews} className="mt-1 size-5 shrink-0 accent-brand-600" />
+        <span>
+          <span className="font-semibold">Wochen-Kolonnen</span>
+          <span className="block text-sm text-muted">
+            Wer am ersten Arbeitstag der Woche (meist Montag) auf ein Fahrzeug eingeteilt wird, fährt automatisch die restliche Woche in derselben Kolonne – außer Praktikanten, Abwesende und
+            Räume. Spätere Änderungen am Montag werden mitgezogen, manuell geänderte Tage bleiben unangetastet.
+          </span>
+        </span>
+      </label>
       <Button type="submit" disabled={busy}>
         {busy ? "Speichern …" : "Speichern"}
       </Button>
