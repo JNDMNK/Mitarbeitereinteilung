@@ -28,6 +28,9 @@ export type PVehicle = {
   /** Abteilung laut Stammdaten (leer = Abteilung des Besitzers) */
   departmentId: string | null;
   defaultIds: string[];
+  /** Fälligkeiten "YYYY-MM-DD" */
+  tuevDue?: string | null;
+  serviceDue?: string | null;
 };
 export type PSite = {
   id: string;
@@ -56,6 +59,8 @@ export type PAbsence = {
   /** Besitzer ist mit seinem Fahrzeug abwesend */
   withVehicle: boolean;
 };
+/** Fahrzeug-Ausfall (Werkstatt, TÜV …) */
+export type POutage = { id: string; vehicleId: string; startDate: string; endDate: string; reason: string; note: string | null; version: number };
 export type PCrew = { id: string; employeeId: string; sortOrder: number; assignedById: string | null; createdAt: string };
 export type PAssignment = {
   id: string;
@@ -89,6 +94,7 @@ export type PlanningData = {
   departments: PDepartment[];
   absenceTypes: PAbsenceType[];
   absences: PAbsence[];
+  outages: POutage[];
   vehicleDays: PVehicleDay[];
   planners: PPlanner[];
   settings: { defaultStartMin: number; defaultEndMin: number };

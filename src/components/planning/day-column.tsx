@@ -7,7 +7,7 @@ import { timeRange } from "@/lib/planning-logic";
 import type { PEmployee, PVehicle } from "@/lib/planning-types";
 import type { DayView, Indexes, VehicleSlot } from "@/lib/planning-view";
 import { formatDateTimeShort } from "@/lib/dates";
-import { ByBadge, EmployeeChip, OwnerLine, UnavailableNote, VehicleLabel, WarningList } from "./chips";
+import { ByBadge, EmployeeChip, OwnerLine, UnavailableNote, VehicleLabel, WarningList, DueBadges } from "./chips";
 import { dropZoneClass, useDragItem, useDropZone, type DragData, type DropData } from "./dnd";
 import type { Sheet } from "./sheets";
 
@@ -235,6 +235,11 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
                     />
                   </div>
                 </div>
+                {it.due && (
+                  <div className="flex flex-wrap gap-1">
+                    <DueBadges due={it.due} />
+                  </div>
+                )}
                 {it.owner && it.owner.state !== "here" && <OwnerLine owner={it.owner} ownEmployeeId={ownerHighlight} name={idx.names.get(it.owner.employee.id)} />}
                 {it.crew.length > 0 ? (
                   <div className="flex flex-wrap gap-1">{crewChips(it.crew, it.vehicle, it.assignment.id, it)}</div>
@@ -295,6 +300,11 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
                 className={`rounded-lg px-2 py-1 ring-1 ring-line ${p.unavailable ? "bg-slate-100 opacity-80" : "bg-white"}`}
               >
                 <DraggableVehicle slot={p} date={day.date} assignment={null} siteId={null} canEdit={canEdit} suffix="pool" onClick={() => open({ kind: "vehicle", date: day.date, vehicleId: p.vehicle.id })} />
+                {p.due && (
+                  <div className="mt-0.5 flex flex-wrap gap-1">
+                    <DueBadges due={p.due} />
+                  </div>
+                )}
                 {p.unavailable ? (
                   <UnavailableNote entry={p.unavailable} />
                 ) : (

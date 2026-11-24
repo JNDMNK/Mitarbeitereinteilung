@@ -91,6 +91,7 @@ describe("Tagesansicht aufbauen", () => {
     departments: [{ id: "d", name: "D", color: "#111111", sortOrder: 0 }],
     absenceTypes: [{ id: "t", name: "Urlaub", code: "U", color: "#00ff00" }],
     absences: [{ id: "x", employeeId: "u", typeId: "t", startDate: "2026-11-30", endDate: "2026-12-02", note: null, withVehicle: true }],
+    outages: [],
     vehicleDays: [
       { id: "vd1", date: "2026-12-01", vehicleId: "v1", note: null, version: 1, crew: [{ id: "c1", employeeId: "a", sortOrder: 0, assignedById: null, createdAt: "" }], assignments: [{ id: "as1", siteId: "s1", startMin: 420, endMin: 960, note: null, version: 1, updatedById: null, updatedAt: "" }] },
       { id: "vd2", date: "2026-12-01", vehicleId: "v2", note: null, version: 1, crew: [{ id: "c2", employeeId: "b", sortOrder: 0, assignedById: null, createdAt: "" }], assignments: [] },
@@ -99,6 +100,21 @@ describe("Tagesansicht aufbauen", () => {
     settings: { defaultStartMin: 420, defaultEndMin: 960 },
   };
   const day = buildDay(data, buildIndexes(data), "2026-12-01");
+  it("Werkstatt-Ausfall sperrt das Fahrzeug, TÜV-Fälligkeit wird angezeigt", () => {
+    const d2 = {
+      ...data,
+      vehicles: data.vehicles.map((v) => (v.id === "v3" ? { ...v, tuevDue: "2026-12-20" } : v)),
+      outages: [{ id: "o1", vehicleId: "v2", startDate: "2026-11-30", endDate: "2026-12-03", reason: "WORKSHOP", note: "Bremsen", version: 1 }],
+    };
+    const dd = buildDay(d2, buildIndexes(d2), "2026-12-01");
+    const v2 = dd.poolVehicles.find((p) => p.vehicle.id === "v2")!;
+    expect(v2.unavailable?.short).toBe("Werkstatt");
+    expect(v2.unavailable?.text).toContain("Bremsen");
+    expect(v2.crewWarnings[0].level).toBe("error");
+    const v3 = dd.poolVehicles.find((p) => p.vehicle.id === "v3")!;
+    expect(v3.due).toEqual([{ label: "TÜV", date: "2026-12-20", overdue: false }]);
+    expect(dd.poolVehicles.find((p) => p.vehicle.id === "v1")?.due).toBeUndefined();
+  });
   it("Baustelle mit Einsatz", () => {
     expect(day.sites).toHaveLength(1);
     expect(day.sites[0].items[0].crew.map((e) => e.id)).toEqual(["a"]);
@@ -118,7 +134,8 @@ describe("Tagesansicht aufbauen", () => {
   });
   it("Fahrzeug gesperrt, wenn Besitzer mit Fahrzeug abwesend", () => {
     const v4 = day.poolVehicles.find((p) => p.vehicle.id === "v4")!;
-    expect(v4.unavailable?.type?.code).toBe("U");
+    expect(v4.unavailable?.absence?.type?.code).toBe("U");
+    expect(v4.unavailable?.short).toBe("mit U abwesend");
     expect(v4.owner?.state).toBe("absent");
   });
   it("Pool: nur verfügbare Mitarbeiter, Abwesende nur in der Abwesenheitsleiste", () => {
@@ -158,6 +175,7 @@ describe("Abteilungen ausblenden", () => {
     ],
     absenceTypes: [{ id: "t", name: "Urlaub", code: "U", color: "#00ff00" }],
     absences: [{ id: "a", employeeId: "s2", typeId: "t", startDate: "2026-12-01", endDate: "2026-12-01", note: null, withVehicle: false }],
+    outages: [],
     vehicleDays: [
       // Sanitär-Fahrzeug, aber mit Elektriker besetzt -> bleibt sichtbar
       { id: "d1", date: "2026-12-01", vehicleId: "vs", note: null, version: 1, crew: [{ id: "c1", employeeId: "e2", sortOrder: 0, assignedById: null, createdAt: "" }], assignments: [{ id: "x1", siteId: "site", startMin: 420, endMin: 960, note: null, version: 1, updatedById: null, updatedAt: "" }] },
@@ -213,6 +231,7 @@ describe("Praktikanten / Zeitraum im Betrieb", () => {
     departments: [{ id: "d", name: "D", color: "#111111", sortOrder: 0 }],
     absenceTypes: [],
     absences: [],
+    outages: [],
     vehicleDays: [{ id: "x", date: "2026-11-30", vehicleId: "v9", note: null, version: 1, crew: [{ id: "c", employeeId: "g", sortOrder: 0, assignedById: null, createdAt: "" }], assignments: [] }],
     planners: [],
     settings: { defaultStartMin: 420, defaultEndMin: 960 },
@@ -265,6 +284,7 @@ describe("Kartenansicht: Fahrzeug-Reihenfolge", () => {
     departments: [{ id: "d", name: "D", color: "#111111", sortOrder: 0 }],
     absenceTypes: [],
     absences: [],
+    outages: [],
     // v3 früh auf A, v1 spät auf B, v2 mittags auf A
     vehicleDays: [vd("v3", [asg("a3", "A", 420)]), vd("v1", [asg("a1", "B", 900)]), vd("v2", [asg("a2", "A", 720)])],
     planners: [],
@@ -291,6 +311,7 @@ describe("Räume", () => {
     departments: [{ id: "d", name: "D", color: "#111111", sortOrder: 0 }],
     absenceTypes: [],
     absences: [],
+    outages: [],
     vehicleDays: [{ id: "x", date: "2026-12-01", vehicleId: "lager", note: null, version: 1, crew: [{ id: "c", employeeId: "a", sortOrder: 0, assignedById: null, createdAt: "" }], assignments: [] }],
     planners: [],
     settings: { defaultStartMin: 420, defaultEndMin: 960 },

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { QUALIFICATIONS, SITE_STATUSES } from "./constants";
+import { OUTAGE_REASONS, QUALIFICATIONS, SITE_STATUSES } from "./constants";
 import { passwordSchema, usernameSchema } from "./validation";
 
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Bitte eine gültige Farbe wählen.").transform((c) => c.toLowerCase());
@@ -91,6 +91,9 @@ const vehicleBase = z.object({
   /** leer = Abteilung des Besitzers */
   departmentId: id.nullish().transform((v) => v ?? null),
   note: optionalText(500),
+  /** Fälligkeiten (optional) */
+  tuevDue: optionalDate,
+  serviceDue: optionalDate,
   sortOrder: z.number().int().min(0).max(9999).default(0),
 });
 const vehicleRefine = <T extends { defaultDriverId?: string | null; defaultMemberIds?: string[] }>(s: z.ZodType<T>) =>
@@ -163,3 +166,18 @@ export const employeeLoginSchema = z.discriminatedUnion("action", [
     password: passwordSchema.optional(),
   }),
 ]);
+
+// --- Fahrzeug-Ausfälle (Werkstatt, TÜV …) ---------------------------------
+const outageFields = {
+  startDate: isoDate,
+  endDate: isoDate,
+  reason: z.enum(OUTAGE_REASONS),
+  note: optionalText(200),
+  /** bestehende Einteilung an diesen Tagen entfernen (Besatzung zurück in den Pool) */
+  clearPlanning: z.boolean().optional(),
+};
+const outageRefine = <T extends { startDate: string; endDate: string }>(s: z.ZodType<T>) =>
+  s.refine((d) => d.startDate <= d.endDate, { message: "Das Ende darf nicht vor dem Beginn liegen.", path: ["endDate"] });
+export const outageCreateSchema = outageRefine(z.object({ vehicleId: id, ...outageFields }));
+export const outageUpdateSchema = outageRefine(z.object({ version, ...outageFields }));
+export const outageQuerySchema = z.object({ from: isoDate, to: isoDate });

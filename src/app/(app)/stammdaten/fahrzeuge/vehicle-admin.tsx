@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/field";
 import { api } from "@/lib/api-client";
+import { useRouter } from "next/navigation";
+import { OutageForm, type OutageValue } from "@/components/outage-form";
+import { DUE_WARN_DAYS, outageLabel } from "@/lib/constants";
+import { diffDays, formatDate, formatRange, todayIso } from "@/lib/dates";
 import { AutoDeleteTag, FormActions, ListBox, matches, MessageBar, num, Row, str, Tag, toggleActive, Toolbar, useSave } from "@/components/masterdata/shared";
 
 type Person = { id: string; firstName: string; lastName: string; shortName: string; active: boolean };
@@ -21,6 +25,8 @@ type Vehicle = {
   departmentId: string | null;
   department: { id: string; name: string; color: string } | null;
   note: string | null;
+  tuevDue: string | null;
+  serviceDue: string | null;
   active: boolean;
   sortOrder: number;
   version: number;
@@ -39,6 +45,7 @@ export function VehicleAdmin({
   kind = "VEHICLE",
   canDelete = false,
   autoDeleteDays = 0,
+  outages = [],
 }: {
   vehicles: Vehicle[];
   employees: EmployeeOption[];
@@ -48,12 +55,17 @@ export function VehicleAdmin({
   /** Endgültig löschen (nur Admin, nur inaktive) */
   canDelete?: boolean;
   autoDeleteDays?: number;
+  /** laufende und künftige Ausfälle */
+  outages?: OutageValue[];
 }) {
   const room = kind === "ROOM";
   const vehicles = allVehicles.filter((v) => (v.kind ?? "VEHICLE") === kind);
   const page = useSave();
   const [query, setQuery] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+  const [outageFor, setOutageFor] = useState<{ vehicle: Vehicle; outage: OutageValue | null } | null>(null);
+  const router = useRouter();
+  const today = todayIso();
   const [editing, setEditing] = useState<Vehicle | "new" | null>(null);
 
   const filtered = useMemo(
@@ -98,6 +110,11 @@ export function VehicleAdmin({
                   <Button variant="secondary" onClick={() => setEditing(v)}>
                     Bearbeiten
                   </Button>
+                  {!room && v.active && (
+                    <Button variant="secondary" onClick={() => setOutageFor({ vehicle: v, outage: null })} title="Werkstatt, TÜV, Reifenwechsel …">
+                      🔧 Ausfall
+                    </Button>
+                  )}
                   <Button
                     variant={v.active ? "ghost" : "secondary"}
                     disabled={page.busy}
@@ -147,6 +164,8 @@ export function VehicleAdmin({
                     </span>
                   ) : null;
                 })()}
+                {!room && <DueTag label="TÜV" date={v.tuevDue} today={today} />}
+                {!room && <DueTag label="Service" date={v.serviceDue} today={today} />}
                 {!v.active && <Tag>inaktiv</Tag>}
                 {!v.active && <AutoDeleteTag deactivatedAt={v.deactivatedAt} days={autoDeleteDays} />}
               </div>
@@ -167,10 +186,42 @@ export function VehicleAdmin({
                 )}
                 {v.note && <span className="block italic">{v.note}</span>}
               </div>
+              {outages
+                .filter((o) => o.vehicleId === v.id)
+                .map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setOutageFor({ vehicle: v, outage: o })}
+                    className={`mt-1 block rounded-md px-2 py-1 text-left text-sm font-semibold hover:ring-2 hover:ring-brand-600 ${o.startDate <= today ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}`}
+                    title="Ausfall bearbeiten oder löschen"
+                  >
+                    🔧 {outageLabel(o.reason)} {formatRange(o.startDate, o.endDate)}
+                    {o.startDate <= today ? " – aktuell nicht verfügbar" : ""}
+                    {o.note ? ` · ${o.note}` : ""}
+                  </button>
+                ))}
             </Row>
           );
         })}
       </ListBox>
+
+      <Dialog open={outageFor !== null} onClose={() => setOutageFor(null)} title={outageFor?.outage ? "🔧 Ausfall bearbeiten" : "🔧 Ausfall eintragen"}>
+        {outageFor && (
+          <OutageForm
+            key={outageFor.outage?.id ?? outageFor.vehicle.id}
+            vehicle={outageFor.vehicle}
+            outage={outageFor.outage}
+            defaultStart={today}
+            onCancel={() => setOutageFor(null)}
+            onDone={(text) => {
+              setOutageFor(null);
+              page.setMsg({ tone: "success", text });
+              router.refresh();
+            }}
+          />
+        )}
+      </Dialog>
 
       <Dialog
         open={editing !== null}
@@ -252,6 +303,7 @@ function VehicleForm({
           defaultMemberIds: memberIds.filter((id) => id !== driverId),
           departmentId: str(f, "departmentId") || null,
           note: str(f, "note") || null,
+          ...(room ? {} : { tuevDue: str(f, "tuevDue") || null, serviceDue: str(f, "serviceDue") || null }),
           sortOrder: num(f, "sortOrder"),
         };
         const ok = await form.run(
@@ -354,6 +406,16 @@ function VehicleForm({
         </ul>
       </fieldset>
 
+      {!room && (
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="TÜV fällig (optional)">
+            <Input name="tuevDue" type="date" defaultValue={vehicle?.tuevDue ?? ""} />
+          </Field>
+          <Field label="Service fällig (optional)">
+            <Input name="serviceDue" type="date" defaultValue={vehicle?.serviceDue ?? ""} />
+          </Field>
+        </div>
+      )}
       <Field label="Notiz (optional)">
         <textarea name="note" defaultValue={vehicle?.note ?? ""} maxLength={500} rows={2} className="block w-full rounded-lg border border-line px-3 py-2 text-base" />
       </Field>
@@ -362,5 +424,17 @@ function VehicleForm({
       </Field>
       <FormActions busy={form.busy || overSeats} onCancel={onCancel} />
     </form>
+  );
+}
+
+/** TÜV/Service-Fälligkeit: rot = überfällig, gelb = in den nächsten 30 Tagen */
+function DueTag({ label, date, today }: { label: string; date: string | null; today: string }) {
+  if (!date) return null;
+  const days = diffDays(today, date);
+  const tone = days < 0 ? "red" : days <= DUE_WARN_DAYS ? "amber" : "slate";
+  return (
+    <Tag tone={tone}>
+      {label} {days < 0 ? "überfällig seit" : "fällig"} {formatDate(date)}
+    </Tag>
   );
 }

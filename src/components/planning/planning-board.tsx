@@ -117,8 +117,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
   function blockedText(date: string, vehicleId: string): string | null {
     const slot = slotOn(date, vehicleId);
     if (!slot?.unavailable) return null;
-    const e = slot.unavailable.employee;
-    return `${slot.vehicle.licensePlate} ist am ${formatDayShort(date)} nicht verfügbar – mit ${e.firstName} ${e.lastName} abwesend (${slot.unavailable.type?.name ?? "Abwesenheit"}).`;
+    return `${slot.vehicle.licensePlate} ist am ${formatDayShort(date)} nicht verfügbar – ${slot.unavailable.text}.`;
   }
 
   /** Ablegen auswerten: was wurde wohin gezogen, verschieben oder kopieren? */
@@ -462,7 +461,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
       )}
 
       {data && idx && (
-        <PlanningSheets sheet={sheet} setSheet={setSheet} data={data} idx={idx} days={dayViews} canEdit={canEdit} run={actions.run} busy={actions.busy} />
+        <PlanningSheets sheet={sheet} setSheet={setSheet} data={data} idx={idx} days={dayViews} canEdit={canEdit} run={actions.run} busy={actions.busy} notify={actions.notify} />
       )}
       <Toasts toasts={actions.toasts} onDismiss={actions.dismiss} />
     </div>

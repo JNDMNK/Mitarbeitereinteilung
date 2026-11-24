@@ -1,7 +1,8 @@
-import { isAvailableOn } from "./constants";
+import { DUE_WARN_DAYS, isAvailableOn, OUTAGE_ICON, outageLabel } from "./constants";
+import { diffDays, formatDayShort } from "./dates";
 import { compactNames } from "./names";
 import { absenceOn, crewWarnings, siteWarnings, type Warning } from "./planning-logic";
-import type { PAbsence, PAbsenceType, PAssignment, PEmployee, PlanningData, PSite, PVehicle, PVehicleDay } from "./planning-types";
+import type { PAbsence, PAbsenceType, PAssignment, PEmployee, PlanningData, POutage, PSite, PVehicle, PVehicleDay } from "./planning-types";
 
 export type AbsentEntry = { employee: PEmployee; absence: PAbsence; type: PAbsenceType | undefined };
 export type OwnerInfo = {
@@ -11,6 +12,18 @@ export type OwnerInfo = {
   elsewhereVehicle?: PVehicle;
   absence?: AbsentEntry;
 };
+/** Fahrzeug an diesem Tag nicht verfügbar */
+export type Unavailable = {
+  /** z. B. "🔧 Werkstatt bis Do, 03.12. (Bremsen)" bzw. "mit Max Müller abwesend (Urlaub)" */
+  text: string;
+  /** z. B. "Werkstatt" bzw. "mit MMU abwesend" */
+  short: string;
+  outage?: POutage;
+  absence?: AbsentEntry;
+};
+/** Fälligkeit (TÜV/Service) in Kürze oder überfällig */
+export type DueNote = { label: string; date: string; overdue: boolean };
+
 export type VehicleSlot = {
   vehicle: PVehicle;
   vehicleDay: PVehicleDay | null;
@@ -20,8 +33,10 @@ export type VehicleSlot = {
   owner?: OwnerInfo;
   /** weitere Standard-Mitfahrer (Hinweis bei leerem Fahrzeug) */
   defaultMembers: PEmployee[];
-  /** Fahrzeug nicht verfügbar: Besitzer ist mit ihm abwesend */
-  unavailable?: AbsentEntry;
+  /** Fahrzeug nicht verfügbar: Ausfall (Werkstatt …) oder Besitzer ist mit ihm abwesend */
+  unavailable?: Unavailable;
+  /** TÜV/Service bald fällig */
+  due?: DueNote[];
 };
 export type AssignmentItem = VehicleSlot & { assignment: PAssignment; vehicleDay: PVehicleDay };
 export type SiteGroup = { site: PSite; items: AssignmentItem[]; warnings: Warning[] };
@@ -124,12 +139,26 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
         absence: abs,
       };
       if (abs?.absence.withVehicle) {
-        slot.unavailable = abs;
-        if (slot.crew.length > 0 || (slot.vehicleDay?.assignments.length ?? 0) > 0) {
-          slot.crewWarnings = [{ level: "error", text: `Fahrzeug nicht verfügbar – mit ${ownerEmp.firstName} ${ownerEmp.lastName} abwesend` }, ...slot.crewWarnings];
-        }
+        slot.unavailable = {
+          text: `mit ${ownerEmp.firstName} ${ownerEmp.lastName} abwesend (${abs.type?.name ?? "Abwesenheit"})`,
+          short: `mit ${ownerEmp.shortName} abwesend`,
+          absence: abs,
+        };
       }
     }
+    const outage = (data.outages ?? []).find((o) => o.vehicleId === v.id && o.startDate <= date && o.endDate >= date);
+    if (outage) {
+      const label = outageLabel(outage.reason);
+      slot.unavailable = { text: `${OUTAGE_ICON} ${label} bis ${formatDayShort(outage.endDate)}${outage.note ? ` (${outage.note})` : ""}`, short: label, outage };
+    }
+    if (slot.unavailable && (slot.crew.length > 0 || (slot.vehicleDay?.assignments.length ?? 0) > 0)) {
+      slot.crewWarnings = [{ level: "error", text: `Fahrzeug nicht verfügbar – ${slot.unavailable.text}` }, ...slot.crewWarnings];
+    }
+    const due: DueNote[] = [];
+    for (const [label, d] of [["TÜV", v.tuevDue], ["Service", v.serviceDue]] as const) {
+      if (d && diffDays(date, d) <= DUE_WARN_DAYS) due.push({ label, date: d, overdue: d < date });
+    }
+    if (due.length) slot.due = due;
     slot.defaultMembers = v.defaultIds
       .filter((id) => id !== v.ownerId)
       .map((id) => idx.employees.get(id))

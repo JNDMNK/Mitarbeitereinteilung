@@ -160,6 +160,9 @@ model Vehicle {
   departmentId    String?
   department      Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   note            String?
+  /// Fälligkeiten "YYYY-MM-DD" (optional): Hinweis in der Planung
+  tuevDue         String?
+  serviceDue      String?
   active          Boolean   @default(true)
   /// Zeitpunkt der Deaktivierung (für automatisches Löschen)
   deactivatedAt DateTime?
@@ -170,6 +173,24 @@ model Vehicle {
 
   defaultMembers VehicleDefaultMember[]
   days           VehicleDay[]
+  outages        VehicleOutage[]
+}
+
+/// Fahrzeug fällt aus (Werkstatt, TÜV …): an diesen Tagen nicht planbar
+model VehicleOutage {
+  id        String   @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  startDate String
+  endDate   String
+  /// "WORKSHOP" | "TUEV" | "TIRES" | "ACCIDENT" | "OTHER"
+  reason    String   @default("WORKSHOP")
+  note      String?
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([vehicleId, startDate, endDate])
 }
 
 /// Weitere Standard-Mitfahrer (zusätzlich zum Standard-Fahrer).

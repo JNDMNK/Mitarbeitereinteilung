@@ -1,6 +1,6 @@
 import "server-only";
 import type { z } from "zod";
-import { isAvailableOn } from "@/lib/constants";
+import { isAvailableOn, OUTAGE_ICON, outageLabel } from "@/lib/constants";
 import { formatDayShort, formatRange, weekdayShort } from "@/lib/dates";
 import { isFirstWorkdayOfWeek, remainingWorkdaysOfWeek } from "@/lib/holidays";
 import { absenceOn, findOverlap, siteWarnings, timeRange } from "@/lib/planning-logic";
@@ -28,7 +28,7 @@ import { publishChange } from "../events";
 // ---------------------------------------------------------------------------
 
 export async function getPlanningData(from: string, to: string): Promise<PlanningData> {
-  const [vehicleDays, absences, departments, absenceTypes, settings] = await Promise.all([
+  const [vehicleDays, absences, departments, absenceTypes, settings, outages] = await Promise.all([
     db.vehicleDay.findMany({
       where: { date: { gte: from, lte: to } },
       select: {
@@ -54,6 +54,10 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
     db.department.findMany({ select: { id: true, name: true, color: true, sortOrder: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
     db.absenceType.findMany({ select: { id: true, name: true, code: true, color: true }, orderBy: { sortOrder: "asc" } }),
     db.appSettings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } }),
+    db.vehicleOutage.findMany({
+      where: { startDate: { lte: to }, endDate: { gte: from } },
+      select: { id: true, vehicleId: true, startDate: true, endDate: true, reason: true, note: true, version: true },
+    }),
   ]);
 
   const usedEmployees = new Set(vehicleDays.flatMap((v) => v.crew.map((c) => c.employeeId)));
@@ -93,6 +97,8 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
         sortOrder: true,
         defaultDriverId: true,
         departmentId: true,
+        tuevDue: true,
+        serviceDue: true,
         defaultMembers: { select: { employeeId: true }, orderBy: { sortOrder: "asc" } },
       },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -121,6 +127,7 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
     departments,
     absenceTypes,
     absences,
+    outages,
     vehicleDays: vehicleDays.map((v) => ({
       ...v,
       crew: v.crew.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() })),
@@ -166,26 +173,31 @@ async function absentOn(tx: Tx, employeeId: string, date: string) {
   return tx.absence.findFirst({ where: { employeeId, startDate: { lte: date }, endDate: { gte: date } }, include: { type: true } });
 }
 
-/** Ist das Fahrzeug an dem Tag weg, weil der Besitzer mit ihm abwesend ist? */
-async function vehicleBlock(tx: Tx, vehicle: { defaultDriverId: string | null }, date: string) {
+/**
+ * Ist das Fahrzeug an dem Tag weg? (Ausfall wie Werkstatt/TÜV oder Besitzer mit Fahrzeug abwesend)
+ * Liefert `text` (ganzer Satz-Teil) und `short` (Kurzform) – oder null.
+ */
+async function vehicleBlock(tx: Tx, vehicle: { id: string; defaultDriverId: string | null }, date: string): Promise<{ text: string; short: string } | null> {
+  const outage = await tx.vehicleOutage.findFirst({ where: { vehicleId: vehicle.id, startDate: { lte: date }, endDate: { gte: date } } });
+  if (outage) {
+    const label = outageLabel(outage.reason);
+    return { text: `${OUTAGE_ICON} ${label} bis ${formatDayShort(outage.endDate)}${outage.note ? ` (${outage.note})` : ""}`, short: label };
+  }
   if (!vehicle.defaultDriverId) return null;
-  return tx.absence.findFirst({
+  const abs = await tx.absence.findFirst({
     where: { employeeId: vehicle.defaultDriverId, withVehicle: true, startDate: { lte: date }, endDate: { gte: date } },
     include: { type: true, employee: true },
   });
+  return abs ? { text: `mit ${fullName(abs.employee)} abwesend (${abs.type.name})`, short: `mit ${abs.employee.shortName} abwesend` } : null;
 }
 
 function assertNotRoom(vehicle: { kind: string; name: string }) {
   if (vehicle.kind === "ROOM") throw badRequest(`„${vehicle.name}“ ist ein Raum und kann nicht auf eine Baustelle eingeplant werden.`);
 }
 
-async function assertVehicleAvailable(tx: Tx, vehicle: { licensePlate: string; defaultDriverId: string | null }, date: string) {
+async function assertVehicleAvailable(tx: Tx, vehicle: { id: string; licensePlate: string; defaultDriverId: string | null }, date: string) {
   const block = await vehicleBlock(tx, vehicle, date);
-  if (block) {
-    throw badRequest(
-      `${vehicle.licensePlate} ist am ${formatDayShort(date)} nicht verfügbar – mit ${fullName(block.employee)} abwesend (${block.type.name}).`,
-    );
-  }
+  if (block) throw badRequest(`${vehicle.licensePlate} ist am ${formatDayShort(date)} nicht verfügbar – ${block.text}.`);
 }
 
 /**
@@ -834,7 +846,7 @@ export async function copyDay(actorId: string, input: z.infer<typeof dayCopySche
       }
       const block = await vehicleBlock(tx, vd.vehicle, input.toDate);
       if (block) {
-        skippedOther.push(`${vd.vehicle.licensePlate} (mit ${block.employee.shortName} abwesend)`);
+        skippedOther.push(`${vd.vehicle.licensePlate} (${block.short})`);
         continue;
       }
       const target =

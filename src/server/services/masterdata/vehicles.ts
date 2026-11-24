@@ -19,6 +19,8 @@ export const vehicleSelect = {
   departmentId: true,
   department: { select: { id: true, name: true, color: true } },
   note: true,
+  tuevDue: true,
+  serviceDue: true,
   active: true,
   sortOrder: true,
   version: true,
@@ -114,6 +116,8 @@ export async function updateVehicle(actorId: string, id: string, input: z.infer<
       seats: "Sitzplätze",
       departmentId: "Abteilung",
       note: "Notiz",
+      tuevDue: "TÜV fällig",
+      serviceDue: "Service fällig",
       sortOrder: "Reihenfolge",
       active: "Status",
     });

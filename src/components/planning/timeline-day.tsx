@@ -6,6 +6,7 @@ import type { PAssignment, PEmployee, PlanningData, PVehicle, PVehicleDay } from
 import type { DayView, Indexes } from "@/lib/planning-view";
 import { formatMinutes } from "@/lib/time";
 import { applyDrag, collides, computeAxis, pxToMinutes, toPercent, type DragMode, type Interval } from "@/lib/timeline";
+import { DueBadges } from "./chips";
 import { AbsentBar, DayHeader, DraggableEmployee, Drop, RoomsBox } from "./day-column";
 import type { Sheet } from "./sheets";
 import type { RunResult } from "./use-planning";
@@ -140,7 +141,16 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
                         {owner.state === "absent" ? ` abwesend (${owner.absence?.type?.code ?? "?"})` : owner.state === "elsewhere" ? ` auf ${owner.elsewhereVehicle?.licensePlate ?? "?"}` : ""}
                       </span>
                     )}
-                    {unavailable && <span className="truncate text-[11px] font-bold text-red-700">🚫 nicht verfügbar</span>}
+                    {unavailable && (
+                      <span className="truncate text-[11px] font-bold text-red-700" title={unavailable.text}>
+                        {unavailable.outage ? `🔧 ${unavailable.short}` : "🚫 nicht verfügbar"}
+                      </span>
+                    )}
+                    {slot?.due && (
+                      <span className="flex flex-wrap gap-1">
+                        <DueBadges due={slot.due} />
+                      </span>
+                    )}
                     {warnings.length > 0 && (
                       <span className={`truncate text-[11px] font-semibold ${warnings.some((w) => w.level === "error") ? "text-red-700" : "text-amber-800"}`} title={warnings.map((w) => w.text).join("\n")}>
                         ⚠ {warnings[0].text}

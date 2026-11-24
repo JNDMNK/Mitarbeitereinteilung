@@ -12,6 +12,8 @@ import { addDays, formatDateTimeShort } from "@/lib/dates";
 import type { NewSite, PlanningAction } from "@/lib/planning-schemas";
 import type { DragData } from "./dnd";
 import { OwnerLine, UnavailableNote } from "./chips";
+import { OutageForm } from "@/components/outage-form";
+import { useQueryClient } from "@tanstack/react-query";
 import type { VehicleSlot } from "@/lib/planning-view";
 import type { RunOptions, RunResult } from "./use-planning";
 import type { PlanningData } from "@/lib/planning-types";
@@ -33,7 +35,8 @@ export type Sheet =
   | { kind: "dropTime"; drag: Extract<DragData, { type: "vehicle" }>; toDate: string; toSiteId: string; copy: boolean }
   | { kind: "copyEmployee"; date: string; employeeId: string }
   | { kind: "copyVehicle"; date: string; vehicleId: string; assignmentId?: string }
-  | { kind: "copyDay"; date: string };
+  | { kind: "copyDay"; date: string }
+  | { kind: "outage"; date: string; vehicleId: string };
 
 type Run = (action: PlanningAction, body: unknown, success?: string, options?: RunOptions) => Promise<RunResult>;
 
@@ -46,6 +49,7 @@ type Props = {
   canEdit: boolean;
   run: Run;
   busy: boolean;
+  notify: (tone: "success" | "warning" | "error", lines: string[]) => void;
 };
 
 /** Große, gut tippbare Aktionszeile */
@@ -104,7 +108,8 @@ function slotIn(day: DayView | undefined, vehicleId: string): VehicleSlot | unde
   return day.poolVehicles.find((p) => p.vehicle.id === vehicleId) ?? day.sites.flatMap((g) => g.items).find((i) => i.vehicle.id === vehicleId);
 }
 
-export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run, busy }: Props) {
+export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run, busy, notify }: Props) {
+  const qc = useQueryClient();
   const close = () => setSheet(null);
   if (!sheet) return <Dialog open={false} onClose={close} title="">{null}</Dialog>;
   if (sheet.kind === "dropTime") {
@@ -183,6 +188,27 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
     );
   }
 
+  // ---------------- Ausfall (Werkstatt …) ----------------
+  if (sheet.kind === "outage") {
+    const v = idx.vehicles.get(sheet.vehicleId)!;
+    const existing = slotIn(day, v.id)?.unavailable?.outage ?? null;
+    return (
+      <Dialog open onClose={close} title={`🔧 ${existing ? "Ausfall bearbeiten" : "Ausfall eintragen"} · ${v.licensePlate}`}>
+        <OutageForm
+          vehicle={v}
+          outage={existing}
+          defaultStart={sheet.date}
+          onCancel={close}
+          onDone={(msg) => {
+            close();
+            notify("success", [msg]);
+            void qc.invalidateQueries({ queryKey: ["planning"] });
+          }}
+        />
+      </Dialog>
+    );
+  }
+
   // ---------------- Fahrzeug ----------------
   if (sheet.kind === "vehicle") {
     const v = idx.vehicles.get(sheet.vehicleId)!;
@@ -228,6 +254,11 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
                   )}
                   <Action onClick={() => setSheet({ kind: "pickEmployeeForVehicle", date: sheet.date, vehicleId: v.id })}>👷 Mitarbeiter hinzufügen …</Action>
                 </>
+              )}
+              {v.kind !== "ROOM" && (
+                <Action onClick={() => setSheet({ kind: "outage", date: sheet.date, vehicleId: v.id })}>
+                  🔧 {slotIn(day, v.id)?.unavailable?.outage ? "Ausfall bearbeiten / beenden …" : "In Werkstatt / Ausfall eintragen …"}
+                </Action>
               )}
               {vd && (
                 <Action onClick={() => setSheet({ kind: "copyVehicle", date: sheet.date, vehicleId: v.id, assignmentId: a?.id })}>
@@ -289,7 +320,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
         list: day.poolVehicles.map((p) => ({
           vehicle: p.vehicle,
           crew: p.crew.length,
-          info: p.unavailable ? `nicht verfügbar (mit ${p.unavailable.employee.shortName} abwesend)` : p.crew.length ? "mit Besatzung" : "frei",
+          info: p.unavailable ? `nicht verfügbar (${p.unavailable.short})` : p.crew.length ? "mit Besatzung" : "frei",
         })),
       },
     ];
@@ -454,7 +485,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
                 vehicle: p.vehicle,
                 crew: p.crew.length,
                 info: p.unavailable
-                  ? `nicht verfügbar – mit ${p.unavailable.employee.firstName} ${p.unavailable.employee.lastName} abwesend`
+                  ? `nicht verfügbar – ${p.unavailable.text}`
                   : p.crew.length
                     ? p.crew.map((c) => c.shortName).join(", ")
                     : `frei – ${p.owner ? `Besitzer ${p.owner.employee.shortName}, ` : ""}Standard-Besatzung wird vorbelegt`,

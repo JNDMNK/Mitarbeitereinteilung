@@ -7,6 +7,7 @@ import { db } from "@/server/db";
 import { requirePagePermission } from "@/server/page-auth";
 import { listAbsencesInRange } from "@/server/services/absences";
 import { AbsenceBoard } from "./absence-board";
+import { listOutages } from "@/server/services/vehicle-outages";
 
 export const metadata: Metadata = { title: "Abwesenheiten" };
 
@@ -18,8 +19,14 @@ export default async function AbsencesPage({ searchParams }: { searchParams: Pro
   const from = monthStart(month);
   const to = monthEnd(month);
 
-  const [absences, departments, types] = await Promise.all([
+  const [absences, outages, vehicles, departments, types] = await Promise.all([
     listAbsencesInRange(from, to),
+    listOutages(from, to),
+    db.vehicle.findMany({
+      where: { kind: "VEHICLE", active: true },
+      select: { id: true, licensePlate: true, name: true, defaultDriverId: true, departmentId: true, defaultDriver: { select: { departmentId: true } } },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
     db.department.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true, color: true, sortOrder: true } }),
     db.absenceType.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true, code: true, color: true, active: true } }),
   ]);
@@ -70,6 +77,15 @@ export default async function AbsencesPage({ searchParams }: { searchParams: Pro
         types={types}
         employees={employees}
         ownedVehicles={ownedVehicles}
+        canEditOutages={can(user.role, "planning.edit")}
+        outages={outages}
+        vehicles={vehicles.map((v) => ({
+          id: v.id,
+          licensePlate: v.licensePlate,
+          name: v.name,
+          ownerId: v.defaultDriverId,
+          departmentId: v.departmentId ?? v.defaultDriver?.departmentId ?? null,
+        }))}
       />
     </>
   );

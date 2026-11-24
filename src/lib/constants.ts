@@ -52,3 +52,20 @@ export const SITE_STATUS_LABELS: Record<SiteStatus, string> = {
   ACTIVE: "aktiv",
   DONE: "abgeschlossen",
 };
+
+/** Gründe für einen Fahrzeug-Ausfall */
+export const OUTAGE_REASONS = ["WORKSHOP", "TUEV", "TIRES", "ACCIDENT", "OTHER"] as const;
+export type OutageReason = (typeof OUTAGE_REASONS)[number];
+export const OUTAGE_REASON_LABELS: Record<OutageReason, string> = {
+  WORKSHOP: "Werkstatt",
+  TUEV: "TÜV",
+  TIRES: "Reifenwechsel",
+  ACCIDENT: "Unfall",
+  OTHER: "Sonstiges",
+};
+export const OUTAGE_ICON = "🔧";
+export function outageLabel(reason: string): string {
+  return OUTAGE_REASON_LABELS[reason as OutageReason] ?? reason;
+}
+/** Fälligkeit (TÜV/Service) in so vielen Tagen anzeigen */
+export const DUE_WARN_DAYS = 30;

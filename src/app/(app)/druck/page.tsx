@@ -192,8 +192,7 @@ function PrintDay({
               .filter((p) => p.unavailable)
               .map((p) => (
                 <li key={p.vehicle.id}>
-                  <strong className="font-mono">{p.vehicle.licensePlate}</strong> {p.vehicle.name} – mit {p.unavailable!.employee.firstName} {p.unavailable!.employee.lastName}{" "}
-                  abwesend ({p.unavailable!.type?.name})
+                  <strong className="font-mono">{p.vehicle.licensePlate}</strong> {p.vehicle.name} – {p.unavailable!.text}
                 </li>
               ))}
           </ul>

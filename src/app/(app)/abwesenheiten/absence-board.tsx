@@ -11,6 +11,8 @@ import { Field, Input, Select } from "@/components/ui/field";
 import { api } from "@/lib/api-client";
 import { addMonths, eachDay, formatDayLong, isoWeek, formatMonth, formatRange, isWeekend, weekdayShort } from "@/lib/dates";
 import { holidayName } from "@/lib/holidays";
+import { OutageForm, type OutageValue } from "@/components/outage-form";
+import { outageLabel } from "@/lib/constants";
 
 type Absence = {
   id: string;
@@ -40,6 +42,11 @@ type Employee = {
 const inPeriod = (e: Employee, d: string) => (!e.availableFrom || e.availableFrom <= d) && (!e.availableUntil || e.availableUntil >= d);
 
 type Selection = { employeeId: string; anchor: string; current: string; mode: "drag" | "tap" };
+type VehicleRow = { id: string; licensePlate: string; name: string; ownerId: string | null; departmentId: string | null };
+type Outage = OutageValue & { vehicle: { id: string; licensePlate: string; name: string } };
+type OutageDialog = { vehicle: VehicleRow; outage: Outage | null; start?: string; end?: string } | null;
+/** Fahrzeug-Zeilen nutzen dieselbe Auswahl-Logik; Schlüssel "veh:<id>" */
+const VEH = "veh:";
 type DialogState = { kind: "create"; employeeId: string | null; start: string; end: string } | { kind: "edit"; absence: Absence } | null;
 
 export function AbsenceBoard(props: {
@@ -56,8 +63,13 @@ export function AbsenceBoard(props: {
   employees: Employee[];
   /** employeeId -> Kennzeichen der Fahrzeuge, deren Besitzer er ist */
   ownedVehicles: Record<string, string[]>;
+  /** Fahrzeug-Ausfälle (Werkstatt …) */
+  vehicles: VehicleRow[];
+  outages: Outage[];
+  canEditOutages: boolean;
 }) {
-  const { from, to, today, canEdit, absences, departments, types, employees, departmentFilter, view, ownEmployeeId, ownedVehicles } = props;
+  const { from, to, today, canEdit, absences, departments, types, employees, departmentFilter, view, ownEmployeeId, ownedVehicles, vehicles, outages, canEditOutages } = props;
+  const [outageDialog, setOutageDialog] = useState<OutageDialog>(null);
   const router = useRouter();
   const page = useSave();
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -116,12 +128,53 @@ export function AbsenceBoard(props: {
     if (selection?.mode !== "drag") return;
     const { employeeId, anchor, current } = selection;
     const up = () => {
-      setDialog({ kind: "create", employeeId, start: anchor < current ? anchor : current, end: anchor < current ? current : anchor });
+      const start = anchor < current ? anchor : current;
+      const end = anchor < current ? current : anchor;
+      if (employeeId.startsWith(VEH)) {
+        const v = vehicles.find((x) => x.id === employeeId.slice(VEH.length));
+        if (v) setOutageDialog({ vehicle: v, outage: null, start, end });
+      } else {
+        setDialog({ kind: "create", employeeId, start, end });
+      }
       setSelection(null);
     };
     window.addEventListener("pointerup", up);
     return () => window.removeEventListener("pointerup", up);
-  }, [selection]);
+  }, [selection, vehicles]);
+
+  // Fahrzeug -> Tag -> Ausfall
+  const outageCell = useMemo(() => {
+    const m = new Map<string, Map<string, Outage>>();
+    for (const o of outages) {
+      const row = m.get(o.vehicleId) ?? new Map<string, Outage>();
+      for (const d of eachDay(o.startDate < from ? from : o.startDate, o.endDate > to ? to : o.endDate)) row.set(d, o);
+      m.set(o.vehicleId, row);
+    }
+    return m;
+  }, [outages, from, to]);
+  const shownVehicles = vehicles.filter((v) => !departmentFilter || v.departmentId === departmentFilter);
+
+  function onVehiclePointerDown(e: React.PointerEvent, v: VehicleRow, day: string) {
+    if (!canEditOutages || outageCell.get(v.id)?.get(day)) return;
+    if (e.pointerType === "mouse") {
+      e.preventDefault();
+      setSelection({ employeeId: VEH + v.id, anchor: day, current: day, mode: "drag" });
+    }
+  }
+  function onVehicleClick(v: VehicleRow, day: string, pointerType: string) {
+    const existing = outageCell.get(v.id)?.get(day);
+    if (existing) {
+      if (canEditOutages) setOutageDialog({ vehicle: v, outage: existing });
+      return;
+    }
+    if (!canEditOutages || pointerType === "mouse") return;
+    if (selection?.mode === "tap" && selection.employeeId === VEH + v.id) {
+      setOutageDialog({ vehicle: v, outage: null, start: selection.anchor < day ? selection.anchor : day, end: selection.anchor < day ? day : selection.anchor });
+      setSelection(null);
+    } else {
+      setSelection({ employeeId: VEH + v.id, anchor: day, current: day, mode: "tap" });
+    }
+  }
 
   function inSelection(employeeId: string, day: string) {
     if (!selection || selection.employeeId !== employeeId) return false;
@@ -156,7 +209,10 @@ export function AbsenceBoard(props: {
   }
 
   const lastPointerType = useRef("mouse");
-  const selectedEmployee = selection ? employees.find((e) => e.id === selection.employeeId) : null;
+  const selectedVehicle = selection?.employeeId.startsWith(VEH) ? vehicles.find((v) => VEH + v.id === selection.employeeId) : null;
+  const selectedEmployee = selection
+    ? (employees.find((e) => e.id === selection.employeeId) ?? (selectedVehicle ? { shortName: selectedVehicle.licensePlate } : null))
+    : null;
 
   return (
     <div className="space-y-3">
@@ -245,7 +301,8 @@ export function AbsenceBoard(props: {
               variant="secondary"
               className="flex-1"
               onClick={() => {
-                openCreate(selection.employeeId, selection.anchor, selection.anchor);
+                if (selectedVehicle) setOutageDialog({ vehicle: selectedVehicle, outage: null, start: selection.anchor, end: selection.anchor });
+                else openCreate(selection.employeeId, selection.anchor, selection.anchor);
                 setSelection(null);
               }}
             >
@@ -355,6 +412,65 @@ export function AbsenceBoard(props: {
                   })}
                 </Fragment>
               ))}
+              {shownVehicles.length > 0 && (
+                <>
+                  <tr>
+                    <td colSpan={days.length + 1} className="border-b border-line bg-slate-100 px-2 py-1 text-xs font-bold uppercase tracking-wide text-slate-700">
+                      <span className="sticky left-2 inline-flex items-center gap-1.5">🚐 Fahrzeuge{canEditOutages ? " – Werkstatt/Ausfall: über die Tage ziehen" : ""}</span>
+                    </td>
+                  </tr>
+                  {shownVehicles.map((v) => {
+                    const key = VEH + v.id;
+                    return (
+                      <tr key={key}>
+                        <th scope="row" className="sticky left-0 z-10 border-b border-r border-line bg-white px-2 py-1 text-left font-normal">
+                          <span className="flex items-center gap-1.5">
+                            <span className="rounded border-2 border-ink px-1 font-mono text-xs leading-4 font-bold whitespace-nowrap">{v.licensePlate}</span>
+                            <span className="hidden truncate md:inline">{v.name}</span>
+                          </span>
+                        </th>
+                        {days.map((d) => {
+                          const o = outageCell.get(v.id)?.get(d);
+                          const ownerAway = !o && v.ownerId ? byCell.get(v.ownerId)?.get(d) : undefined;
+                          const withOwner = ownerAway?.withVehicle ? ownerAway : undefined;
+                          const selected = inSelection(key, d);
+                          return (
+                            <td
+                              key={d}
+                              title={
+                                o
+                                  ? `${outageLabel(o.reason)}: ${formatRange(o.startDate, o.endDate)}${o.note ? ` – ${o.note}` : ""}`
+                                  : withOwner
+                                    ? `mit ${withOwner.employee.firstName} ${withOwner.employee.lastName} abwesend (${withOwner.type.name})`
+                                    : formatDayLong(d)
+                              }
+                              onPointerDown={(ev) => {
+                                lastPointerType.current = ev.pointerType;
+                                onVehiclePointerDown(ev, v, d);
+                              }}
+                              onPointerEnter={() => {
+                                if (selection?.mode === "drag" && selection.employeeId === key && !o) setSelection({ ...selection, current: d });
+                              }}
+                              onClick={() => onVehicleClick(v, d, lastPointerType.current)}
+                              className={`h-10 border-b border-line p-0.5 text-center ${isWeekend(d) || holidayName(d) ? "bg-slate-100" : ""} ${d === today ? "border-x-2 border-x-brand-700" : ""} ${
+                                canEditOutages ? "cursor-pointer hover:bg-brand-50" : ""
+                              }`}
+                            >
+                              {o ? (
+                                <span className="flex h-full w-full items-center justify-center rounded bg-slate-700 text-xs font-bold text-white">🔧</span>
+                              ) : withOwner ? (
+                                <span className="flex h-full w-full items-center justify-center rounded bg-slate-200 font-mono text-[10px] font-bold text-slate-600">{withOwner.type.code}🚐</span>
+                              ) : selected ? (
+                                <span className="block h-full w-full rounded bg-brand-600/30 ring-2 ring-brand-600" />
+                              ) : null}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </>
+              )}
               {groups.length === 0 && (
                 <tr>
                   <td colSpan={days.length + 1} className="p-6 text-center text-muted">
@@ -373,6 +489,24 @@ export function AbsenceBoard(props: {
           onEdit={(a) => setDialog({ kind: "edit", absence: a })}
         />
       )}
+
+      <Dialog open={outageDialog !== null} onClose={() => setOutageDialog(null)} title={outageDialog?.outage ? "🔧 Ausfall bearbeiten" : "🔧 Ausfall eintragen"}>
+        {outageDialog && (
+          <OutageForm
+            key={outageDialog.outage?.id ?? `${outageDialog.vehicle.id}-${outageDialog.start}`}
+            vehicle={outageDialog.vehicle}
+            outage={outageDialog.outage}
+            defaultStart={outageDialog.start}
+            defaultEnd={outageDialog.end}
+            onCancel={() => setOutageDialog(null)}
+            onDone={(text) => {
+              setOutageDialog(null);
+              page.setMsg({ tone: "success", text });
+              router.refresh();
+            }}
+          />
+        )}
+      </Dialog>
 
       <Dialog open={dialog !== null} onClose={() => setDialog(null)} title={dialog?.kind === "edit" ? "Abwesenheit bearbeiten" : "Abwesenheit eintragen"}>
         {dialog && (

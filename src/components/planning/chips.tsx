@@ -4,7 +4,8 @@ import type { HTMLAttributes, Ref } from "react";
 import { QualificationBadge } from "@/components/qualification-badge";
 import type { Warning } from "@/lib/planning-logic";
 import type { PAbsenceType, PDepartment, PEmployee, PVehicle } from "@/lib/planning-types";
-import type { AbsentEntry, OwnerInfo } from "@/lib/planning-view";
+import type { DueNote, OwnerInfo, Unavailable } from "@/lib/planning-view";
+import { formatDate } from "@/lib/dates";
 
 export function EmployeeChip({
   employee,
@@ -182,10 +183,24 @@ export function OwnerLine({
 }
 
 /** Hinweis bei gesperrtem Fahrzeug */
-export function UnavailableNote({ entry }: { entry: AbsentEntry }) {
+export function UnavailableNote({ entry }: { entry: Unavailable }) {
+  return <p className="text-xs font-bold text-red-700">{entry.outage ? entry.text : `🚫 nicht verfügbar – ${entry.text}`}</p>;
+}
+
+/** TÜV/Service bald fällig oder überfällig */
+export function DueBadges({ due }: { due?: DueNote[] }) {
+  if (!due?.length) return null;
   return (
-    <p className="text-xs font-bold text-red-700">
-      🚫 nicht verfügbar – mit {entry.employee.firstName} {entry.employee.lastName} abwesend ({entry.type?.name ?? "Abwesenheit"})
-    </p>
+    <>
+      {due.map((d) => (
+        <span
+          key={d.label}
+          className={`rounded px-1.5 text-[11px] leading-5 font-bold ${d.overdue ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-900"}`}
+          title={`${d.label} ${d.overdue ? "überfällig seit" : "fällig am"} ${formatDate(d.date)}`}
+        >
+          {d.label} {d.overdue ? "überfällig" : formatDate(d.date).slice(0, 6)}
+        </span>
+      ))}
+    </>
   );
 }
