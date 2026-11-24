@@ -20,6 +20,7 @@ type Props = {
   open: (s: Sheet) => void;
   updateTime: (a: PAssignment, next: Interval) => Promise<RunResult>;
   notifyError: (text: string) => void;
+  poolInSidebar?: boolean;
 };
 
 type Row = { vehicle: PVehicle; vd: PVehicleDay | null; crew: PEmployee[] };
@@ -38,7 +39,7 @@ function nowMinutes(): number {
   return h * 60 + m;
 }
 
-export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, open, updateTime, notifyError }: Props) {
+export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, open, updateTime, notifyError, poolInSidebar = false }: Props) {
   const rows: Row[] = useMemo(() => {
     const vds = data.vehicleDays.filter((v) => v.date === day.date);
     const byVehicle = new Map(vds.map((v) => [v.vehicleId, v]));
@@ -169,7 +170,7 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
       </div>
 
       {/* Pool-Mitarbeiter: auf eine Fahrzeugzeile ziehen oder antippen */}
-      <div className="rounded-xl bg-slate-50 p-2 ring-1 ring-line">
+      <div className={`rounded-xl bg-slate-50 p-2 ring-1 ring-line ${poolInSidebar ? "hidden" : ""}`}>
         <h3 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">
           Nicht eingeteilt ({day.poolEmployees.length} verfügbar){canEdit ? " – auf ein Fahrzeug ziehen" : ""}
         </h3>

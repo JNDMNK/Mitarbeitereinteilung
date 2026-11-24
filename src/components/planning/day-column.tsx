@@ -17,6 +17,8 @@ type Props = {
   canEdit: boolean;
   ownEmployeeId: string | null;
   open: (s: Sheet) => void;
+  /** freie Mitarbeiter stehen in der Seitenleiste (breite Bildschirme) */
+  poolInSidebar?: boolean;
 };
 
 export function DraggableEmployee({
@@ -132,7 +134,7 @@ export function Drop({
   );
 }
 
-export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Props) {
+export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolInSidebar = false }: Props) {
   const ownerHighlight = ownEmployeeId;
   const crewChips = (crew: PEmployee[], vehicle: PVehicle, suffix: string, slot?: VehicleSlot) =>
     crew.map((e) => (
@@ -249,7 +251,8 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
         canEdit={canEdit}
         className="rounded-xl bg-slate-50 p-2 ring-1 ring-line"
       >
-        <h3 className="mb-2 text-sm font-bold">Nicht eingeteilt</h3>
+        <h3 className="mb-2 text-sm font-bold">{poolInSidebar ? "Fahrzeuge ohne Baustelle" : "Nicht eingeteilt"}</h3>
+        {poolInSidebar ? null : (
         <div className="mb-3">
           <h4 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">Mitarbeiter ({day.poolEmployees.length} verfügbar)</h4>
           {day.poolEmployees.length === 0 ? (
@@ -273,8 +276,9 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
             </div>
           )}
         </div>
+        )}
         <div>
-          <h4 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">Fahrzeuge ohne Baustelle ({day.poolVehicles.length})</h4>
+          {!poolInSidebar && <h4 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">Fahrzeuge ohne Baustelle ({day.poolVehicles.length})</h4>}
           <div className="space-y-1.5">
             {day.poolVehicles.map((p) => (
               <Drop

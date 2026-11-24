@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Brand } from "@/components/brand";
 import { DesktopNav, MobileNav } from "@/components/app-nav";
 import { LogoutButton } from "@/components/logout-button";
+import { MainContainer } from "@/components/main-container";
 import { NAV_ITEMS } from "@/lib/navigation";
 import { can, ROLE_LABELS } from "@/lib/roles";
 import { db } from "@/server/db";
@@ -38,7 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-screen-2xl p-3 md:p-6">{children}</main>
+      <MainContainer>{children}</MainContainer>
       <MobileNav items={items} />
     </div>
   );

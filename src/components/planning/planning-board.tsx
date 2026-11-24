@@ -1,7 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { api } from "@/lib/api-client";
 import { formatDayShort, isIsoDate } from "@/lib/dates";
 import { normalizeStart, stepDay, visibleDays } from "@/lib/planning-days";
@@ -12,6 +12,21 @@ import { DayColumn } from "./day-column";
 import { PlanningDnd, type DragData, type DropData } from "./dnd";
 import { PlanningSheets, type Sheet } from "./sheets";
 import { TimelineDay } from "./timeline-day";
+import { PoolSidebar } from "./pool-sidebar";
+
+const WIDE_QUERY = "(min-width: 1536px)";
+/** Breiter Bildschirm (≥ 1536 px): freie Mitarbeiter in eigener Seitenleiste */
+function useWideScreen() {
+  return useSyncExternalStore(
+    (cb) => {
+      const mq = window.matchMedia(WIDE_QUERY);
+      mq.addEventListener("change", cb);
+      return () => mq.removeEventListener("change", cb);
+    },
+    () => window.matchMedia(WIDE_QUERY).matches,
+    () => false,
+  );
+}
 import { timeRange } from "@/lib/planning-logic";
 import { Toasts } from "./toasts";
 import { usePlanningActions, usePlanningData } from "./use-planning";
@@ -48,6 +63,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
   const [mobileDay, setMobileDay] = useState(0);
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [showOptions, setShowOptions] = useState(false);
+  const wide = useWideScreen();
   const dragging = useRef(false);
   const tabsRef = useRef<HTMLDivElement>(null);
 
@@ -394,12 +410,16 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
         <div className="rounded-xl bg-white p-8 text-center text-muted ring-1 ring-line">Lade Planung …</div>
       ) : (
         <PlanningDnd enabled={canEdit} onDrop={handleDrop} renderOverlay={renderOverlay} onDraggingChange={(d) => (dragging.current = d)}>
-          <div onTouchStart={swipe.onTouchStart} onTouchEnd={swipe.onTouchEnd}>
+          <div className="flex items-start gap-4">
+          {wide && (
+            <PoolSidebar days={days.map((d) => dayViews.get(d)!)} idx={idx} today={today} canEdit={canEdit} ownEmployeeId={ownEmployeeId} open={setSheet} />
+          )}
+          <div className="min-w-0 flex-1" onTouchStart={swipe.onTouchStart} onTouchEnd={swipe.onTouchEnd}>
           {view === "cards" ? (
             <div className="grid gap-4 md:grid-cols-3">
               {days.map((d, i) => (
                 <div key={d} className={i === mobileDay ? "" : "hidden md:block"}>
-                  <DayColumn day={dayViews.get(d)!} idx={idx} today={today} canEdit={canEdit} ownEmployeeId={ownEmployeeId} open={setSheet} />
+                  <DayColumn day={dayViews.get(d)!} idx={idx} today={today} canEdit={canEdit} ownEmployeeId={ownEmployeeId} open={setSheet} poolInSidebar={wide} />
                 </div>
               ))}
             </div>
@@ -423,11 +443,13 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
                       )
                     }
                     notifyError={(text) => actions.notify("error", [text])}
+                    poolInSidebar={wide}
                   />
                 </div>
               ))}
             </div>
           )}
+          </div>
           </div>
         </PlanningDnd>
       )}
