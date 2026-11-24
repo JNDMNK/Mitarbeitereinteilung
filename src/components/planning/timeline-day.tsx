@@ -110,14 +110,18 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
 
           {rows.map((r) => {
             const assignments = r.vd?.assignments ?? [];
-            const warnings = crewWarnings(r.vehicle, r.crew, absentIds, assignments.length > 0);
+            const slot = day.poolVehicles.find((p) => p.vehicle.id === r.vehicle.id) ?? day.sites.flatMap((g) => g.items).find((i) => i.vehicle.id === r.vehicle.id);
+            const warnings = slot?.crewWarnings ?? crewWarnings(r.vehicle, r.crew, absentIds, assignments.length > 0);
+            const unavailable = slot?.unavailable;
+            const owner = slot?.owner;
             return (
               <div key={r.vehicle.id} className="flex border-b border-line last:border-b-0">
                 <Drop
                   id={`tl-veh:${day.date}:${r.vehicle.id}`}
                   data={{ kind: "vehicle", accepts: "employee", date: day.date, vehicleId: r.vehicle.id }}
                   canEdit={canEdit}
-                  className="sticky left-0 z-20 w-28 shrink-0 border-r border-line bg-white md:w-60"
+                  disabled={!!unavailable}
+                  className={`sticky left-0 z-20 w-28 shrink-0 border-r border-line md:w-60 ${unavailable ? "bg-slate-100" : "bg-white"}`}
                 >
                   <button
                     type="button"
@@ -134,6 +138,13 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
                     <span className={`truncate text-xs ${r.crew.some((e) => e.id === ownEmployeeId) ? "font-bold text-brand-700" : "text-muted"}`}>
                       {r.crew.length ? r.crew.map((e) => (absentIds.has(e.id) ? `${e.shortName}⚠` : e.shortName)).join(", ") : "–"}
                     </span>
+                    {owner && (
+                      <span className="truncate text-[11px] text-slate-600" title={`Besitzer: ${owner.employee.firstName} ${owner.employee.lastName}`}>
+                        👤 {owner.employee.shortName}
+                        {owner.state === "absent" ? ` abwesend (${owner.absence?.type?.code ?? "?"})` : owner.state === "elsewhere" ? ` auf ${owner.elsewhereVehicle?.licensePlate ?? "?"}` : ""}
+                      </span>
+                    )}
+                    {unavailable && <span className="truncate text-[11px] font-bold text-red-700">🚫 nicht verfügbar</span>}
                     {warnings.length > 0 && (
                       <span className={`truncate text-[11px] font-semibold ${warnings.some((w) => w.level === "error") ? "text-red-700" : "text-amber-800"}`} title={warnings.map((w) => w.text).join("\n")}>
                         ⚠ {warnings[0].text}
@@ -143,6 +154,7 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
                   </button>
                 </Drop>
                 <Track
+                  disabled={!!unavailable}
                   date={day.date}
                   vehicleId={r.vehicle.id}
                   axis={axis}
@@ -189,6 +201,7 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
 }
 
 function Track({
+  disabled,
   date,
   vehicleId,
   axis,
@@ -201,6 +214,7 @@ function Track({
   updateTime,
   notifyError,
 }: {
+  disabled?: boolean;
   date: string;
   vehicleId: string;
   axis: Interval;
@@ -220,12 +234,12 @@ function Track({
   return (
     <div
       ref={ref}
-      className={`relative h-16 flex-1 ${canEdit ? "cursor-copy" : ""}`}
+      className={`relative h-16 flex-1 ${disabled ? "bg-[repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9_8px,#e2e8f0_8px,#e2e8f0_16px)]" : canEdit ? "cursor-copy" : ""}`}
       onClick={(e) => {
         // Klick in freien Bereich: Baustelle für dieses Fahrzeug einplanen
-        if (canEdit && e.target === e.currentTarget) open({ kind: "pickSite", date, vehicleId });
+        if (canEdit && !disabled && e.target === e.currentTarget) open({ kind: "pickSite", date, vehicleId });
       }}
-      title={canEdit ? "In freien Bereich klicken: Baustelle einplanen" : undefined}
+      title={disabled ? "Fahrzeug nicht verfügbar" : canEdit ? "In freien Bereich klicken: Baustelle einplanen" : undefined}
     >
       {quarters.map((q) => (
         <span key={q} className="pointer-events-none absolute inset-y-0 border-l border-slate-100" style={{ left: `${toPercent(q, axis)}%` }} />

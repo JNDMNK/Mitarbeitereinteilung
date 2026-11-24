@@ -18,6 +18,7 @@ type Absence = {
   startDate: string;
   endDate: string;
   note: string | null;
+  withVehicle: boolean;
   version: number;
   type: { id: string; name: string; code: string; color: string };
   employee: { id: string; firstName: string; lastName: string; shortName: string };
@@ -41,8 +42,10 @@ export function AbsenceBoard(props: {
   departments: Department[];
   types: AbsenceType[];
   employees: Employee[];
+  /** employeeId -> Kennzeichen der Fahrzeuge, deren Besitzer er ist */
+  ownedVehicles: Record<string, string[]>;
 }) {
-  const { from, to, today, canEdit, absences, departments, types, employees, departmentFilter, view, ownEmployeeId } = props;
+  const { from, to, today, canEdit, absences, departments, types, employees, departmentFilter, view, ownEmployeeId, ownedVehicles } = props;
   const router = useRouter();
   const page = useSave();
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -294,7 +297,7 @@ export function AbsenceBoard(props: {
                           return (
                             <td
                               key={d}
-                              title={a ? `${a.type.name}: ${formatRange(a.startDate, a.endDate)}${a.note ? ` – ${a.note}` : ""}` : formatDayLong(d)}
+                              title={a ? `${a.type.name}: ${formatRange(a.startDate, a.endDate)}${a.withVehicle ? " – mit Fahrzeug" : ""}${a.note ? ` – ${a.note}` : ""}` : formatDayLong(d)}
                               onPointerDown={(ev) => {
                                 lastPointerType.current = ev.pointerType;
                                 onCellPointerDown(ev, e, d);
@@ -311,6 +314,7 @@ export function AbsenceBoard(props: {
                                   style={{ backgroundColor: a.type.color }}
                                 >
                                   {a.type.code}
+                                  {a.withVehicle && <span className="ml-0.5 text-[9px]" aria-label="mit Fahrzeug">🚐</span>}
                                 </span>
                               ) : selected ? (
                                 <span className="block h-full w-full rounded bg-brand-600/30 ring-2 ring-brand-600" />
@@ -349,6 +353,7 @@ export function AbsenceBoard(props: {
             state={dialog}
             types={types}
             employees={employees.filter((e) => e.active)}
+            ownedVehicles={ownedVehicles}
             onCancel={() => setDialog(null)}
             onDone={(text, w) => {
               setDialog(null);
@@ -378,6 +383,7 @@ function AbsenceList({ absences, canEdit, ownEmployeeId, onEdit }: { absences: A
             </div>
             <div className="text-sm text-muted">
               {a.type.name} · {formatRange(a.startDate, a.endDate)}
+              {a.withVehicle && " · 🚐 mit Fahrzeug (nicht verfügbar)"}
               {a.note && ` · ${a.note}`}
             </div>
           </div>
@@ -396,12 +402,14 @@ function AbsenceForm({
   state,
   types,
   employees,
+  ownedVehicles,
   onCancel,
   onDone,
 }: {
   state: NonNullable<DialogState>;
   types: AbsenceType[];
   employees: Employee[];
+  ownedVehicles: Record<string, string[]>;
   onCancel: () => void;
   onDone: (msg: string, warnings: string[]) => void;
 }) {
@@ -411,6 +419,11 @@ function AbsenceForm({
   const [start, setStart] = useState(editing?.startDate ?? (state.kind === "create" ? state.start : ""));
   const [end, setEnd] = useState(editing?.endDate ?? (state.kind === "create" ? state.end : ""));
   const fixedEmployee = editing ? editing.employee : state.kind === "create" && state.employeeId ? employees.find((e) => e.id === state.employeeId) : null;
+  const [pickedEmployee, setPickedEmployee] = useState("");
+  const employeeId = fixedEmployee?.id ?? pickedEmployee;
+  const plates = employeeId ? (ownedVehicles[employeeId] ?? []) : [];
+  // Fahrzeug-Besitzer müssen bewusst wählen (beim Bearbeiten vorbelegt)
+  const [withVehicle, setWithVehicle] = useState<"yes" | "no" | "">(editing ? (editing.withVehicle ? "yes" : "no") : "");
   const selectable = types.filter((t) => t.active || t.id === editing?.typeId);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -419,10 +432,14 @@ function AbsenceForm({
     const note = String(f.get("note") ?? "").trim() || null;
     let warnings: string[] = [];
     const ok = await form.run(async () => {
+      const vehicleFlag = plates.length ? { withVehicle: withVehicle === "yes" } : {};
       const res = editing
-        ? await api<{ warnings: string[] }>(`/api/absences/${editing.id}`, { method: "PATCH", body: { version: editing.version, typeId, startDate: start, endDate: end, note } })
+        ? await api<{ warnings: string[] }>(`/api/absences/${editing.id}`, {
+            method: "PATCH",
+            body: { version: editing.version, typeId, startDate: start, endDate: end, note, ...vehicleFlag },
+          })
         : await api<{ warnings: string[] }>("/api/absences", {
-            body: { employeeId: fixedEmployee?.id ?? f.get("employeeId"), typeId, startDate: start, endDate: end, note },
+            body: { employeeId: fixedEmployee?.id ?? f.get("employeeId"), typeId, startDate: start, endDate: end, note, ...vehicleFlag },
           });
       warnings = res.warnings ?? [];
     }, "");
@@ -439,7 +456,7 @@ function AbsenceForm({
         </p>
       ) : (
         <Field label="Mitarbeiter">
-          <Select name="employeeId" required defaultValue="">
+          <Select name="employeeId" required value={pickedEmployee} onChange={(e) => setPickedEmployee(e.target.value)}>
             <option value="" disabled>
               – bitte wählen –
             </option>
@@ -484,6 +501,23 @@ function AbsenceForm({
           <Input type="date" value={end} min={start} required onChange={(e) => setEnd(e.target.value)} />
         </Field>
       </div>
+      {plates.length > 0 && (
+        <fieldset className="rounded-lg border-2 border-amber-300 bg-amber-50 p-3">
+          <legend className="px-1 text-sm font-bold">Fahrzeug {plates.join(", ")} – was passiert damit?</legend>
+          <label className="flex min-h-11 cursor-pointer items-center gap-2">
+            <input type="radio" name="withVehicle" className="size-5 accent-brand-600" checked={withVehicle === "no"} onChange={() => setWithVehicle("no")} required />
+            <span>
+              <strong>Fahrzeug bleibt da</strong> – andere können damit fahren
+            </span>
+          </label>
+          <label className="flex min-h-11 cursor-pointer items-center gap-2">
+            <input type="radio" name="withVehicle" className="size-5 accent-brand-600" checked={withVehicle === "yes"} onChange={() => setWithVehicle("yes")} />
+            <span>
+              <strong>Fahrzeug ist mit abwesend</strong> – in dieser Zeit nicht einplanbar
+            </span>
+          </label>
+        </fieldset>
+      )}
       <Field label="Notiz (optional)">
         <Input name="note" defaultValue={editing?.note ?? ""} maxLength={300} />
       </Field>
@@ -507,7 +541,7 @@ function AbsenceForm({
           <Button variant="secondary" onClick={onCancel}>
             Abbrechen
           </Button>
-          <Button type="submit" disabled={form.busy || !typeId}>
+          <Button type="submit" disabled={form.busy || !typeId || (plates.length > 0 && !withVehicle)}>
             {form.busy ? "Speichern …" : "Speichern"}
           </Button>
         </div>

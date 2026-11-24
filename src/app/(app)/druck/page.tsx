@@ -107,6 +107,7 @@ function PrintDay({ day, idx, company, logo, printed }: { day: DayView; idx: Ind
                   <td className="py-1.5 pr-2 whitespace-nowrap">
                     <strong className="font-mono">{it.vehicle.licensePlate}</strong>
                     <div className="text-xs">{it.vehicle.name}</div>
+                    {it.owner && it.owner.state !== "here" && <div className="text-xs">Besitzer: {it.owner.employee.shortName}</div>}
                   </td>
                   <td className="py-1.5 pr-2">
                     {names(it.crew) || "–"}
@@ -134,6 +135,22 @@ function PrintDay({ day, idx, company, logo, printed }: { day: DayView; idx: Ind
               .map((p) => (
                 <li key={p.vehicle.id}>
                   <strong className="font-mono">{p.vehicle.licensePlate}</strong> {p.vehicle.name}: {names(p.crew)}
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
+
+      {day.poolVehicles.some((p) => p.unavailable) && (
+        <div className="mb-3 break-inside-avoid">
+          <h2 className="mb-1 font-bold">Nicht verfügbare Fahrzeuge</h2>
+          <ul>
+            {day.poolVehicles
+              .filter((p) => p.unavailable)
+              .map((p) => (
+                <li key={p.vehicle.id}>
+                  <strong className="font-mono">{p.vehicle.licensePlate}</strong> {p.vehicle.name} – mit {p.unavailable!.employee.firstName} {p.unavailable!.employee.lastName}{" "}
+                  abwesend ({p.unavailable!.type?.name})
                 </li>
               ))}
           </ul>

@@ -82,14 +82,15 @@ describe("Tagesansicht aufbauen", () => {
     to: "2026-12-01",
     employees: [emp("a"), emp("b", "AZUBI_1"), emp("c"), emp("u")],
     vehicles: [
-      { id: "v1", licensePlate: "V1", name: "V1", type: null, seats: 2, active: true, sortOrder: 0, defaultIds: [] },
-      { id: "v2", licensePlate: "V2", name: "V2", type: null, seats: 2, active: true, sortOrder: 1, defaultIds: [] },
-      { id: "v3", licensePlate: "V3", name: "V3", type: null, seats: 2, active: true, sortOrder: 2, defaultIds: [] },
+      { id: "v1", licensePlate: "V1", name: "V1", type: null, seats: 2, active: true, sortOrder: 0, ownerId: "c", defaultIds: ["c"] },
+      { id: "v2", licensePlate: "V2", name: "V2", type: null, seats: 2, active: true, sortOrder: 1, ownerId: null, defaultIds: [] },
+      { id: "v3", licensePlate: "V3", name: "V3", type: null, seats: 2, active: true, sortOrder: 2, ownerId: "a", defaultIds: ["a", "b"] },
+      { id: "v4", licensePlate: "V4", name: "V4", type: null, seats: 2, active: true, sortOrder: 3, ownerId: "u", defaultIds: ["u"] },
     ],
     sites: [{ id: "s1", name: "S1", address: null, customer: null, orderNumber: null, startDate: null, endDate: null, status: "ACTIVE", note: null, color: "#000000", active: true, adHoc: false }],
     departments: [{ id: "d", name: "D", color: "#111111", sortOrder: 0 }],
     absenceTypes: [{ id: "t", name: "Urlaub", code: "U", color: "#00ff00" }],
-    absences: [{ id: "x", employeeId: "u", typeId: "t", startDate: "2026-11-30", endDate: "2026-12-02", note: null }],
+    absences: [{ id: "x", employeeId: "u", typeId: "t", startDate: "2026-11-30", endDate: "2026-12-02", note: null, withVehicle: true }],
     vehicleDays: [
       { id: "vd1", date: "2026-12-01", vehicleId: "v1", note: null, version: 1, crew: [{ id: "c1", employeeId: "a", sortOrder: 0, assignedById: null, createdAt: "" }], assignments: [{ id: "as1", siteId: "s1", startMin: 420, endMin: 960, note: null, version: 1, updatedById: null, updatedAt: "" }] },
       { id: "vd2", date: "2026-12-01", vehicleId: "v2", note: null, version: 1, crew: [{ id: "c2", employeeId: "b", sortOrder: 0, assignedById: null, createdAt: "" }], assignments: [] },
@@ -103,8 +104,23 @@ describe("Tagesansicht aufbauen", () => {
     expect(day.sites[0].items[0].crew.map((e) => e.id)).toEqual(["a"]);
   });
   it("Pool: Fahrzeug mit Besatzung zuerst, dann freie", () => {
-    expect(day.poolVehicles.map((v) => v.vehicle.id)).toEqual(["v2", "v3"]);
+    // gesperrte Fahrzeuge (Besitzer mit Fahrzeug abwesend) ans Ende
+    expect(day.poolVehicles.map((v) => v.vehicle.id)).toEqual(["v2", "v3", "v4"]);
     expect(day.poolVehicles[0].crewWarnings.some((w) => w.text.includes("Nur Azubis"))).toBe(true);
+  });
+  it("Besitzer mit Tagesstatus und Standard-Mitfahrer", () => {
+    const v1 = day.sites[0].items[0];
+    expect(v1.owner?.employee.id).toBe("c");
+    expect(v1.owner?.state).toBe("free");
+    const v3 = day.poolVehicles.find((p) => p.vehicle.id === "v3")!;
+    expect(v3.owner?.state).toBe("elsewhere");
+    expect(v3.owner?.elsewhereVehicle?.id).toBe("v1");
+    expect(v3.defaultMembers.map((e) => e.id)).toEqual(["b"]);
+  });
+  it("Fahrzeug gesperrt, wenn Besitzer mit Fahrzeug abwesend", () => {
+    const v4 = day.poolVehicles.find((p) => p.vehicle.id === "v4")!;
+    expect(v4.unavailable?.type?.code).toBe("U");
+    expect(v4.owner?.state).toBe("absent");
   });
   it("Pool: nur verfügbare Mitarbeiter, Abwesende nur in der Abwesenheitsleiste", () => {
     expect(day.poolEmployees.map((p) => p.employee.id)).toEqual(["c"]);

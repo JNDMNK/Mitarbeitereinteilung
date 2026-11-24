@@ -122,6 +122,8 @@ const absenceBase = z.object({
   startDate: isoDate,
   endDate: isoDate,
   note: optionalText(300),
+  /** nur für Fahrzeug-Besitzer: Fahrzeug ist mit abwesend (nicht verfügbar) */
+  withVehicle: z.boolean().optional(),
 });
 const absenceRefine = <T extends { startDate?: string; endDate?: string }>(s: z.ZodType<T>) =>
   s.refine((v) => !v.startDate || !v.endDate || v.startDate <= v.endDate, {

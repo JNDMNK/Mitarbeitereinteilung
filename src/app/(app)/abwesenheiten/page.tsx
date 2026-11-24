@@ -24,6 +24,9 @@ export default async function AbsencesPage({ searchParams }: { searchParams: Pro
     db.absenceType.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true, code: true, color: true, active: true } }),
   ]);
   const withAbsence = new Set(absences.map((a) => a.employeeId));
+  const owned = await db.vehicle.findMany({ where: { active: true, defaultDriverId: { not: null } }, select: { defaultDriverId: true, licensePlate: true } });
+  const ownedVehicles: Record<string, string[]> = {};
+  for (const v of owned) (ownedVehicles[v.defaultDriverId!] ??= []).push(v.licensePlate);
   const employees = await db.employee.findMany({
     // aktive Mitarbeiter + inaktive, die im Monat noch Abwesenheiten haben (Historie)
     where: { OR: [{ active: true }, { id: { in: [...withAbsence] } }] },
@@ -47,6 +50,7 @@ export default async function AbsencesPage({ searchParams }: { searchParams: Pro
         departments={departments}
         types={types}
         employees={employees}
+        ownedVehicles={ownedVehicles}
       />
     </>
   );

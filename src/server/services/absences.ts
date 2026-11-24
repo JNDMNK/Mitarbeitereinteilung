@@ -16,6 +16,7 @@ export const absenceSelect = {
   startDate: true,
   endDate: true,
   note: true,
+  withVehicle: true,
   version: true,
   type: { select: { id: true, name: true, code: true, color: true } },
   employee: { select: { id: true, firstName: true, lastName: true, shortName: true } },
@@ -60,6 +61,25 @@ async function assignedDays(tx: Tx, employeeId: string, start: string, end: stri
   return rows.map((r) => r.date);
 }
 
+/** Fahrzeuge, deren Besitzer (Standard-Fahrer) der Mitarbeiter ist */
+async function ownedVehicles(tx: Tx, employeeId: string) {
+  return tx.vehicle.findMany({ where: { defaultDriverId: employeeId, active: true }, select: { id: true, licensePlate: true } });
+}
+
+/** Hinweis, wenn ein mitgenommenes Fahrzeug im Zeitraum schon eingeplant ist */
+async function vehicleWarnings(tx: Tx, employeeId: string, start: string, end: string): Promise<string[]> {
+  const out: string[] = [];
+  for (const v of await ownedVehicles(tx, employeeId)) {
+    const days = await tx.vehicleDay.findMany({ where: { vehicleId: v.id, date: { gte: start, lte: end } }, select: { date: true }, orderBy: { date: "asc" } });
+    if (days.length) {
+      out.push(
+        `Achtung: Fahrzeug ${v.licensePlate} ist an ${days.length} Tag(en) bereits eingeplant (${days.slice(0, 5).map((d) => formatDate(d.date)).join(", ")}${days.length > 5 ? " …" : ""}), ist aber nicht verfügbar. Bitte die Einteilung prüfen.`,
+      );
+    }
+  }
+  return out;
+}
+
 function warningFor(days: string[]): string[] {
   if (days.length === 0) return [];
   const list = days.slice(0, 5).map(formatDate).join(", ") + (days.length > 5 ? " …" : "");
@@ -73,16 +93,24 @@ export async function createAbsence(actorId: string, input: z.infer<typeof absen
     if (!emp || !emp.active) throw badRequest("Bitte einen aktiven Mitarbeiter wählen.");
     const type = await assertType(tx, input.typeId);
     await assertNoOverlap(tx, input.employeeId, input.startDate, input.endDate);
-    const a = await tx.absence.create({ data: input, select: absenceSelect });
+    // "mit Fahrzeug" nur, wenn der Mitarbeiter wirklich ein Fahrzeug besitzt
+    const withVehicle = !!input.withVehicle && (await ownedVehicles(tx, emp.id)).length > 0;
+    const a = await tx.absence.create({ data: { ...input, withVehicle }, select: absenceSelect });
     await audit(tx, {
       userId: actorId,
       action: "absence.create",
       entityType: "Absence",
       entityId: a.id,
       date: input.startDate,
-      summary: `${type.name} für ${emp.firstName} ${emp.lastName} ${formatRange(input.startDate, input.endDate)} eingetragen`,
+      summary: `${type.name} für ${emp.firstName} ${emp.lastName} ${formatRange(input.startDate, input.endDate)} eingetragen${withVehicle ? " (mit Fahrzeug)" : ""}`,
     });
-    return { absence: a, warnings: warningFor(await assignedDays(tx, emp.id, input.startDate, input.endDate)) };
+    return {
+      absence: a,
+      warnings: [
+        ...warningFor(await assignedDays(tx, emp.id, input.startDate, input.endDate)),
+        ...(withVehicle ? await vehicleWarnings(tx, emp.id, input.startDate, input.endDate) : []),
+      ],
+    };
   });
   publishChange({ scope: "absences", userId: actorId });
   return result;
@@ -100,10 +128,12 @@ export async function updateAbsence(actorId: string, id: string, input: z.infer<
     const type = data.typeId ? await assertType(tx, data.typeId, cur.typeId) : cur.type;
     await assertNoOverlap(tx, cur.employeeId, start, end, id);
 
-    const res = await tx.absence.updateMany({ where: { id, version }, data: { ...data, version: { increment: 1 } } });
+    const withVehicle = data.withVehicle === undefined ? cur.withVehicle : !!data.withVehicle && (await ownedVehicles(tx, cur.employeeId)).length > 0;
+    const res = await tx.absence.updateMany({ where: { id, version }, data: { ...data, withVehicle, version: { increment: 1 } } });
     if (res.count !== 1) throw conflict();
 
     const changes: string[] = [];
+    if (withVehicle !== cur.withVehicle) changes.push(withVehicle ? "Fahrzeug ist mit abwesend" : "Fahrzeug bleibt da");
     if (type.id !== cur.typeId) changes.push(`Art: ${cur.type.name} → ${type.name}`);
     if (start !== cur.startDate || end !== cur.endDate)
       changes.push(`Zeitraum: ${formatRange(cur.startDate, cur.endDate)} → ${formatRange(start, end)}`);
@@ -117,7 +147,10 @@ export async function updateAbsence(actorId: string, id: string, input: z.infer<
       summary: `Abwesenheit von ${cur.employee.firstName} ${cur.employee.lastName} geändert${changes.length ? ": " + changes.join(", ") : ""}`,
     });
     const absence = await tx.absence.findUniqueOrThrow({ where: { id }, select: absenceSelect });
-    return { absence, warnings: warningFor(await assignedDays(tx, cur.employeeId, start, end)) };
+    return {
+      absence,
+      warnings: [...warningFor(await assignedDays(tx, cur.employeeId, start, end)), ...(withVehicle ? await vehicleWarnings(tx, cur.employeeId, start, end) : [])],
+    };
   });
   publishChange({ scope: "absences", userId: actorId });
   return result;

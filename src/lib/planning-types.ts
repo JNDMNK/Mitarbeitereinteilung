@@ -18,6 +18,8 @@ export type PVehicle = {
   seats: number;
   active: boolean;
   sortOrder: number;
+  /** Besitzer / Standard-Fahrer laut Stammdaten */
+  ownerId: string | null;
   defaultIds: string[];
 };
 export type PSite = {
@@ -37,7 +39,16 @@ export type PSite = {
 };
 export type PDepartment = { id: string; name: string; color: string; sortOrder: number };
 export type PAbsenceType = { id: string; name: string; code: string; color: string };
-export type PAbsence = { id: string; employeeId: string; typeId: string; startDate: string; endDate: string; note: string | null };
+export type PAbsence = {
+  id: string;
+  employeeId: string;
+  typeId: string;
+  startDate: string;
+  endDate: string;
+  note: string | null;
+  /** Besitzer ist mit seinem Fahrzeug abwesend */
+  withVehicle: boolean;
+};
 export type PCrew = { id: string; employeeId: string; sortOrder: number; assignedById: string | null; createdAt: string };
 export type PAssignment = {
   id: string;

@@ -4,8 +4,9 @@ import { db } from "../db";
 
 export type MyDay = {
   date: string;
-  absence: { type: { name: string; code: string; color: string }; startDate: string; endDate: string; note: string | null } | null;
-  vehicle: { licensePlate: string; name: string; type: string | null; isDefaultDriver: boolean } | null;
+  absence: { type: { name: string; code: string; color: string }; startDate: string; endDate: string; note: string | null; withVehicle: boolean } | null;
+  /** owner = Besitzer, wenn es nicht das eigene Fahrzeug ist */
+  vehicle: { licensePlate: string; name: string; type: string | null; isDefaultDriver: boolean; owner: string | null } | null;
   colleagues: { id: string; firstName: string; lastName: string; shortName: string; qualification: string; phone: string | null; isDriver: boolean; absent: boolean }[];
   sites: {
     id: string;
@@ -31,7 +32,9 @@ export async function getMyAssignments(employeeId: string, from: string, days = 
         date: true,
         vehicleDay: {
           select: {
-            vehicle: { select: { licensePlate: true, name: true, type: true, defaultDriverId: true } },
+            vehicle: {
+              select: { licensePlate: true, name: true, type: true, defaultDriverId: true, defaultDriver: { select: { firstName: true, lastName: true } } },
+            },
             crew: {
               orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
               select: { employee: { select: { id: true, firstName: true, lastName: true, shortName: true, qualification: true, phone: true } } },
@@ -51,7 +54,7 @@ export async function getMyAssignments(employeeId: string, from: string, days = 
     }),
     db.absence.findMany({
       where: { startDate: { lte: to }, endDate: { gte: from } },
-      select: { employeeId: true, startDate: true, endDate: true, note: true, type: { select: { name: true, code: true, color: true } } },
+      select: { employeeId: true, startDate: true, endDate: true, note: true, withVehicle: true, type: { select: { name: true, code: true, color: true } } },
     }),
   ]);
 
@@ -66,8 +69,16 @@ export async function getMyAssignments(employeeId: string, from: string, days = 
       const driverId = vd?.vehicle.defaultDriverId ?? null;
       return {
         date,
-        absence: abs ? { type: abs.type, startDate: abs.startDate, endDate: abs.endDate, note: abs.note } : null,
-        vehicle: vd ? { licensePlate: vd.vehicle.licensePlate, name: vd.vehicle.name, type: vd.vehicle.type, isDefaultDriver: driverId === employeeId } : null,
+        absence: abs ? { type: abs.type, startDate: abs.startDate, endDate: abs.endDate, note: abs.note, withVehicle: abs.withVehicle } : null,
+        vehicle: vd
+          ? {
+              licensePlate: vd.vehicle.licensePlate,
+              name: vd.vehicle.name,
+              type: vd.vehicle.type,
+              isDefaultDriver: driverId === employeeId,
+              owner: vd.vehicle.defaultDriver && driverId !== employeeId ? `${vd.vehicle.defaultDriver.firstName} ${vd.vehicle.defaultDriver.lastName}` : null,
+            }
+          : null,
         colleagues: (vd?.crew ?? [])
           .map((c) => c.employee)
           .filter((e) => e.id !== employeeId)

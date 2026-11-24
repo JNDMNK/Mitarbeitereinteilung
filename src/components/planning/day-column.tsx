@@ -6,7 +6,7 @@ import { timeRange } from "@/lib/planning-logic";
 import type { PEmployee, PVehicle } from "@/lib/planning-types";
 import type { DayView, Indexes, VehicleSlot } from "@/lib/planning-view";
 import { formatDateTimeShort } from "@/lib/dates";
-import { ByBadge, EmployeeChip, VehicleLabel, WarningList } from "./chips";
+import { ByBadge, EmployeeChip, OwnerLine, UnavailableNote, VehicleLabel, WarningList } from "./chips";
 import { dropZoneClass, useDragItem, useDropZone, type DragData, type DropData } from "./dnd";
 import type { Sheet } from "./sheets";
 
@@ -98,12 +98,28 @@ function DraggableVehicle({
     endMin: assignment?.endMin ?? null,
     vdVersion: slot.vehicleDay?.version ?? null,
   };
-  const drag = useDragItem(`veh:${date}:${slot.vehicle.id}:${suffix}`, data, !canEdit || !slot.vehicle.active);
+  const drag = useDragItem(`veh:${date}:${slot.vehicle.id}:${suffix}`, data, !canEdit || !slot.vehicle.active || !!slot.unavailable);
   return <VehicleLabel vehicle={slot.vehicle} crewCount={slot.crew.length} onClick={onClick} dragRef={drag.ref} dragProps={drag.props} dragging={drag.isDragging} />;
 }
 
-export function Drop({ id, data, canEdit, className, children, as = "div" }: { id: string; data: DropData; canEdit: boolean; className: string; children: ReactNode; as?: "div" | "li" | "article" }) {
-  const { ref, isOver, canDrop } = useDropZone(id, data, !canEdit);
+export function Drop({
+  id,
+  data,
+  canEdit,
+  className,
+  children,
+  as = "div",
+  disabled = false,
+}: {
+  id: string;
+  data: DropData;
+  canEdit: boolean;
+  className: string;
+  children: ReactNode;
+  as?: "div" | "li" | "article";
+  disabled?: boolean;
+}) {
+  const { ref, isOver, canDrop } = useDropZone(id, data, !canEdit || disabled);
   const Tag = as;
   return (
     <Tag ref={ref as never} className={`${className} transition-shadow ${dropZoneClass({ isOver, canDrop })}`}>
@@ -113,6 +129,7 @@ export function Drop({ id, data, canEdit, className, children, as = "div" }: { i
 }
 
 export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Props) {
+  const ownerHighlight = ownEmployeeId;
   const crewChips = (crew: PEmployee[], vehicle: PVehicle, suffix: string, slot?: VehicleSlot) =>
     crew.map((e) => (
       <DraggableEmployee
@@ -206,6 +223,7 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
                     />
                   </div>
                 </div>
+                {it.owner && <OwnerLine owner={it.owner} ownEmployeeId={ownerHighlight} />}
                 {it.crew.length > 0 ? (
                   <div className="flex flex-wrap gap-1">{crewChips(it.crew, it.vehicle, it.assignment.id, it)}</div>
                 ) : (
@@ -259,9 +277,20 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
                 id={`vehdrop:${day.date}:${p.vehicle.id}:pool`}
                 data={{ kind: "vehicle", accepts: "employee", date: day.date, vehicleId: p.vehicle.id }}
                 canEdit={canEdit}
-                className="rounded-lg bg-white px-2 py-1 ring-1 ring-line"
+                disabled={!!p.unavailable}
+                className={`rounded-lg px-2 py-1 ring-1 ring-line ${p.unavailable ? "bg-slate-100 opacity-80" : "bg-white"}`}
               >
                 <DraggableVehicle slot={p} date={day.date} assignment={null} siteId={null} canEdit={canEdit} suffix="pool" onClick={() => open({ kind: "vehicle", date: day.date, vehicleId: p.vehicle.id })} />
+                {p.unavailable ? (
+                  <UnavailableNote entry={p.unavailable} />
+                ) : (
+                  <>
+                    {p.owner && <OwnerLine owner={p.owner} ownEmployeeId={ownerHighlight} />}
+                    {p.crew.length === 0 && p.defaultMembers.length > 0 && (
+                      <p className="text-xs text-muted">Standard-Mitfahrer: {p.defaultMembers.map((e) => e.shortName).join(", ")}</p>
+                    )}
+                  </>
+                )}
                 {p.crew.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{crewChips(p.crew, p.vehicle, "pool", p)}</div>}
                 <WarningList warnings={p.crewWarnings} />
               </Drop>

@@ -47,7 +47,7 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
     }),
     db.absence.findMany({
       where: { startDate: { lte: to }, endDate: { gte: from } },
-      select: { id: true, employeeId: true, typeId: true, startDate: true, endDate: true, note: true },
+      select: { id: true, employeeId: true, typeId: true, startDate: true, endDate: true, note: true, withVehicle: true },
     }),
     db.department.findMany({ select: { id: true, name: true, color: true, sortOrder: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
     db.absenceType.findMany({ select: { id: true, name: true, code: true, color: true }, orderBy: { sortOrder: "asc" } }),
@@ -99,6 +99,7 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
     employees,
     vehicles: vehicles.map(({ defaultDriverId, defaultMembers, ...v }) => ({
       ...v,
+      ownerId: defaultDriverId,
       defaultIds: [...(defaultDriverId ? [defaultDriverId] : []), ...defaultMembers.map((m) => m.employeeId)],
     })),
     sites,
@@ -144,6 +145,24 @@ async function absentOn(tx: Tx, employeeId: string, date: string) {
   return tx.absence.findFirst({ where: { employeeId, startDate: { lte: date }, endDate: { gte: date } }, include: { type: true } });
 }
 
+/** Ist das Fahrzeug an dem Tag weg, weil der Besitzer mit ihm abwesend ist? */
+async function vehicleBlock(tx: Tx, vehicle: { defaultDriverId: string | null }, date: string) {
+  if (!vehicle.defaultDriverId) return null;
+  return tx.absence.findFirst({
+    where: { employeeId: vehicle.defaultDriverId, withVehicle: true, startDate: { lte: date }, endDate: { gte: date } },
+    include: { type: true, employee: true },
+  });
+}
+
+async function assertVehicleAvailable(tx: Tx, vehicle: { licensePlate: string; defaultDriverId: string | null }, date: string) {
+  const block = await vehicleBlock(tx, vehicle, date);
+  if (block) {
+    throw badRequest(
+      `${vehicle.licensePlate} ist am ${formatDayShort(date)} nicht verfügbar – mit ${fullName(block.employee)} abwesend (${block.type.name}).`,
+    );
+  }
+}
+
 /**
  * Fahrzeug-Tag holen oder anlegen. Beim Anlegen wird die Standard-Besatzung
  * vorbelegt – außer abwesende, inaktive oder anderweitig eingeteilte Mitarbeiter.
@@ -154,6 +173,7 @@ async function ensureVehicleDay(tx: Tx, actorId: string, date: string, vehicleId
 
   const vehicle = await loadVehicle(tx, vehicleId);
   if (!vehicle.active) throw badRequest(`Fahrzeug ${vehicle.licensePlate} ist deaktiviert.`);
+  await assertVehicleAvailable(tx, vehicle, date);
   const vd = await tx.vehicleDay.create({ data: { date, vehicleId } });
   if (!prefill) return vd;
 
@@ -233,6 +253,7 @@ async function assignCrewTx(
     );
   }
   if (currentVehicleId === p.vehicleId) return;
+  await assertVehicleAvailable(tx, vehicle, p.date);
 
   // Abwesende können nicht eingeteilt werden (nur zurück in den Pool)
   const absence = await absentOn(tx, emp.id, p.date);
@@ -376,6 +397,7 @@ export async function createAssignment(actorId: string, input: z.infer<typeof as
     const site = await resolveSite(tx, actorId, input.siteId, input.newSite, input.date);
     if (!site.active) throw badRequest("Bitte eine aktive Baustelle wählen.");
     const vehicle = await loadVehicle(tx, input.vehicleId);
+    await assertVehicleAvailable(tx, vehicle, input.date);
     const vd = await ensureVehicleDay(tx, actorId, input.date, input.vehicleId, messages);
     await assertNoOverlap(tx, vd.id, input.startMin, input.endMin);
     await tx.siteAssignment.create({
@@ -533,6 +555,7 @@ export async function transferVehicle(actorId: string, input: z.infer<typeof veh
   await db.$transaction(async (tx) => {
     const vehicle = await loadVehicle(tx, input.vehicleId);
     if (!vehicle.active) throw badRequest(`Fahrzeug ${vehicle.licensePlate} ist deaktiviert.`);
+    await assertVehicleAvailable(tx, vehicle, input.toDate);
     const src = await tx.vehicleDay.findUnique({
       where: { date_vehicleId: { date: input.fromDate, vehicleId: input.vehicleId } },
       include: { crew: { include: { employee: true }, orderBy: { sortOrder: "asc" } }, assignments: true },
@@ -634,6 +657,11 @@ export async function copyDay(actorId: string, input: z.infer<typeof dayCopySche
     for (const vd of src) {
       if (!vd.vehicle.active) {
         skippedOther.push(`${vd.vehicle.licensePlate} (deaktiviert)`);
+        continue;
+      }
+      const block = await vehicleBlock(tx, vd.vehicle, input.toDate);
+      if (block) {
+        skippedOther.push(`${vd.vehicle.licensePlate} (mit ${block.employee.shortName} abwesend)`);
         continue;
       }
       const target =

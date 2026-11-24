@@ -4,6 +4,7 @@ import type { HTMLAttributes, Ref } from "react";
 import { QualificationBadge } from "@/components/qualification-badge";
 import type { Warning } from "@/lib/planning-logic";
 import type { PAbsenceType, PDepartment, PEmployee, PVehicle } from "@/lib/planning-types";
+import type { AbsentEntry, OwnerInfo } from "@/lib/planning-view";
 
 export function EmployeeChip({
   employee,
@@ -120,5 +121,38 @@ export function ByBadge({ initials, title }: { initials: string; title: string }
     <span className="shrink-0 rounded bg-slate-100 px-1 font-mono text-[11px] leading-5 font-bold text-slate-700 ring-1 ring-slate-300" title={title}>
       ✎ {initials}
     </span>
+  );
+}
+
+/** "👤 Max Müller · heute auf WÜ-EL 102" – Besitzer laut Stammdaten mit Tagesstatus */
+export function OwnerLine({ owner, ownEmployeeId }: { owner?: OwnerInfo; ownEmployeeId?: string | null }) {
+  if (!owner) return null;
+  const e = owner.employee;
+  const status =
+    owner.state === "here"
+      ? null
+      : owner.state === "elsewhere"
+        ? { text: `heute auf ${owner.elsewhereVehicle?.licensePlate ?? "anderem Fahrzeug"}`, cls: "text-amber-800" }
+        : owner.state === "absent"
+          ? { text: `abwesend (${owner.absence?.type?.code ?? "?"})`, cls: "text-red-700" }
+          : { text: "nicht eingeteilt", cls: "text-muted" };
+  return (
+    <p className="flex flex-wrap items-center gap-x-1.5 text-xs" title="Besitzer / Standard-Fahrer laut Stammdaten">
+      <span aria-hidden>👤</span>
+      <span className={`font-semibold ${e.id === ownEmployeeId ? "text-brand-700" : "text-slate-700"}`}>
+        {e.firstName} {e.lastName}
+      </span>
+      <span className="text-muted">(Besitzer)</span>
+      {status && <span className={`font-semibold ${status.cls}`}>· {status.text}</span>}
+    </p>
+  );
+}
+
+/** Hinweis bei gesperrtem Fahrzeug */
+export function UnavailableNote({ entry }: { entry: AbsentEntry }) {
+  return (
+    <p className="text-xs font-bold text-red-700">
+      🚫 nicht verfügbar – mit {entry.employee.firstName} {entry.employee.lastName} abwesend ({entry.type?.name ?? "Abwesenheit"})
+    </p>
   );
 }

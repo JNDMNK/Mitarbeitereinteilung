@@ -75,10 +75,29 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
     return m;
   }, [data, idx, days]);
 
+  /** Slot eines Fahrzeugs an einem (sichtbaren) Tag */
+  function slotOn(date: string, vehicleId: string) {
+    const d = dayViews.get(date);
+    if (!d) return undefined;
+    return d.poolVehicles.find((p) => p.vehicle.id === vehicleId) ?? d.sites.flatMap((g) => g.items).find((i) => i.vehicle.id === vehicleId);
+  }
+  function blockedText(date: string, vehicleId: string): string | null {
+    const slot = slotOn(date, vehicleId);
+    if (!slot?.unavailable) return null;
+    const e = slot.unavailable.employee;
+    return `${slot.vehicle.licensePlate} ist am ${formatDayShort(date)} nicht verfügbar – mit ${e.firstName} ${e.lastName} abwesend (${slot.unavailable.type?.name ?? "Abwesenheit"}).`;
+  }
+
   /** Ablegen auswerten: was wurde wohin gezogen, verschieben oder kopieren? */
   function handleDrop(drag: DragData, drop: DropData, copy: boolean) {
     if (!data || !idx) return;
     const sameDay = drag.date === drop.date;
+    const targetVehicle = drop.kind === "vehicle" ? drop.vehicleId : drag.type === "vehicle" && !(drop.kind === "pool" && sameDay) ? drag.vehicleId : null;
+    const blocked = targetVehicle ? blockedText(drop.date, targetVehicle) : null;
+    if (blocked) {
+      actions.notify("error", [blocked]);
+      return;
+    }
     if (drag.type === "employee") {
       const e = idx.employees.get(drag.employeeId)!;
       const name = `${e.firstName} ${e.lastName}`;

@@ -74,6 +74,7 @@ function DayCard({ day, today, big = false }: { day: MyDay; today: string; big?:
               <p className="text-lg font-bold">{day.absence.type.name}</p>
               <p className="text-sm opacity-90">
                 {formatRange(day.absence.startDate, day.absence.endDate)}
+                {day.absence.withVehicle ? " · mit Fahrzeug" : ""}
                 {day.absence.note ? ` · ${day.absence.note}` : ""}
               </p>
             </div>
@@ -91,7 +92,8 @@ function DayCard({ day, today, big = false }: { day: MyDay; today: string; big?:
               <span className="text-sm font-semibold text-muted">Fahrzeug</span>
               <span className="rounded-md border-2 border-ink px-2 font-mono text-lg font-bold tracking-wide">{day.vehicle.licensePlate}</span>
               <span className="text-lg font-semibold">{day.vehicle.name}</span>
-              {day.vehicle.isDefaultDriver && <span className="rounded-full bg-ink px-2 text-sm font-bold text-white">Sie fahren</span>}
+              {day.vehicle.isDefaultDriver && <span className="rounded-full bg-ink px-2 text-sm font-bold text-white">Ihr Fahrzeug</span>}
+              {day.vehicle.owner && <span className="text-sm text-muted">(Fahrzeug von {day.vehicle.owner})</span>}
             </div>
 
             {day.sites.length === 0 ? (

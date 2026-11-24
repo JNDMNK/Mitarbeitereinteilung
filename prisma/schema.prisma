@@ -208,6 +208,8 @@ model Absence {
   startDate  String
   endDate    String
   note       String?
+  /// Fahrzeug-Besitzer ist mit seinem Fahrzeug abwesend -> Fahrzeug in dieser Zeit nicht verfügbar
+  withVehicle Boolean    @default(false)
   version    Int         @default(1)
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt

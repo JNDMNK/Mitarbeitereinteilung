@@ -11,6 +11,8 @@ import { findOverlap, suggestSlot, timeRange } from "@/lib/planning-logic";
 import { addDays, formatDateTimeShort } from "@/lib/dates";
 import type { NewSite, PlanningAction } from "@/lib/planning-schemas";
 import type { DragData } from "./dnd";
+import { OwnerLine, UnavailableNote } from "./chips";
+import type { VehicleSlot } from "@/lib/planning-view";
 import type { RunOptions, RunResult } from "./use-planning";
 import type { PlanningData } from "@/lib/planning-types";
 import type { DayView, Indexes } from "@/lib/planning-view";
@@ -95,6 +97,11 @@ function SearchList<T>({
       </div>
     </div>
   );
+}
+
+function slotIn(day: DayView | undefined, vehicleId: string): VehicleSlot | undefined {
+  if (!day) return undefined;
+  return day.poolVehicles.find((p) => p.vehicle.id === vehicleId) ?? day.sites.flatMap((g) => g.items).find((i) => i.vehicle.id === vehicleId);
 }
 
 export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run, busy }: Props) {
@@ -187,6 +194,15 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
             {dateLabel}
             {site && a ? ` · ${site.name}, ${timeRange(a.startMin, a.endMin)}` : vd?.assignments.length ? ` · ${vd.assignments.length} Einsatz/Einsätze` : " · ohne Baustelle"}
           </p>
+          {(() => {
+            const slot = slotIn(day, v.id);
+            return (
+              <>
+                <OwnerLine owner={slot?.owner} />
+                {slot?.unavailable && <UnavailableNote entry={slot.unavailable} />}
+              </>
+            );
+          })()}
           {a?.updatedById && idx.planners.get(a.updatedById) && (
             <p className="text-sm text-muted">
               zuletzt geplant von <strong className="font-mono">{idx.planners.get(a.updatedById)!.initials}</strong> ({idx.planners.get(a.updatedById)!.name}),{" "}
@@ -201,8 +217,14 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
                   <Action onClick={() => setSheet({ kind: "pickSite", date: sheet.date, vehicleId: v.id, assignmentId: a.id })}>🏗️ Andere Baustelle …</Action>
                 </>
               )}
-              <Action onClick={() => setSheet({ kind: "pickSite", date: sheet.date, vehicleId: v.id })}>➕ {vd?.assignments.length ? "Weitere Baustelle einplanen …" : "Auf Baustelle einplanen …"}</Action>
-              <Action onClick={() => setSheet({ kind: "pickEmployeeForVehicle", date: sheet.date, vehicleId: v.id })}>👷 Mitarbeiter hinzufügen …</Action>
+              {!slotIn(day, v.id)?.unavailable && (
+                <>
+                  <Action onClick={() => setSheet({ kind: "pickSite", date: sheet.date, vehicleId: v.id })}>
+                    ➕ {vd?.assignments.length ? "Weitere Baustelle einplanen …" : "Auf Baustelle einplanen …"}
+                  </Action>
+                  <Action onClick={() => setSheet({ kind: "pickEmployeeForVehicle", date: sheet.date, vehicleId: v.id })}>👷 Mitarbeiter hinzufügen …</Action>
+                </>
+              )}
               {vd && (
                 <Action onClick={() => setSheet({ kind: "copyVehicle", date: sheet.date, vehicleId: v.id, assignmentId: a?.id })}>
                   ⧉ {a ? "Einsatz mit Besatzung auf anderen Tag kopieren …" : "Mit Besatzung auf anderen Tag kopieren …"}
@@ -254,7 +276,14 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
     const deployed = onSite.filter((x) => (seen.has(x.slot.vehicle.id) ? false : (seen.add(x.slot.vehicle.id), true)));
     const groups = [
       { group: "Auf Baustelle", list: deployed.map((x) => ({ vehicle: x.slot.vehicle, crew: x.slot.crew.length, info: x.label })) },
-      { group: "Ohne Baustelle", list: day.poolVehicles.map((p) => ({ vehicle: p.vehicle, crew: p.crew.length, info: p.crew.length ? "mit Besatzung" : "frei" })) },
+      {
+        group: "Ohne Baustelle",
+        list: day.poolVehicles.map((p) => ({
+          vehicle: p.vehicle,
+          crew: p.crew.length,
+          info: p.unavailable ? `nicht verfügbar (mit ${p.unavailable.employee.shortName} abwesend)` : p.crew.length ? "mit Besatzung" : "frei",
+        })),
+      },
     ];
     return (
       <Dialog open onClose={close} title={`${e.firstName} ${e.lastName} → Fahrzeug`}>
@@ -266,15 +295,18 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
           render={(x) => (
             <Action
               key={x.vehicle.id}
-              disabled={busy || x.vehicle.id === from}
+              disabled={busy || x.vehicle.id === from || !!slotIn(day, x.vehicle.id)?.unavailable}
               onClick={async () => {
                 close();
                 await run("crew-assign", { date: sheet.date, employeeId: e.id, vehicleId: x.vehicle.id, expectedFromVehicleId: from }, `${e.firstName} ${e.lastName} → ${x.vehicle.licensePlate}.`);
               }}
             >
               <span className="rounded border-2 border-ink px-1.5 font-mono text-sm font-bold">{x.vehicle.licensePlate}</span>
-              <span className="flex-1 truncate">
-                {x.vehicle.name} <span className="text-sm font-normal text-muted">· {x.info}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">
+                  {x.vehicle.name} <span className="text-sm font-normal text-muted">· {x.info}</span>
+                </span>
+                {x.vehicle.ownerId === e.id && <span className="block text-xs font-semibold text-green-800">sein eigenes Fahrzeug</span>}
               </span>
               <span className={`rounded-full px-2 text-xs font-bold ${x.crew >= x.vehicle.seats ? "bg-amber-200" : "bg-slate-200"}`}>
                 {x.crew}/{x.vehicle.seats}
@@ -407,14 +439,29 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
       <Dialog open onClose={close} title={`Fahrzeug für „${site.name}“`}>
         <SearchList
           items={[
-            { group: "Ohne Baustelle", list: day.poolVehicles.map((p) => ({ vehicle: p.vehicle, crew: p.crew.length, info: p.crew.length ? p.crew.map((c) => c.shortName).join(", ") : "frei – Standard-Besatzung wird vorbelegt" })) },
+            {
+              group: "Ohne Baustelle",
+              list: day.poolVehicles.map((p) => ({
+                vehicle: p.vehicle,
+                crew: p.crew.length,
+                info: p.unavailable
+                  ? `nicht verfügbar – mit ${p.unavailable.employee.firstName} ${p.unavailable.employee.lastName} abwesend`
+                  : p.crew.length
+                    ? p.crew.map((c) => c.shortName).join(", ")
+                    : `frei – ${p.owner ? `Besitzer ${p.owner.employee.shortName}, ` : ""}Standard-Besatzung wird vorbelegt`,
+              })),
+            },
             { group: "Schon im Einsatz (weiterer Einsatz)", list: [...deployed.values()] },
           ]}
           placeholder="Kennzeichen oder Bezeichnung"
           empty="Keine Fahrzeuge gefunden."
           filter={(x, q) => !q || `${x.vehicle.licensePlate} ${x.vehicle.name}`.toLowerCase().includes(q)}
           render={(x) => (
-            <Action key={x.vehicle.id} onClick={() => setSheet({ kind: "time", date: sheet.date, vehicleId: x.vehicle.id, siteId: site.id, newSite: sheet.newSite })}>
+            <Action
+              key={x.vehicle.id}
+              disabled={!!slotIn(day, x.vehicle.id)?.unavailable}
+              onClick={() => setSheet({ kind: "time", date: sheet.date, vehicleId: x.vehicle.id, siteId: site.id, newSite: sheet.newSite })}
+            >
               <span className="rounded border-2 border-ink px-1.5 font-mono text-sm font-bold">{x.vehicle.licensePlate}</span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate">{x.vehicle.name}</span>
@@ -447,7 +494,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
             return (
               <Action
                 key={d}
-                disabled={busy || there === vehicle.id || !!abs}
+                disabled={busy || there === vehicle.id || !!abs || !!slotIn(target, vehicle.id)?.unavailable}
                 onClick={async () => {
                   close();
                   await run(
@@ -484,7 +531,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
           {otherDays.map((d) => (
             <Action
               key={d}
-              disabled={busy}
+              disabled={busy || !!slotIn(days.get(d), v.id)?.unavailable}
               onClick={async () => {
                 close();
                 await run(

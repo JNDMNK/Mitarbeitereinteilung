@@ -2,11 +2,24 @@ import { absenceOn, crewWarnings, siteWarnings, type Warning } from "./planning-
 import type { PAbsence, PAbsenceType, PAssignment, PEmployee, PlanningData, PSite, PVehicle, PVehicleDay } from "./planning-types";
 
 export type AbsentEntry = { employee: PEmployee; absence: PAbsence; type: PAbsenceType | undefined };
+export type OwnerInfo = {
+  employee: PEmployee;
+  /** here = sitzt in diesem Fahrzeug, elsewhere = auf anderem Fahrzeug, absent = abwesend, free = noch nicht eingeteilt */
+  state: "here" | "elsewhere" | "absent" | "free";
+  elsewhereVehicle?: PVehicle;
+  absence?: AbsentEntry;
+};
 export type VehicleSlot = {
   vehicle: PVehicle;
   vehicleDay: PVehicleDay | null;
   crew: PEmployee[];
   crewWarnings: Warning[];
+  /** Besitzer laut Stammdaten mit Tagesstatus */
+  owner?: OwnerInfo;
+  /** weitere Standard-Mitfahrer (Hinweis bei leerem Fahrzeug) */
+  defaultMembers: PEmployee[];
+  /** Fahrzeug nicht verfügbar: Besitzer ist mit ihm abwesend */
+  unavailable?: AbsentEntry;
 };
 export type AssignmentItem = VehicleSlot & { assignment: PAssignment; vehicleDay: PVehicleDay };
 export type SiteGroup = { site: PSite; items: AssignmentItem[]; warnings: Warning[] };
@@ -54,7 +67,7 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
     if (!vehicle) return null;
     const crew = vd.crew.map((c) => idx.employees.get(c.employeeId)).filter((e): e is PEmployee => !!e);
     for (const e of crew) seatOf.set(e.id, vehicle.id);
-    return { vehicle, vehicleDay: vd, crew, crewWarnings: crewWarnings(vehicle, crew, absentIds, vd.assignments.length > 0) };
+    return { vehicle, vehicleDay: vd, crew, crewWarnings: crewWarnings(vehicle, crew, absentIds, vd.assignments.length > 0), defaultMembers: [] };
   };
 
   const siteMap = new Map<string, SiteGroup>();
@@ -78,10 +91,46 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
   }
   // freie Fahrzeuge ohne Fahrzeug-Tag
   for (const v of data.vehicles) {
-    if (v.active && !usedVehicles.has(v.id)) poolVehicles.push({ vehicle: v, vehicleDay: null, crew: [], crewWarnings: [] });
+    if (v.active && !usedVehicles.has(v.id)) poolVehicles.push({ vehicle: v, vehicleDay: null, crew: [], crewWarnings: [], defaultMembers: [] });
   }
-  poolVehicles.sort((a, b) => Number(b.crew.length > 0) - Number(a.crew.length > 0) || a.vehicle.sortOrder - b.vehicle.sortOrder || a.vehicle.name.localeCompare(b.vehicle.name));
 
+  // Besitzer, Standard-Mitfahrer und Verfügbarkeit ergänzen (braucht vollständiges seatOf)
+  const annotate = (slot: VehicleSlot) => {
+    const v = slot.vehicle;
+    const ownerEmp = v.ownerId ? idx.employees.get(v.ownerId) : undefined;
+    if (ownerEmp) {
+      const abs = absent.find((a) => a.employee.id === ownerEmp.id);
+      const seat = seatOf.get(ownerEmp.id);
+      slot.owner = {
+        employee: ownerEmp,
+        state: seat === v.id ? "here" : seat ? "elsewhere" : abs ? "absent" : "free",
+        elsewhereVehicle: seat && seat !== v.id ? idx.vehicles.get(seat) : undefined,
+        absence: abs,
+      };
+      if (abs?.absence.withVehicle) {
+        slot.unavailable = abs;
+        if (slot.crew.length > 0 || (slot.vehicleDay?.assignments.length ?? 0) > 0) {
+          slot.crewWarnings = [{ level: "error", text: `Fahrzeug nicht verfügbar – mit ${ownerEmp.firstName} ${ownerEmp.lastName} abwesend` }, ...slot.crewWarnings];
+        }
+      }
+    }
+    slot.defaultMembers = v.defaultIds
+      .filter((id) => id !== v.ownerId)
+      .map((id) => idx.employees.get(id))
+      .filter((e): e is PEmployee => !!e && e.active);
+  };
+  const poolOrder = () =>
+    poolVehicles.sort(
+      (a, b) =>
+        Number(!!a.unavailable) - Number(!!b.unavailable) ||
+        Number(b.crew.length > 0) - Number(a.crew.length > 0) ||
+        a.vehicle.sortOrder - b.vehicle.sortOrder ||
+        a.vehicle.name.localeCompare(b.vehicle.name),
+    );
+  for (const p of poolVehicles) annotate(p);
+  poolOrder();
+
+  for (const g of siteMap.values()) for (const it of g.items) annotate(it);
   const sites = [...siteMap.values()];
   for (const g of sites) g.items.sort((a, b) => a.assignment.startMin - b.assignment.startMin || a.vehicle.sortOrder - b.vehicle.sortOrder);
   sites.sort((a, b) => a.items[0].assignment.startMin - b.items[0].assignment.startMin || a.site.name.localeCompare(b.site.name));
