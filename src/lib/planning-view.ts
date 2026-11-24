@@ -33,6 +33,8 @@ export type DayView = {
   sites: SiteGroup[];
   /** Fahrzeuge ohne Baustelleneinsatz (mit oder ohne Besatzung) */
   poolVehicles: VehicleSlot[];
+  /** Räume (Lager, Schulungsraum …) – ganztägig, ohne Baustelle */
+  rooms: VehicleSlot[];
   poolEmployees: PoolEmployee[];
   /** employeeId -> vehicleId (wer sitzt wo) */
   seatOf: Map<string, string>;
@@ -77,7 +79,11 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
     const outside: Warning[] = crew
       .filter((e) => !isAvailableOn(e, date))
       .map((e) => ({ level: "error", text: `${e.firstName} ${e.lastName} ist an diesem Tag nicht im Betrieb` }));
-    return { vehicle, vehicleDay: vd, crew, crewWarnings: [...outside, ...crewWarnings(vehicle, crew, absentIds, vd.assignments.length > 0)], defaultMembers: [] };
+    // Räume: kein "nur Azubis"/"keine Besatzung" (ein Lehrling allein im Lager ist gewollt)
+    const base = crewWarnings(vehicle, crew, absentIds, vd.assignments.length > 0).filter(
+      (w) => vehicle.kind !== "ROOM" || (!w.text.startsWith("Nur Azubis") && w.text !== "Keine Besatzung"),
+    );
+    return { vehicle, vehicleDay: vd, crew, crewWarnings: [...outside, ...base], defaultMembers: [] };
   };
 
   const siteMap = new Map<string, SiteGroup>();
@@ -138,6 +144,8 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
     );
   for (const p of poolVehicles) annotate(p);
   poolOrder();
+  const rooms = poolVehicles.filter((p) => p.vehicle.kind === "ROOM");
+  const vehiclesOnly = poolVehicles.filter((p) => p.vehicle.kind !== "ROOM");
 
   for (const g of siteMap.values()) for (const it of g.items) annotate(it);
   const sites = [...siteMap.values()];
@@ -168,7 +176,8 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
     date,
     absent,
     sites,
-    poolVehicles,
+    poolVehicles: vehiclesOnly,
+    rooms,
     poolEmployees,
     seatOf,
     stats: { assigned: seatOf.size, available: poolEmployees.length, absent: absent.length },
@@ -197,17 +206,22 @@ export function filterDayByDepartments(day: DayView, idx: Indexes, hiddenDepartm
 
   const sites = day.sites.map((g) => ({ ...g, items: g.items.filter(slotVisible) })).filter((g) => g.items.length > 0);
   const poolVehicles = day.poolVehicles.filter(slotVisible);
+  const rooms = day.rooms.filter(slotVisible);
   const poolEmployees = day.poolEmployees.filter((p) => !empHidden(p.employee));
   const absent = day.absent.filter((a) => !empHidden(a.employee));
 
-  const visibleVehicleIds = new Set([...poolVehicles.map((p) => p.vehicle.id), ...sites.flatMap((g) => g.items.map((i) => i.vehicle.id))]);
-  const allVehicleIds = new Set([...day.poolVehicles.map((p) => p.vehicle.id), ...day.sites.flatMap((g) => g.items.map((i) => i.vehicle.id))]);
-  const assigned = new Set([...sites.flatMap((g) => g.items.flatMap((i) => i.crew.map((e) => e.id))), ...poolVehicles.flatMap((p) => p.crew.map((e) => e.id))]);
+  const visibleVehicleIds = new Set([...poolVehicles, ...rooms].map((p) => p.vehicle.id).concat(sites.flatMap((g) => g.items.map((i) => i.vehicle.id))));
+  const allVehicleIds = new Set([...day.poolVehicles, ...day.rooms].map((p) => p.vehicle.id).concat(day.sites.flatMap((g) => g.items.map((i) => i.vehicle.id))));
+  const assigned = new Set([
+    ...sites.flatMap((g) => g.items.flatMap((i) => i.crew.map((e) => e.id))),
+    ...[...poolVehicles, ...rooms].flatMap((p) => p.crew.map((e) => e.id)),
+  ]);
 
   return {
     ...day,
     sites,
     poolVehicles,
+    rooms,
     poolEmployees,
     absent,
     stats: { assigned: assigned.size, available: poolEmployees.length, absent: absent.length },

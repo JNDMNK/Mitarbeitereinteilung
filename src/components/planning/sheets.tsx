@@ -130,7 +130,9 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
           <p className="flex flex-wrap items-center gap-2 text-muted">
             <QualificationBadge q={e.qualification} /> {QUALIFICATION_LABELS[e.qualification as Qualification]} · {idx.departments.get(e.departmentId)?.name} · {dateLabel}
           </p>
-          <p className="font-semibold">{vehicle ? `Eingeteilt auf ${vehicle.licensePlate} (${vehicle.name})` : "Nicht eingeteilt"}</p>
+          <p className="font-semibold">
+            {vehicle ? (vehicle.kind === "ROOM" ? `Ganztägig im Raum „${vehicle.name}“` : `Eingeteilt auf ${vehicle.licensePlate} (${vehicle.name})`) : "Nicht eingeteilt"}
+          </p>
           {vehicle &&
             (() => {
               const row = data.vehicleDays.find((v) => v.date === sheet.date && v.vehicleId === vehicle.id)?.crew.find((c) => c.employeeId === e.id);
@@ -157,7 +159,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
                 <p className="text-sm text-muted">Abwesende Mitarbeiter können an diesem Tag nicht eingeteilt werden.</p>
               ) : (
                 <Action onClick={() => setSheet({ kind: "pickVehicleForEmployee", date: sheet.date, employeeId: e.id })}>
-                  🚐 {vehicle ? "Auf anderes Fahrzeug setzen …" : "Zuweisen zu Fahrzeug …"}
+                  🚐 {vehicle ? "Auf anderes Fahrzeug / Raum setzen …" : "Zuweisen zu Fahrzeug / Raum …"}
                 </Action>
               )}
               {vehicle && (
@@ -188,7 +190,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
     const a = sheet.assignmentId ? vd?.assignments.find((x) => x.id === sheet.assignmentId) : undefined;
     const site = a ? idx.sites.get(a.siteId) : undefined;
     return (
-      <Dialog open onClose={close} title={`${v.licensePlate} · ${v.name}`}>
+      <Dialog open onClose={close} title={v.kind === "ROOM" ? `🏠 ${v.name}` : `${v.licensePlate} · ${v.name}`}>
         <div className="space-y-2">
           <p className="text-muted">
             {dateLabel}
@@ -219,15 +221,17 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
               )}
               {!slotIn(day, v.id)?.unavailable && (
                 <>
+                  {v.kind !== "ROOM" && (
                   <Action onClick={() => setSheet({ kind: "pickSite", date: sheet.date, vehicleId: v.id })}>
                     ➕ {vd?.assignments.length ? "Weitere Baustelle einplanen …" : "Auf Baustelle einplanen …"}
                   </Action>
+                  )}
                   <Action onClick={() => setSheet({ kind: "pickEmployeeForVehicle", date: sheet.date, vehicleId: v.id })}>👷 Mitarbeiter hinzufügen …</Action>
                 </>
               )}
               {vd && (
                 <Action onClick={() => setSheet({ kind: "copyVehicle", date: sheet.date, vehicleId: v.id, assignmentId: a?.id })}>
-                  ⧉ {a ? "Einsatz mit Besatzung auf anderen Tag kopieren …" : "Mit Besatzung auf anderen Tag kopieren …"}
+                  ⧉ {a ? "Einsatz mit Besatzung auf anderen Tag kopieren …" : v.kind === "ROOM" ? "Personen auf anderen Tag kopieren …" : "Mit Besatzung auf anderen Tag kopieren …"}
                 </Action>
               )}
               {a && site && (
@@ -246,12 +250,12 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
                   tone="danger"
                   disabled={busy}
                   onClick={async () => {
-                    if (!confirm(`${v.licensePlate} für ${dateLabel} freigeben? Besatzung geht zurück in den Pool, alle Einsätze des Fahrzeugs an diesem Tag werden entfernt.`)) return;
+                    if (!confirm(v.kind === "ROOM" ? `${v.name} für ${dateLabel} leeren? Alle Personen gehen zurück in den Pool.` : `${v.licensePlate} für ${dateLabel} freigeben? Besatzung geht zurück in den Pool, alle Einsätze des Fahrzeugs an diesem Tag werden entfernt.`)) return;
                     close();
                     await run("vehicle-release", { date: sheet.date, vehicleId: v.id, version: vd.version }, `${v.licensePlate} freigegeben.`);
                   }}
                 >
-                  🗑 Fahrzeug für diesen Tag freigeben
+                  🗑 {v.kind === "ROOM" ? "Raum für diesen Tag leeren" : "Fahrzeug für diesen Tag freigeben"}
                 </Action>
               )}
             </>
@@ -277,6 +281,10 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
     const groups = [
       { group: "Auf Baustelle", list: deployed.map((x) => ({ vehicle: x.slot.vehicle, crew: x.slot.crew.length, info: x.label })) },
       {
+        group: "Räume",
+        list: day.rooms.map((r) => ({ vehicle: r.vehicle, crew: r.crew.length, info: r.crew.length ? `${r.crew.length} Person(en)` : "leer" })),
+      },
+      {
         group: "Ohne Baustelle",
         list: day.poolVehicles.map((p) => ({
           vehicle: p.vehicle,
@@ -286,7 +294,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
       },
     ];
     return (
-      <Dialog open onClose={close} title={`${e.firstName} ${e.lastName} → Fahrzeug`}>
+      <Dialog open onClose={close} title={`${e.firstName} ${e.lastName} → Fahrzeug / Raum`}>
         <SearchList
           items={groups}
           placeholder="Kennzeichen oder Bezeichnung"
@@ -298,10 +306,10 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
               disabled={busy || x.vehicle.id === from || !!slotIn(day, x.vehicle.id)?.unavailable}
               onClick={async () => {
                 close();
-                await run("crew-assign", { date: sheet.date, employeeId: e.id, vehicleId: x.vehicle.id, expectedFromVehicleId: from }, `${e.firstName} ${e.lastName} → ${x.vehicle.licensePlate}.`);
+                await run("crew-assign", { date: sheet.date, employeeId: e.id, vehicleId: x.vehicle.id, expectedFromVehicleId: from }, `${e.firstName} ${e.lastName} → ${x.vehicle.kind === "ROOM" ? x.vehicle.name : x.vehicle.licensePlate}.`);
               }}
             >
-              <span className="rounded border-2 border-ink px-1.5 font-mono text-sm font-bold">{x.vehicle.licensePlate}</span>
+              {x.vehicle.kind === "ROOM" ? <span aria-hidden>🏠</span> : <span className="rounded border-2 border-ink px-1.5 font-mono text-sm font-bold">{x.vehicle.licensePlate}</span>}
               <span className="min-w-0 flex-1">
                 <span className="block truncate">
                   {x.vehicle.name} <span className="text-sm font-normal text-muted">· {x.info}</span>
@@ -345,7 +353,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
                 disabled={busy || !!abs}
                 onClick={async () => {
                   close();
-                  await run("crew-assign", { date: sheet.date, employeeId: e.id, vehicleId: v.id, expectedFromVehicleId: from }, `${e.firstName} ${e.lastName} → ${v.licensePlate}.`);
+                  await run("crew-assign", { date: sheet.date, employeeId: e.id, vehicleId: v.id, expectedFromVehicleId: from }, `${e.firstName} ${e.lastName} → ${v.kind === "ROOM" ? v.name : v.licensePlate}.`);
                 }}
               >
                 <span className="h-6 w-1 rounded-full" style={{ backgroundColor: idx.departments.get(e.departmentId)?.color }} />

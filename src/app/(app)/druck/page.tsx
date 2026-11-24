@@ -166,6 +166,21 @@ function PrintDay({
         </div>
       )}
 
+      {day.rooms.some((r) => r.crew.length > 0) && (
+        <div className="mb-3 break-inside-avoid">
+          <h2 className="mb-1 font-bold">Räume</h2>
+          <ul>
+            {day.rooms
+              .filter((r) => r.crew.length > 0)
+              .map((r) => (
+                <li key={r.vehicle.id}>
+                  <strong>{r.vehicle.name}</strong>: {names(r.crew)}
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
+
       {day.poolVehicles.some((p) => p.unavailable) && (
         <div className="mb-3 break-inside-avoid">
           <h2 className="mb-1 font-bold">Nicht verfügbare Fahrzeuge</h2>

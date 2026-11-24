@@ -67,7 +67,10 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
   const dragging = useRef(false);
   const tabsRef = useRef<HTMLDivElement>(null);
 
-  const days = useMemo(() => visibleDays(start, hideWeekends), [start, hideWeekends]);
+  // Karten: 3 Tage nebeneinander, Zeitleiste: ein Tag in voller Breite
+  const dayCount = view === "timeline" ? 1 : 3;
+  const days = useMemo(() => visibleDays(start, hideWeekends, dayCount), [start, hideWeekends, dayCount]);
+  const shownMobileDay = Math.min(mobileDay, days.length - 1);
   const from = days[0];
   const to = days[days.length - 1];
   const liveStatus = useLiveStatus();
@@ -141,7 +144,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
         if (sameDay) {
           if (drag.fromVehicleId === drop.vehicleId) return;
           if (copy) actions.notify("warning", ["Ein Mitarbeiter kann pro Tag nur auf einem Fahrzeug sein – wird verschoben."]);
-          void actions.run("crew-assign", { date: drag.date, employeeId: e.id, vehicleId: v.id, expectedFromVehicleId: drag.fromVehicleId }, `${name} → ${v.licensePlate}.`);
+          void actions.run("crew-assign", { date: drag.date, employeeId: e.id, vehicleId: v.id, expectedFromVehicleId: drag.fromVehicleId }, `${name} → ${v.kind === "ROOM" ? v.name : v.licensePlate}.`);
           return;
         }
         const toExpected = dayViews.get(drop.date)?.seatOf.get(e.id) ?? null;
@@ -149,7 +152,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
         void actions.run(
           "crew-transfer",
           { fromDate: drag.date, toDate: drop.date, employeeId: e.id, fromVehicleId: drag.fromVehicleId, toVehicleId: v.id, toExpectedVehicleId: toExpected, copy },
-          `${name} ${copy ? "kopiert" : "verschoben"} → ${v.licensePlate} (${formatDayShort(drop.date)})`,
+          `${name} ${copy ? "kopiert" : "verschoben"} → ${v.kind === "ROOM" ? v.name : v.licensePlate} (${formatDayShort(drop.date)})`,
         );
         return;
       }
@@ -235,6 +238,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
 
   async function changeView(next: "cards" | "timeline") {
     setView(next);
+    setMobileDay(0);
     try {
       await api("/api/auth/prefs", { method: "PATCH", body: { planningView: next } });
     } catch {
@@ -335,7 +339,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
             </div>
           </div>
           <a
-            href={`/druck?datum=${from}&tage=3`}
+            href={`/druck?datum=${from}&tage=${dayCount}`}
             target="_blank"
             rel="noopener"
             className="hidden min-h-11 items-center rounded-lg border border-line px-3 font-semibold hover:bg-slate-50 md:flex"
@@ -370,7 +374,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
       {/* Tages-Reiter (Handy) */}
       <div
         ref={tabsRef}
-        className="no-print sticky top-14 z-20 -mx-3 grid scroll-mt-14 grid-cols-3 gap-1 bg-canvas/95 px-3 py-1 backdrop-blur md:hidden"
+        className={`no-print sticky top-14 z-20 -mx-3 scroll-mt-14 grid-cols-3 gap-1 bg-canvas/95 px-3 py-1 backdrop-blur md:hidden ${dayCount > 1 ? "grid" : "hidden"}`}
         role="tablist"
         aria-label="Tag wählen (oder wischen)"
       >
@@ -381,7 +385,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
               key={d}
               type="button"
               role="tab"
-              aria-selected={mobileDay === i}
+              aria-selected={shownMobileDay === i}
               onClick={() => setMobileDay(i)}
               className={`flex min-h-12 flex-col items-center justify-center rounded-lg leading-tight ${mobileDay === i ? "bg-brand-700 text-white" : "bg-white ring-1 ring-line"} ${d === today && mobileDay !== i ? "text-brand-700" : ""}`}
             >
@@ -418,7 +422,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
           {view === "cards" ? (
             <div className="grid gap-4 md:grid-cols-3">
               {days.map((d, i) => (
-                <div key={d} className={i === mobileDay ? "" : "hidden md:block"}>
+                <div key={d} className={i === shownMobileDay ? "" : "hidden md:block"}>
                   <DayColumn day={dayViews.get(d)!} idx={idx} today={today} canEdit={canEdit} ownEmployeeId={ownEmployeeId} open={setSheet} poolInSidebar={wide} />
                 </div>
               ))}
@@ -426,7 +430,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
           ) : (
             <div className="space-y-6">
               {days.map((d, i) => (
-                <div key={d} className={i === mobileDay ? "" : "hidden md:block"}>
+                <div key={d} className={i === shownMobileDay ? "" : "hidden md:block"}>
                   <TimelineDay
                     day={dayViews.get(d)!}
                     data={data}

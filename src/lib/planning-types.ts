@@ -15,6 +15,8 @@ export type PEmployee = {
 };
 export type PVehicle = {
   id: string;
+  /** "VEHICLE" | "ROOM" */
+  kind: string;
   licensePlate: string;
   name: string;
   type: string | null;

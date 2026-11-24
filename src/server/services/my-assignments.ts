@@ -6,7 +6,7 @@ export type MyDay = {
   date: string;
   absence: { type: { name: string; code: string; color: string }; startDate: string; endDate: string; note: string | null; withVehicle: boolean } | null;
   /** owner = Besitzer, wenn es nicht das eigene Fahrzeug ist */
-  vehicle: { licensePlate: string; name: string; type: string | null; isDefaultDriver: boolean; owner: string | null } | null;
+  vehicle: { licensePlate: string; name: string; type: string | null; isDefaultDriver: boolean; owner: string | null; isRoom: boolean } | null;
   colleagues: { id: string; firstName: string; lastName: string; shortName: string; qualification: string; phone: string | null; isDriver: boolean; absent: boolean }[];
   sites: {
     id: string;
@@ -33,7 +33,7 @@ export async function getMyAssignments(employeeId: string, from: string, days = 
         vehicleDay: {
           select: {
             vehicle: {
-              select: { licensePlate: true, name: true, type: true, defaultDriverId: true, defaultDriver: { select: { firstName: true, lastName: true } } },
+              select: { kind: true, licensePlate: true, name: true, type: true, defaultDriverId: true, defaultDriver: { select: { firstName: true, lastName: true } } },
             },
             crew: {
               orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -76,6 +76,7 @@ export async function getMyAssignments(employeeId: string, from: string, days = 
               name: vd.vehicle.name,
               type: vd.vehicle.type,
               isDefaultDriver: driverId === employeeId,
+              isRoom: vd.vehicle.kind === "ROOM",
               owner: vd.vehicle.defaultDriver && driverId !== employeeId ? `${vd.vehicle.defaultDriver.firstName} ${vd.vehicle.defaultDriver.lastName}` : null,
             }
           : null,

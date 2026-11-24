@@ -138,6 +138,9 @@ model Employee {
 
 model Vehicle {
   id              String    @id @default(cuid())
+  /// "VEHICLE" = Fahrzeug, "ROOM" = Raum (z. B. Lager, Schulungsraum; ganztägig, keine Baustelle)
+  kind            String    @default("VEHICLE")
+  /// Kennzeichen bzw. bei Räumen ein Kürzel
   licensePlate    String    @unique
   name            String    // Bezeichnung, z. B. "Sprinter 1"
   type            String?   // z. B. "Transporter", "PKW", "LKW"

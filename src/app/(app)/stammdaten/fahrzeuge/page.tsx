@@ -25,7 +25,7 @@ export default async function VehiclesPage() {
       <LiveRefresh scopes={["masterdata"]} />
       <BackLink />
       <PageHeader title="Fahrzeuge" description="Standard-Besatzung wird beim ersten Einteilen eines Tages automatisch vorbelegt." />
-      <VehicleAdmin vehicles={vehicles} employees={employees} departments={departments} />
+      <VehicleAdmin vehicles={vehicles} employees={employees} departments={departments} kind="VEHICLE" />
     </>
   );
 }

@@ -83,9 +83,16 @@ export function VehicleLabel({
   dragging?: boolean;
 }) {
   const over = crewCount > vehicle.seats;
+  const room = vehicle.kind === "ROOM";
   const body = (
     <>
-      <span className="rounded border-2 border-ink bg-white px-1.5 font-mono text-sm leading-5 font-bold tracking-wide whitespace-nowrap">{vehicle.licensePlate}</span>
+      {room ? (
+        <span className="text-base leading-5" aria-label="Raum">
+          🏠
+        </span>
+      ) : (
+        <span className="rounded border-2 border-ink bg-white px-1.5 font-mono text-sm leading-5 font-bold tracking-wide whitespace-nowrap">{vehicle.licensePlate}</span>
+      )}
       <span className="truncate font-semibold">{vehicle.name}</span>
       <span className={`ml-auto shrink-0 rounded-full px-2 text-xs leading-5 font-bold ${over ? "bg-red-600 text-white" : "bg-slate-200 text-slate-800"}`} title="Besatzung / Sitzplätze">
         {crewCount}/{vehicle.seats}

@@ -11,6 +11,7 @@ import { FormActions, ListBox, matches, MessageBar, num, Row, str, Tag, toggleAc
 type Person = { id: string; firstName: string; lastName: string; shortName: string; active: boolean };
 type Vehicle = {
   id: string;
+  kind: string;
   licensePlate: string;
   name: string;
   type: string | null;
@@ -30,7 +31,20 @@ type DepartmentOption = { id: string; name: string; color: string };
 
 const TYPE_SUGGESTIONS = ["Transporter", "PKW", "LKW", "Pritsche", "Kastenwagen"];
 
-export function VehicleAdmin({ vehicles, employees, departments }: { vehicles: Vehicle[]; employees: EmployeeOption[]; departments: DepartmentOption[] }) {
+export function VehicleAdmin({
+  vehicles: allVehicles,
+  employees,
+  departments,
+  kind = "VEHICLE",
+}: {
+  vehicles: Vehicle[];
+  employees: EmployeeOption[];
+  departments: DepartmentOption[];
+  /** "VEHICLE" = Fahrzeuge, "ROOM" = Räume */
+  kind?: "VEHICLE" | "ROOM";
+}) {
+  const room = kind === "ROOM";
+  const vehicles = allVehicles.filter((v) => (v.kind ?? "VEHICLE") === kind);
   const page = useSave();
   const [query, setQuery] = useState("");
   const [showInactive, setShowInactive] = useState(false);
@@ -60,13 +74,13 @@ export function VehicleAdmin({ vehicles, employees, departments }: { vehicles: V
       <Toolbar
         query={query}
         onQuery={setQuery}
-        placeholder="Kennzeichen, Bezeichnung oder Fahrer"
+        placeholder={room ? "Name, Kürzel oder Person" : "Kennzeichen, Bezeichnung oder Fahrer"}
         showInactive={showInactive}
         onShowInactive={setShowInactive}
         onCreate={() => setEditing("new")}
-        createLabel="Fahrzeug anlegen"
+        createLabel={room ? "Raum anlegen" : "Fahrzeug anlegen"}
       />
-      <ListBox empty="Keine Fahrzeuge gefunden.">
+      <ListBox empty={room ? "Noch keine Räume angelegt (z. B. Lager, Schulungsraum)." : "Keine Fahrzeuge gefunden."}>
         {filtered.map((v) => {
           const crew = [v.defaultDriver, ...v.defaultMembers.map((m) => m.employee)].filter(Boolean) as Person[];
           return (
@@ -82,7 +96,7 @@ export function VehicleAdmin({ vehicles, employees, departments }: { vehicles: V
                     variant={v.active ? "ghost" : "secondary"}
                     disabled={page.busy}
                     onClick={() =>
-                      page.run(() => toggleActive(`/api/vehicles/${v.id}`, v.version, !v.active), `${v.licensePlate} ${v.active ? "deaktiviert" : "aktiviert"}.`)
+                      page.run(() => toggleActive(`/api/vehicles/${v.id}`, v.version, !v.active), `${room ? v.name : v.licensePlate} ${v.active ? "deaktiviert" : "aktiviert"}.`)
                     }
                   >
                     {v.active ? "Deaktivieren" : "Aktivieren"}
@@ -91,10 +105,19 @@ export function VehicleAdmin({ vehicles, employees, departments }: { vehicles: V
               }
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded border-2 border-ink bg-white px-2 font-mono text-base font-bold tracking-wide">{v.licensePlate}</span>
+                {room ? (
+                  <span className="text-lg" aria-hidden>
+                    🏠
+                  </span>
+                ) : (
+                  <span className="rounded border-2 border-ink bg-white px-2 font-mono text-base font-bold tracking-wide">{v.licensePlate}</span>
+                )}
                 <span className="text-lg font-bold">{v.name}</span>
+                {room && <span className="font-mono text-sm text-muted">{v.licensePlate}</span>}
                 {v.type && <span className="text-muted">{v.type}</span>}
-                <Tag>{v.seats} Sitze</Tag>
+                <Tag>
+                  {v.seats} {room ? "Plätze" : "Sitze"}
+                </Tag>
                 {(() => {
                   const dep = v.department ?? employees.find((e) => e.id === v.defaultDriverId)?.department;
                   return dep ? (
@@ -109,7 +132,7 @@ export function VehicleAdmin({ vehicles, employees, departments }: { vehicles: V
               </div>
               <div className="mt-1 text-sm text-muted">
                 {crew.length === 0 ? (
-                  "keine Standard-Besatzung"
+                  room ? "keine Standard-Personen" : "keine Standard-Besatzung"
                 ) : (
                   <>
                     Standard:{" "}
@@ -129,7 +152,11 @@ export function VehicleAdmin({ vehicles, employees, departments }: { vehicles: V
         })}
       </ListBox>
 
-      <Dialog open={editing !== null} onClose={() => setEditing(null)} title={editing === "new" ? "Fahrzeug anlegen" : "Fahrzeug bearbeiten"}>
+      <Dialog
+        open={editing !== null}
+        onClose={() => setEditing(null)}
+        title={editing === "new" ? (room ? "Raum anlegen" : "Fahrzeug anlegen") : room ? "Raum bearbeiten" : "Fahrzeug bearbeiten"}
+      >
         {editing !== null && (
           <VehicleForm
             key={editing === "new" ? "new" : editing.id}
@@ -137,6 +164,7 @@ export function VehicleAdmin({ vehicles, employees, departments }: { vehicles: V
             vehicles={vehicles}
             employees={employees}
             departments={departments}
+            room={room}
             onDone={(text) => {
               setEditing(null);
               page.setMsg({ tone: "success", text });
@@ -154,6 +182,7 @@ function VehicleForm({
   vehicles,
   employees,
   departments,
+  room,
   onDone,
   onCancel,
 }: {
@@ -161,11 +190,12 @@ function VehicleForm({
   vehicles: Vehicle[];
   employees: EmployeeOption[];
   departments: DepartmentOption[];
+  room: boolean;
   onDone: (msg: string) => void;
   onCancel: () => void;
 }) {
   const form = useSave();
-  const [seats, setSeats] = useState(vehicle?.seats ?? 3);
+  const [seats, setSeats] = useState(vehicle?.seats ?? (room ? 10 : 3));
   const [driverId, setDriverId] = useState(vehicle?.defaultDriverId ?? "");
   const [memberIds, setMemberIds] = useState<string[]>(vehicle?.defaultMembers.map((m) => m.employee.id) ?? []);
   const [memberQuery, setMemberQuery] = useState("");
@@ -193,11 +223,12 @@ function VehicleForm({
         e.preventDefault();
         const f = new FormData(e.currentTarget);
         const body = {
+          kind: room ? "ROOM" : "VEHICLE",
           licensePlate: str(f, "licensePlate"),
           name: str(f, "name"),
           type: str(f, "type") || null,
           seats,
-          defaultDriverId: driverId || null,
+          defaultDriverId: room ? null : driverId || null,
           defaultMemberIds: memberIds.filter((id) => id !== driverId),
           departmentId: str(f, "departmentId") || null,
           note: str(f, "note") || null,
@@ -210,19 +241,22 @@ function VehicleForm({
               : api("/api/vehicles", { body }),
           "",
         );
-        if (ok) onDone(`Fahrzeug ${body.licensePlate.toUpperCase()} gespeichert.`);
+        if (ok) onDone(room ? `Raum „${body.name}“ gespeichert.` : `Fahrzeug ${body.licensePlate.toUpperCase()} gespeichert.`);
       }}
     >
       {form.msg?.tone === "error" && <MessageBar msg={form.msg} />}
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Kennzeichen">
-          <Input name="licensePlate" defaultValue={vehicle?.licensePlate} required maxLength={15} className="font-mono uppercase" autoFocus placeholder="WÜ-AB 123" />
+        <Field label={room ? "Kürzel" : "Kennzeichen"} hint={room ? "kurz, eindeutig, z. B. LAGER" : undefined}>
+          <Input name="licensePlate" defaultValue={vehicle?.licensePlate} required maxLength={15} className="font-mono uppercase" autoFocus placeholder={room ? "LAGER" : "WÜ-AB 123"} />
         </Field>
-        <Field label="Bezeichnung">
-          <Input name="name" defaultValue={vehicle?.name} required maxLength={60} placeholder="Sprinter 1" />
+        <Field label={room ? "Name" : "Bezeichnung"}>
+          <Input name="name" defaultValue={vehicle?.name} required maxLength={60} placeholder={room ? "Lager" : "Sprinter 1"} />
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-3">
+        {room ? (
+          <input type="hidden" name="type" value="" />
+        ) : (
         <Field label="Typ (optional)">
           <Input name="type" defaultValue={vehicle?.type ?? ""} list="vehicle-types" maxLength={40} />
           <datalist id="vehicle-types">
@@ -231,9 +265,10 @@ function VehicleForm({
             ))}
           </datalist>
         </Field>
-        <Field label="Sitzplätze">
+        )}
+        <Field label={room ? "Plätze" : "Sitzplätze"}>
           <Select value={seats} onChange={(e) => setSeats(Number(e.target.value))}>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+            {(room ? [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50] : [1, 2, 3, 4, 5, 6, 7, 8, 9]).map((n) => (
               <option key={n} value={n}>
                 {n}
               </option>
@@ -242,6 +277,7 @@ function VehicleForm({
         </Field>
       </div>
 
+      {!room && (
       <Field label="Standard-Fahrer („Besitzer“)" hint={driverId && otherDefaults.has(driverId) ? `Ist auch Standard auf ${otherDefaults.get(driverId)}` : undefined}>
         <Select value={driverId} onChange={(e) => setDriverId(e.target.value)}>
           <option value="">– keiner –</option>
@@ -252,6 +288,7 @@ function VehicleForm({
           ))}
         </Select>
       </Field>
+      )}
 
       <Field
         label="Abteilung"
@@ -269,9 +306,9 @@ function VehicleForm({
 
       <fieldset>
         <legend className="mb-1 flex w-full items-center justify-between text-sm font-semibold">
-          <span>Weitere Standard-Mitfahrer</span>
+          <span>{room ? "Standard-Personen (z. B. Lagerist)" : "Weitere Standard-Mitfahrer"}</span>
           <span className={overSeats ? "font-bold text-red-700" : "text-muted"}>
-            Besatzung {crewCount}/{seats}
+            {room ? "Personen" : "Besatzung"} {crewCount}/{seats}
             {overSeats && " – zu viele!"}
           </span>
         </legend>

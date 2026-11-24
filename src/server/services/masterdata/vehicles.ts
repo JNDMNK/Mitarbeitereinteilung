@@ -9,6 +9,7 @@ import { describeChanges, summaryWith } from "./changes";
 
 export const vehicleSelect = {
   id: true,
+  kind: true,
   licensePlate: true,
   name: true,
   type: true,
@@ -69,7 +70,13 @@ export async function createVehicle(actorId: string, input: z.infer<typeof vehic
         defaultMembers: { create: defaultMemberIds.map((employeeId, i) => ({ employeeId, sortOrder: i })) },
       },
     });
-    await audit(tx, { userId: actorId, action: "vehicle.create", entityType: "Vehicle", entityId: v.id, summary: `Fahrzeug ${v.licensePlate} (${v.name}) angelegt` });
+    await audit(tx, {
+      userId: actorId,
+      action: "vehicle.create",
+      entityType: "Vehicle",
+      entityId: v.id,
+      summary: v.kind === "ROOM" ? `Raum „${v.name}“ (${v.licensePlate}) angelegt` : `Fahrzeug ${v.licensePlate} (${v.name}) angelegt`,
+    });
     return tx.vehicle.findUniqueOrThrow({ where: { id: v.id }, select: vehicleSelect });
   });
   publishChange({ scope: "masterdata", userId: actorId });
@@ -118,7 +125,7 @@ export async function updateVehicle(actorId: string, id: string, input: z.infer<
       const names = new Map(people.map((p) => [p.id, p.shortName]));
       changes.push(`Standard-Besatzung: ${crewText(names, cur.defaultDriverId, curMembers)} → ${crewText(names, driverId, memberIds)}`);
     }
-    await audit(tx, { userId: actorId, action: "vehicle.update", entityType: "Vehicle", entityId: id, summary: summaryWith(`Fahrzeug ${cur.licensePlate} geändert`, changes) });
+    await audit(tx, { userId: actorId, action: "vehicle.update", entityType: "Vehicle", entityId: id, summary: summaryWith(cur.kind === "ROOM" ? `Raum „${cur.name}“ geändert` : `Fahrzeug ${cur.licensePlate} geändert`, changes) });
     return tx.vehicle.findUniqueOrThrow({ where: { id }, select: vehicleSelect });
   });
   publishChange({ scope: "masterdata", userId: actorId });

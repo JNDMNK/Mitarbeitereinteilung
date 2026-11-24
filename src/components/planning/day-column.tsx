@@ -104,7 +104,8 @@ function DraggableVehicle({
     endMin: assignment?.endMin ?? null,
     vdVersion: slot.vehicleDay?.version ?? null,
   };
-  const drag = useDragItem(`veh:${date}:${slot.vehicle.id}:${suffix}`, data, !canEdit || !slot.vehicle.active || !!slot.unavailable);
+  // Räume werden nicht gezogen (kommen nie auf eine Baustelle)
+  const drag = useDragItem(`veh:${date}:${slot.vehicle.id}:${suffix}`, data, !canEdit || !slot.vehicle.active || !!slot.unavailable || slot.vehicle.kind === "ROOM");
   return <VehicleLabel vehicle={slot.vehicle} crewCount={slot.crew.length} onClick={onClick} dragRef={drag.ref} dragProps={drag.props} dragging={drag.isDragging} />;
 }
 
@@ -243,6 +244,8 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
           </ul>
         </Drop>
       ))}
+
+      <RoomsBox day={day} idx={idx} canEdit={canEdit} ownEmployeeId={ownEmployeeId} open={open} />
 
       {/* Pool */}
       <Drop
@@ -386,5 +389,56 @@ export function AbsentBar({ day, ownEmployeeId, open, idx }: { day: DayView; own
             ))}
           </div>
         </div>
+  );
+}
+
+/** Räume eines Tages (Lager, Schulungsraum …): Mitarbeiter hineinziehen oder antippen */
+export function RoomsBox({ day, idx, canEdit, ownEmployeeId, open }: { day: DayView; idx: Indexes; canEdit: boolean; ownEmployeeId: string | null; open: (s: Sheet) => void }) {
+  if (day.rooms.length === 0) return null;
+  return (
+    <div className="rounded-xl bg-white p-2 shadow-sm ring-1 ring-line">
+      <h3 className="mb-1.5 text-sm font-bold">Räume</h3>
+      <div className="space-y-1.5">
+        {day.rooms.map((r) => (
+          <Drop
+            key={r.vehicle.id}
+            id={`roomdrop:${day.date}:${r.vehicle.id}`}
+            data={{ kind: "vehicle", accepts: "employee", date: day.date, vehicleId: r.vehicle.id }}
+            canEdit={canEdit}
+            className="rounded-lg bg-slate-50 px-2 py-1 ring-1 ring-line"
+          >
+            <VehicleLabel vehicle={r.vehicle} crewCount={r.crew.length} onClick={() => open({ kind: "vehicle", date: day.date, vehicleId: r.vehicle.id })} />
+            {r.crew.length > 0 ? (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {r.crew.map((e) => (
+                  <DraggableEmployee
+                    key={e.id}
+                    employee={e}
+                    date={day.date}
+                    fromVehicleId={r.vehicle.id}
+                    day={day}
+                    idx={idx}
+                    canEdit={canEdit}
+                    own={e.id === ownEmployeeId}
+                    open={open}
+                    suffix={`room-${r.vehicle.id}`}
+                    assignedBy={(() => {
+                      const row = r.vehicleDay?.crew.find((c) => c.employeeId === e.id);
+                      return plannerText(idx, row?.assignedById, row?.createdAt);
+                    })()}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted">
+                {canEdit ? "Mitarbeiter hierher ziehen" : "niemand"}
+                {r.defaultMembers.length > 0 && ` · Standard: ${r.defaultMembers.map((e) => idx.names.get(e.id) ?? e.shortName).join(", ")}`}
+              </p>
+            )}
+            <WarningList warnings={r.crewWarnings} />
+          </Drop>
+        ))}
+      </div>
+    </div>
   );
 }

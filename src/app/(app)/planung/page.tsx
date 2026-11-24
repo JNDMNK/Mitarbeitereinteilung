@@ -13,7 +13,7 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
   const { datum } = await searchParams;
   const today = todayIso();
   const start = normalizeStart(isIsoDate(datum) ? datum : today, user.hideWeekends);
-  const days = visibleDays(start, user.hideWeekends);
+  const days = visibleDays(start, user.hideWeekends, user.planningView === "timeline" ? 1 : 3);
   const initialData = await getPlanningData(days[0], days[days.length - 1]);
 
   return (

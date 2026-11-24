@@ -6,7 +6,7 @@ import type { PAssignment, PEmployee, PlanningData, PVehicle, PVehicleDay } from
 import type { DayView, Indexes } from "@/lib/planning-view";
 import { formatMinutes } from "@/lib/time";
 import { applyDrag, collides, computeAxis, pxToMinutes, toPercent, type DragMode, type Interval } from "@/lib/timeline";
-import { AbsentBar, DayHeader, DraggableEmployee, Drop } from "./day-column";
+import { AbsentBar, DayHeader, DraggableEmployee, Drop, RoomsBox } from "./day-column";
 import type { Sheet } from "./sheets";
 import type { RunResult } from "./use-planning";
 
@@ -168,6 +168,8 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
           })}
         </div>
       </div>
+
+      <RoomsBox day={day} idx={idx} canEdit={canEdit} ownEmployeeId={ownEmployeeId} open={open} />
 
       {/* Pool-Mitarbeiter: auf eine Fahrzeugzeile ziehen oder antippen */}
       <div className={`rounded-xl bg-slate-50 p-2 ring-1 ring-line ${poolInSidebar ? "hidden" : ""}`}>

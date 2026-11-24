@@ -93,6 +93,11 @@ export async function seedDemo(db: PrismaClient, opts: { withLogins: boolean }) 
     }
   }
 
+  // Räume (ganztägig, ohne Baustelle)
+  for (const [i, [plate, name, seats]] of ([["LAGER", "Lager", 10], ["SCHULUNG", "Schulungsraum", 12]] as const).entries()) {
+    await db.vehicle.upsert({ where: { licensePlate: plate }, update: {}, create: { kind: "ROOM", licensePlate: plate, name, seats, sortOrder: 100 + i } });
+  }
+
   const sites = [
     { name: "Neubau Kita Sonnenschein", address: "Sonnenstraße 12, 97070 Würzburg", customer: "Stadt Würzburg", orderNumber: "A-2026-101", color: "#22c55e", status: "ACTIVE", startDate: isoDate(-14), endDate: isoDate(30) },
     { name: "Sanierung Mehrfamilienhaus", address: "Hauptstraße 5, 97082 Würzburg", customer: "Wohnbau GmbH", orderNumber: "A-2026-102", color: "#3b82f6", status: "ACTIVE", startDate: isoDate(-3), endDate: isoDate(10) },

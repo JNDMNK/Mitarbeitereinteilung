@@ -89,14 +89,21 @@ function DayCard({ day, today, big = false }: { day: MyDay; today: string; big?:
         {day.vehicle && (
           <>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold text-muted">Fahrzeug</span>
-              <span className="rounded-md border-2 border-ink px-2 font-mono text-lg font-bold tracking-wide">{day.vehicle.licensePlate}</span>
+              <span className="text-sm font-semibold text-muted">{day.vehicle.isRoom ? "Raum" : "Fahrzeug"}</span>
+              {day.vehicle.isRoom ? (
+                <span className="text-lg" aria-hidden>
+                  🏠
+                </span>
+              ) : (
+                <span className="rounded-md border-2 border-ink px-2 font-mono text-lg font-bold tracking-wide">{day.vehicle.licensePlate}</span>
+              )}
               <span className="text-lg font-semibold">{day.vehicle.name}</span>
+              {day.vehicle.isRoom && <span className="text-sm text-muted">ganztägig</span>}
               {day.vehicle.isDefaultDriver && <span className="rounded-full bg-ink px-2 text-sm font-bold text-white">Ihr Fahrzeug</span>}
               {day.vehicle.owner && <span className="text-sm text-muted">(Fahrzeug von {day.vehicle.owner})</span>}
             </div>
 
-            {day.sites.length === 0 ? (
+            {day.vehicle.isRoom ? null : day.sites.length === 0 ? (
               <p className="rounded-lg bg-slate-50 p-3 text-muted">Baustelle noch nicht festgelegt.</p>
             ) : (
               <ol className="space-y-2">
@@ -128,7 +135,9 @@ function DayCard({ day, today, big = false }: { day: MyDay; today: string; big?:
             )}
 
             <div>
-              <p className="mb-1 text-sm font-semibold text-muted">{day.colleagues.length ? "Sie fahren zusammen mit" : "Keine Mitfahrer"}</p>
+              <p className="mb-1 text-sm font-semibold text-muted">
+                {day.vehicle.isRoom ? (day.colleagues.length ? "Zusammen mit" : "Allein") : day.colleagues.length ? "Sie fahren zusammen mit" : "Keine Mitfahrer"}
+              </p>
               <ul className="space-y-1.5">
                 {day.colleagues.map((c) => (
                   <li key={c.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">

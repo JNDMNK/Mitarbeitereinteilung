@@ -73,17 +73,19 @@ export const employeeCreateSchemaChecked = employeePeriodRefine(employeeCreateSc
 export const employeeUpdateSchema = employeePeriodRefine(employeeBase.partial().extend({ version, active: z.boolean().optional() }));
 
 // --- Fahrzeuge -----------------------------------------------------------
+export const VEHICLE_KINDS = ["VEHICLE", "ROOM"] as const;
 const vehicleBase = z.object({
+  kind: z.enum(VEHICLE_KINDS).default("VEHICLE"),
   licensePlate: z
     .string()
     .trim()
     .toUpperCase()
-    .min(2, "Bitte das Kennzeichen angeben.")
+    .min(2, "Bitte das Kennzeichen bzw. Kürzel angeben (mind. 2 Zeichen).")
     .max(15)
-    .regex(/^[A-ZÄÖÜ0-9 -]+$/, "Das Kennzeichen darf nur Buchstaben, Ziffern, Leerzeichen und - enthalten."),
+    .regex(/^[A-ZÄÖÜ0-9 -]+$/, "Erlaubt sind Buchstaben, Ziffern, Leerzeichen und -."),
   name: z.string().trim().min(1, "Bitte eine Bezeichnung angeben.").max(60),
   type: optionalText(40),
-  seats: z.number({ message: "Bitte die Sitzplätze angeben." }).int().min(1, "Mindestens 1 Sitzplatz.").max(9, "Höchstens 9 Sitzplätze."),
+  seats: z.number({ message: "Bitte die Plätze angeben." }).int().min(1, "Mindestens 1 Platz.").max(99, "Höchstens 99 Plätze."),
   defaultDriverId: id.nullish().transform((v) => v ?? null),
   defaultMemberIds: z.array(id).max(8).default([]),
   /** leer = Abteilung des Besitzers */

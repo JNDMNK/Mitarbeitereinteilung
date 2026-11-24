@@ -83,6 +83,7 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
       where: { OR: [{ active: true }, { id: { in: [...usedVehicles] } }] },
       select: {
         id: true,
+        kind: true,
         licensePlate: true,
         name: true,
         type: true,
@@ -171,6 +172,10 @@ async function vehicleBlock(tx: Tx, vehicle: { defaultDriverId: string | null },
     where: { employeeId: vehicle.defaultDriverId, withVehicle: true, startDate: { lte: date }, endDate: { gte: date } },
     include: { type: true, employee: true },
   });
+}
+
+function assertNotRoom(vehicle: { kind: string; name: string }) {
+  if (vehicle.kind === "ROOM") throw badRequest(`„${vehicle.name}“ ist ein Raum und kann nicht auf eine Baustelle eingeplant werden.`);
 }
 
 async function assertVehicleAvailable(tx: Tx, vehicle: { licensePlate: string; defaultDriverId: string | null }, date: string) {
@@ -421,6 +426,7 @@ export async function createAssignment(actorId: string, input: z.infer<typeof as
     const site = await resolveSite(tx, actorId, input.siteId, input.newSite, input.date);
     if (!site.active) throw badRequest("Bitte eine aktive Baustelle wählen.");
     const vehicle = await loadVehicle(tx, input.vehicleId);
+    assertNotRoom(vehicle);
     await assertVehicleAvailable(tx, vehicle, input.date);
     const vd = await ensureVehicleDay(tx, actorId, input.date, input.vehicleId, messages);
     await assertNoOverlap(tx, vd.id, input.startMin, input.endMin);
@@ -608,6 +614,7 @@ export async function transferVehicle(actorId: string, input: z.infer<typeof veh
 
     let siteName = "";
     if (input.toSiteId) {
+      assertNotRoom(vehicle);
       const site = await tx.site.findUnique({ where: { id: input.toSiteId } });
       if (!site || !site.active) throw badRequest("Bitte eine aktive Baustelle wählen.");
       siteName = site.name;

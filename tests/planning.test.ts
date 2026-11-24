@@ -82,10 +82,10 @@ describe("Tagesansicht aufbauen", () => {
     to: "2026-12-01",
     employees: [emp("a"), emp("b", "AZUBI_1"), emp("c"), emp("u")],
     vehicles: [
-      { id: "v1", licensePlate: "V1", name: "V1", type: null, seats: 2, active: true, sortOrder: 0, ownerId: "c", departmentId: null, defaultIds: ["c"] },
-      { id: "v2", licensePlate: "V2", name: "V2", type: null, seats: 2, active: true, sortOrder: 1, ownerId: null, departmentId: null, defaultIds: [] },
-      { id: "v3", licensePlate: "V3", name: "V3", type: null, seats: 2, active: true, sortOrder: 2, ownerId: "a", departmentId: null, defaultIds: ["a", "b"] },
-      { id: "v4", licensePlate: "V4", name: "V4", type: null, seats: 2, active: true, sortOrder: 3, ownerId: "u", departmentId: null, defaultIds: ["u"] },
+      { id: "v1", kind: "VEHICLE", licensePlate: "V1", name: "V1", type: null, seats: 2, active: true, sortOrder: 0, ownerId: "c", departmentId: null, defaultIds: ["c"] },
+      { id: "v2", kind: "VEHICLE", licensePlate: "V2", name: "V2", type: null, seats: 2, active: true, sortOrder: 1, ownerId: null, departmentId: null, defaultIds: [] },
+      { id: "v3", kind: "VEHICLE", licensePlate: "V3", name: "V3", type: null, seats: 2, active: true, sortOrder: 2, ownerId: "a", departmentId: null, defaultIds: ["a", "b"] },
+      { id: "v4", kind: "VEHICLE", licensePlate: "V4", name: "V4", type: null, seats: 2, active: true, sortOrder: 3, ownerId: "u", departmentId: null, defaultIds: ["u"] },
     ],
     sites: [{ id: "s1", name: "S1", address: null, customer: null, orderNumber: null, startDate: null, endDate: null, status: "ACTIVE", note: null, color: "#000000", active: true, adHoc: false }],
     departments: [{ id: "d", name: "D", color: "#111111", sortOrder: 0 }],
@@ -143,7 +143,7 @@ import { filterDayByDepartments, vehicleDepartment } from "@/lib/planning-view";
 describe("Abteilungen ausblenden", () => {
   const emp = (id: string, dep: string) => ({ id, firstName: id, lastName: id, shortName: id.toUpperCase(), qualification: "GESELLE", departmentId: dep, phone: null, active: true, availableFrom: null, availableUntil: null });
   const veh = (id: string, ownerId: string | null, departmentId: string | null = null) => ({
-    id, licensePlate: id, name: id, type: null, seats: 3, active: true, sortOrder: 0, ownerId, departmentId, defaultIds: ownerId ? [ownerId] : [],
+    id, kind: "VEHICLE", licensePlate: id, name: id, type: null, seats: 3, active: true, sortOrder: 0, ownerId, departmentId, defaultIds: ownerId ? [ownerId] : [],
   });
   const data: PlanningData = {
     from: "2026-12-01",
@@ -206,8 +206,8 @@ describe("Praktikanten / Zeitraum im Betrieb", () => {
     to: "2026-11-30",
     employees: [emp("g"), emp("p", { qualification: "PRAKTIKANT", availableFrom: "2026-12-01", availableUntil: "2026-12-19" })],
     vehicles: [
-      { id: "v9", licensePlate: "V9", name: "V9", type: null, seats: 3, active: true, sortOrder: 9, ownerId: null, departmentId: null, defaultIds: [] },
-      { id: "v1", licensePlate: "V1", name: "V1", type: null, seats: 3, active: true, sortOrder: 1, ownerId: null, departmentId: null, defaultIds: [] },
+      { id: "v9", kind: "VEHICLE", licensePlate: "V9", name: "V9", type: null, seats: 3, active: true, sortOrder: 9, ownerId: null, departmentId: null, defaultIds: [] },
+      { id: "v1", kind: "VEHICLE", licensePlate: "V1", name: "V1", type: null, seats: 3, active: true, sortOrder: 1, ownerId: null, departmentId: null, defaultIds: [] },
     ],
     sites: [],
     departments: [{ id: "d", name: "D", color: "#111111", sortOrder: 0 }],
@@ -252,7 +252,7 @@ describe("Kompakte Namen", () => {
 
 describe("Kartenansicht: Fahrzeug-Reihenfolge", () => {
   const emp = { id: "e", firstName: "E", lastName: "E", shortName: "E", qualification: "GESELLE", departmentId: "d", phone: null, active: true, availableFrom: null, availableUntil: null };
-  const veh = (id: string, sortOrder: number) => ({ id, licensePlate: id, name: id, type: null, seats: 3, active: true, sortOrder, ownerId: null, departmentId: null, defaultIds: [] });
+  const veh = (id: string, sortOrder: number) => ({ id, kind: "VEHICLE", licensePlate: id, name: id, type: null, seats: 3, active: true, sortOrder, ownerId: null, departmentId: null, defaultIds: [] });
   const site = (id: string) => ({ id, name: id, address: null, customer: null, orderNumber: null, startDate: null, endDate: null, status: "ACTIVE", note: null, color: "#000000", active: true, adHoc: false });
   const asg = (id: string, siteId: string, startMin: number) => ({ id, siteId, startMin, endMin: startMin + 60, note: null, version: 1, updatedById: null, updatedAt: "" });
   const vd = (vehicleId: string, assignments: ReturnType<typeof asg>[]) => ({ id: `vd-${vehicleId}`, date: "2026-12-01", vehicleId, note: null, version: 1, crew: [], assignments });
@@ -274,5 +274,34 @@ describe("Kartenansicht: Fahrzeug-Reihenfolge", () => {
   it("Baustellen nach ihrem ersten Fahrzeug, darin Fahrzeuge in Stammdaten-Reihenfolge", () => {
     expect(day.sites.map((g) => g.site.id)).toEqual(["B", "A"]);
     expect(day.sites[1].items.map((i) => i.vehicle.id)).toEqual(["v2", "v3"]);
+  });
+});
+
+describe("Räume", () => {
+  const emp = (id: string, q = "AZUBI_1") => ({ id, firstName: id, lastName: id, shortName: id.toUpperCase(), qualification: q, departmentId: "d", phone: null, active: true, availableFrom: null, availableUntil: null });
+  const data: PlanningData = {
+    from: "2026-12-01",
+    to: "2026-12-01",
+    employees: [emp("a"), emp("b")],
+    vehicles: [
+      { id: "lager", kind: "ROOM", licensePlate: "LAGER", name: "Lager", type: null, seats: 10, active: true, sortOrder: 50, ownerId: null, departmentId: null, defaultIds: [] },
+      { id: "v1", kind: "VEHICLE", licensePlate: "V1", name: "V1", type: null, seats: 3, active: true, sortOrder: 1, ownerId: null, departmentId: null, defaultIds: [] },
+    ],
+    sites: [],
+    departments: [{ id: "d", name: "D", color: "#111111", sortOrder: 0 }],
+    absenceTypes: [],
+    absences: [],
+    vehicleDays: [{ id: "x", date: "2026-12-01", vehicleId: "lager", note: null, version: 1, crew: [{ id: "c", employeeId: "a", sortOrder: 0, assignedById: null, createdAt: "" }], assignments: [] }],
+    planners: [],
+    settings: { defaultStartMin: 420, defaultEndMin: 960 },
+  };
+  const day = buildDay(data, buildIndexes(data), "2026-12-01");
+  it("eigener Abschnitt, nicht bei den Fahrzeugen", () => {
+    expect(day.rooms.map((r) => r.vehicle.id)).toEqual(["lager"]);
+    expect(day.poolVehicles.map((p) => p.vehicle.id)).toEqual(["v1"]);
+  });
+  it("Azubi allein im Raum ist keine Warnung, zählt aber als eingeteilt", () => {
+    expect(day.rooms[0].crewWarnings).toEqual([]);
+    expect(day.poolEmployees.map((p) => p.employee.id)).toEqual(["b"]);
   });
 });

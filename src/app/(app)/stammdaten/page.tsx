@@ -9,6 +9,7 @@ export const metadata: Metadata = { title: "Stammdaten" };
 const SECTIONS: { href: string; title: string; text: string; permission: Permission }[] = [
   { href: "/stammdaten/mitarbeiter", title: "Mitarbeiter", text: "Monteure, Ausbildungsstand, Abteilung", permission: "masterdata.edit" },
   { href: "/stammdaten/fahrzeuge", title: "Fahrzeuge", text: "Kennzeichen, Sitzplätze, Standard-Besatzung", permission: "masterdata.edit" },
+  { href: "/stammdaten/raeume", title: "Räume", text: "Lager, Schulungsraum … (ganztägig, ohne Baustelle)", permission: "masterdata.edit" },
   { href: "/stammdaten/baustellen", title: "Baustellen", text: "Adresse, Kunde, Zeitraum, Status", permission: "masterdata.edit" },
   { href: "/stammdaten/abteilungen", title: "Abteilungen", text: "Name und Farbe", permission: "admin.masterdata" },
   { href: "/stammdaten/abwesenheitsarten", title: "Abwesenheitsarten", text: "Urlaub, Krank, Berufsschule …", permission: "admin.masterdata" },
