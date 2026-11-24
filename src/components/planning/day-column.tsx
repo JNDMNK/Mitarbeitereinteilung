@@ -245,8 +245,6 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
         </Drop>
       ))}
 
-      <RoomsBox day={day} idx={idx} canEdit={canEdit} ownEmployeeId={ownEmployeeId} open={open} />
-
       {/* Pool */}
       <Drop
         id={`pool:${day.date}`}
@@ -317,6 +315,8 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
           </div>
         </div>
       </Drop>
+
+      <RoomsBox day={day} idx={idx} canEdit={canEdit} ownEmployeeId={ownEmployeeId} open={open} />
     </section>
   );
 }
