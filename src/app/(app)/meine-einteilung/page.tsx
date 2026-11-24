@@ -3,7 +3,7 @@ import Link from "next/link";
 import { LiveRefresh } from "@/components/live/live-refresh";
 import { PageHeader, Placeholder } from "@/components/page-header";
 import { QualificationBadge } from "@/components/qualification-badge";
-import { addDays, formatDayLong, formatRange, mapsUrl, navigationUrl, todayIso } from "@/lib/dates";
+import { addDays, formatDayLong, isoWeek, formatRange, mapsUrl, navigationUrl, todayIso } from "@/lib/dates";
 import { timeRange } from "@/lib/planning-logic";
 import { requirePagePermission } from "@/server/page-auth";
 import { getMyAssignments, type MyDay } from "@/server/services/my-assignments";
@@ -64,6 +64,7 @@ function DayCard({ day, today, big = false }: { day: MyDay; today: string; big?:
           {title ? `${title}, ` : ""}
           {formatDayLong(day.date)}
         </h2>
+        <span className="shrink-0 text-sm font-semibold opacity-80">KW {isoWeek(day.date)}</span>
       </header>
 
       <div className="space-y-3 p-4">

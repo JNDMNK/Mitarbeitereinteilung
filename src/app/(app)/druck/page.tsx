@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- Logo aus /api/logo */
 import type { Metadata } from "next";
 import { QUALIFICATION_BADGES, type Qualification } from "@/lib/constants";
-import { formatDateTimeShort, formatDayLong, formatRange, isIsoDate, todayIso } from "@/lib/dates";
+import { formatDateTimeShort, formatDayLong, isoWeek, formatRange, isIsoDate, todayIso } from "@/lib/dates";
 import { visibleDays } from "@/lib/planning-days";
 import { timeRange } from "@/lib/planning-logic";
 import type { PEmployee } from "@/lib/planning-types";
@@ -88,7 +88,7 @@ function PrintDay({
       <header className="mb-4 flex items-start justify-between gap-4 border-b-2 border-black pb-2">
         <div>
           <p className="text-sm">{company}</p>
-          <h1 className="text-2xl font-bold">Tageseinteilung {formatDayLong(day.date)}</h1>
+          <h1 className="text-2xl font-bold">Tageseinteilung {formatDayLong(day.date)} · KW {isoWeek(day.date)}</h1>
           <p className="text-xs">
             {day.stats.assigned} eingeteilt · {day.stats.available} frei · {day.stats.absent} abwesend · gedruckt {printed}
           </p>

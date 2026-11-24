@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { api } from "@/lib/api-client";
-import { formatDayShort, isIsoDate } from "@/lib/dates";
+import { formatDayShort, isIsoDate, weekLabel } from "@/lib/dates";
 import { normalizeStart, stepDay, visibleDays } from "@/lib/planning-days";
 import type { PlanningData } from "@/lib/planning-types";
 import { buildDay, buildIndexes, filterDayByDepartments } from "@/lib/planning-view";
@@ -279,6 +279,9 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
             onChange={(e) => isIsoDate(e.target.value) && go(e.target.value)}
             className="min-h-11 min-w-0 flex-1 rounded-lg border border-line px-2 md:flex-none"
           />
+          <span className="text-sm font-semibold whitespace-nowrap text-muted" title="Kalenderwoche">
+            {weekLabel(days[0] ?? from, days[days.length - 1] ?? from)}
+          </span>
           <button
             type="button"
             aria-expanded={showOptions}

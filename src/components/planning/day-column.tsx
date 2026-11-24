@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { formatDayLong, formatDayShort, isWeekend, mapsUrl } from "@/lib/dates";
+import { formatDayLong, formatDayShort, isWeekend, isoWeek, mapsUrl } from "@/lib/dates";
 import { timeRange } from "@/lib/planning-logic";
 import type { PEmployee, PVehicle } from "@/lib/planning-types";
 import type { DayView, Indexes, VehicleSlot } from "@/lib/planning-view";
@@ -159,7 +159,7 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
     ));
 
   return (
-    <section className="min-w-0 space-y-3" aria-label={formatDayLong(day.date)}>
+    <section className="min-w-0 space-y-3" aria-label={`${formatDayLong(day.date)}, KW ${isoWeek(day.date)}`}>
       <DayHeader day={day} today={today} canEdit={canEdit} open={open} />
       <AbsentBar day={day} ownEmployeeId={ownEmployeeId} open={open} idx={idx} />
 
@@ -330,7 +330,9 @@ export function DayHeader({ day, today, canEdit, open, sticky = true }: { day: D
         }`}
       >
         <div className="min-w-0">
-          <h2 className="text-lg leading-tight font-bold">{formatDayShort(day.date)}</h2>
+          <h2 className="text-lg leading-tight font-bold">
+            {formatDayShort(day.date)} <span className="ml-1 rounded bg-white/20 px-1.5 py-0.5 align-middle text-xs font-semibold">KW {isoWeek(day.date)}</span>
+          </h2>
           <p className="truncate text-xs opacity-90">
             {isToday ? "Heute · " : ""}
             {day.stats.assigned} eingeteilt · {day.stats.available} frei · {day.stats.absent} abwesend

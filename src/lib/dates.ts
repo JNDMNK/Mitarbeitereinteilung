@@ -47,6 +47,24 @@ export function formatDayLong(iso: string): string {
   return `${WEEKDAYS_LONG[weekday(iso)]}, ${formatDate(iso)}`;
 }
 
+/** Kalenderwoche nach ISO 8601 (Woche mit dem ersten Donnerstag = KW 1) */
+export function isoWeek(iso: string): number {
+  const d = toUtcNoon(iso);
+  const dow = (d.getUTCDay() + 6) % 7; // Mo = 0
+  d.setUTCDate(d.getUTCDate() - dow + 3); // Donnerstag dieser Woche
+  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4, 12));
+  const fdow = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - fdow + 3);
+  return 1 + Math.round((d.getTime() - firstThursday.getTime()) / (7 * 86400000));
+}
+
+/** "KW 48" bzw. "KW 48–49" */
+export function weekLabel(from: string, to: string = from): string {
+  const a = isoWeek(from);
+  const b = isoWeek(to);
+  return a === b ? `KW ${a}` : `KW ${a}–${b}`;
+}
+
 export function isIsoDate(v: unknown): v is string {
   return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
 }

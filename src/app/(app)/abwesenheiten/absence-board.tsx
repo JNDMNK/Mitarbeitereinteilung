@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/field";
 import { api } from "@/lib/api-client";
-import { addMonths, eachDay, formatDayLong, formatMonth, formatRange, isWeekend, weekdayShort } from "@/lib/dates";
+import { addMonths, eachDay, formatDayLong, isoWeek, formatMonth, formatRange, isWeekend, weekdayShort } from "@/lib/dates";
 
 type Absence = {
   id: string;
@@ -261,6 +261,14 @@ export function AbsenceBoard(props: {
         <div ref={scrollRef} className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-line">
           <table className="border-separate border-spacing-0 text-sm select-none">
             <thead>
+              <tr>
+                <th className="sticky left-0 z-10 border-r border-line bg-white" />
+                {weekRuns(days).map((r) => (
+                  <th key={r.start} colSpan={r.count} className="border-l border-line bg-slate-50 px-0 py-0.5 text-center text-[11px] font-semibold text-muted">
+                    {r.count >= 3 ? `KW ${r.week}` : r.week}
+                  </th>
+                ))}
+              </tr>
               <tr>
                 <th className="sticky left-0 z-10 min-w-24 border-b border-r border-line bg-white px-2 py-1 text-left md:min-w-52">Mitarbeiter</th>
                 {days.map((d) => (
@@ -566,4 +574,16 @@ function AbsenceForm({
       </div>
     </form>
   );
+}
+
+/** Aufeinanderfolgende Tage derselben Kalenderwoche zusammenfassen (Kopfzeile). */
+function weekRuns(days: string[]): { start: string; week: number; count: number }[] {
+  const runs: { start: string; week: number; count: number }[] = [];
+  for (const d of days) {
+    const w = isoWeek(d);
+    const last = runs[runs.length - 1];
+    if (last && last.week === w) last.count++;
+    else runs.push({ start: d, week: w, count: 1 });
+  }
+  return runs;
 }
