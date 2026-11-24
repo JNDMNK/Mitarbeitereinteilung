@@ -141,8 +141,21 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
 
   for (const g of siteMap.values()) for (const it of g.items) annotate(it);
   const sites = [...siteMap.values()];
-  for (const g of sites) g.items.sort((a, b) => a.assignment.startMin - b.assignment.startMin || a.vehicle.sortOrder - b.vehicle.sortOrder);
-  sites.sort((a, b) => a.items[0].assignment.startMin - b.items[0].assignment.startMin || a.site.name.localeCompare(b.site.name));
+  // Fahrzeug-Reihenfolge laut Stammdaten auch in der Kartenansicht:
+  // innerhalb der Baustelle nach Fahrzeug (dann Uhrzeit), Baustellen nach ihrem ersten Fahrzeug
+  const vehicleOrder = (v: PVehicle) => [v.sortOrder, v.name] as const;
+  for (const g of sites) {
+    g.items.sort(
+      (a, b) => vehicleOrder(a.vehicle)[0] - vehicleOrder(b.vehicle)[0] || a.vehicle.name.localeCompare(b.vehicle.name) || a.assignment.startMin - b.assignment.startMin,
+    );
+  }
+  sites.sort(
+    (a, b) =>
+      a.items[0].vehicle.sortOrder - b.items[0].vehicle.sortOrder ||
+      a.items[0].vehicle.name.localeCompare(b.items[0].vehicle.name) ||
+      a.items[0].assignment.startMin - b.items[0].assignment.startMin ||
+      a.site.name.localeCompare(b.site.name),
+  );
 
   const depOrder = (e: PEmployee) => idx.departments.get(e.departmentId)?.sortOrder ?? 999;
   // Pool = nur verfügbare Mitarbeiter; Abwesende stehen ausschließlich in der Abwesenheitsleiste

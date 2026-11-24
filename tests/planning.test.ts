@@ -249,3 +249,30 @@ describe("Kompakte Namen", () => {
     expect(m.get("4")).toBe("Schmidt Anna");
   });
 });
+
+describe("Kartenansicht: Fahrzeug-Reihenfolge", () => {
+  const emp = { id: "e", firstName: "E", lastName: "E", shortName: "E", qualification: "GESELLE", departmentId: "d", phone: null, active: true, availableFrom: null, availableUntil: null };
+  const veh = (id: string, sortOrder: number) => ({ id, licensePlate: id, name: id, type: null, seats: 3, active: true, sortOrder, ownerId: null, departmentId: null, defaultIds: [] });
+  const site = (id: string) => ({ id, name: id, address: null, customer: null, orderNumber: null, startDate: null, endDate: null, status: "ACTIVE", note: null, color: "#000000", active: true, adHoc: false });
+  const asg = (id: string, siteId: string, startMin: number) => ({ id, siteId, startMin, endMin: startMin + 60, note: null, version: 1, updatedById: null, updatedAt: "" });
+  const vd = (vehicleId: string, assignments: ReturnType<typeof asg>[]) => ({ id: `vd-${vehicleId}`, date: "2026-12-01", vehicleId, note: null, version: 1, crew: [], assignments });
+  const data: PlanningData = {
+    from: "2026-12-01",
+    to: "2026-12-01",
+    employees: [emp],
+    vehicles: [veh("v1", 1), veh("v2", 2), veh("v3", 3)],
+    sites: [site("A"), site("B")],
+    departments: [{ id: "d", name: "D", color: "#111111", sortOrder: 0 }],
+    absenceTypes: [],
+    absences: [],
+    // v3 früh auf A, v1 spät auf B, v2 mittags auf A
+    vehicleDays: [vd("v3", [asg("a3", "A", 420)]), vd("v1", [asg("a1", "B", 900)]), vd("v2", [asg("a2", "A", 720)])],
+    planners: [],
+    settings: { defaultStartMin: 420, defaultEndMin: 960 },
+  };
+  const day = buildDay(data, buildIndexes(data), "2026-12-01");
+  it("Baustellen nach ihrem ersten Fahrzeug, darin Fahrzeuge in Stammdaten-Reihenfolge", () => {
+    expect(day.sites.map((g) => g.site.id)).toEqual(["B", "A"]);
+    expect(day.sites[1].items.map((i) => i.vehicle.id)).toEqual(["v2", "v3"]);
+  });
+});
