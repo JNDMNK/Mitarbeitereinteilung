@@ -42,8 +42,9 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
   const rows: Row[] = useMemo(() => {
     const vds = data.vehicleDays.filter((v) => v.date === day.date);
     const byVehicle = new Map(vds.map((v) => [v.vehicleId, v]));
+    const visible = new Set([...day.poolVehicles.map((p) => p.vehicle.id), ...day.sites.flatMap((g) => g.items.map((i) => i.vehicle.id))]);
     const list = data.vehicles
-      .filter((v) => v.active || byVehicle.has(v.id))
+      .filter((v) => (v.active || byVehicle.has(v.id)) && visible.has(v.id))
       .map((vehicle) => {
         const vd = byVehicle.get(vehicle.id) ?? null;
         const crew = (vd?.crew ?? []).map((c) => idx.employees.get(c.employeeId)).filter((e): e is PEmployee => !!e);
@@ -57,7 +58,7 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
         Number(b.crew.length > 0) - Number(a.crew.length > 0) ||
         a.vehicle.sortOrder - b.vehicle.sortOrder,
     );
-  }, [data, idx, day.date]);
+  }, [data, idx, day]);
 
   const axis = useMemo(
     () => computeAxis(rows.flatMap((r) => r.vd?.assignments ?? []), data.settings.defaultStartMin, data.settings.defaultEndMin),

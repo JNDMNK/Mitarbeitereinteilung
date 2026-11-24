@@ -6,7 +6,7 @@ import { api } from "@/lib/api-client";
 import { formatDayShort, isIsoDate } from "@/lib/dates";
 import { normalizeStart, stepDay, visibleDays } from "@/lib/planning-days";
 import type { PlanningData } from "@/lib/planning-types";
-import { buildDay, buildIndexes } from "@/lib/planning-view";
+import { buildDay, buildIndexes, filterDayByDepartments } from "@/lib/planning-view";
 import { EmployeeChip, VehicleLabel } from "./chips";
 import { DayColumn } from "./day-column";
 import { PlanningDnd, type DragData, type DropData } from "./dnd";
@@ -28,6 +28,7 @@ type Props = {
   ownEmployeeId: string | null;
   hideWeekends: boolean;
   planningView: "cards" | "timeline";
+  hiddenDepartments: string[];
 };
 
 export function PlanningBoard(props: Props) {
@@ -39,7 +40,8 @@ export function PlanningBoard(props: Props) {
   );
 }
 
-function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideWeekends: initialHide, planningView }: Props) {
+function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideWeekends: initialHide, planningView, hiddenDepartments: initialHidden }: Props) {
+  const [hiddenDeps, setHiddenDeps] = useState<string[]>(initialHidden);
   const [hideWeekends, setHideWeekends] = useState(initialHide);
   const [view, setView] = useState(planningView);
   const [start, setStart] = useState(initialStart);
@@ -71,9 +73,21 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
   const idx = useMemo(() => (data ? buildIndexes(data) : null), [data]);
   const dayViews = useMemo(() => {
     const m = new Map<string, ReturnType<typeof buildDay>>();
-    if (data && idx) for (const d of days) m.set(d, buildDay(data, idx, d));
+    const hidden = new Set(hiddenDeps);
+    if (data && idx) for (const d of days) m.set(d, filterDayByDepartments(buildDay(data, idx, d), idx, hidden));
     return m;
-  }, [data, idx, days]);
+  }, [data, idx, days, hiddenDeps]);
+
+  async function changeHidden(next: string[]) {
+    setHiddenDeps(next);
+    try {
+      await api("/api/auth/prefs", { method: "PATCH", body: { hiddenDepartments: next } });
+    } catch {
+      /* Einstellung bleibt lokal */
+    }
+  }
+  const hiddenNames = (data?.departments ?? []).filter((d) => hiddenDeps.includes(d.id)).map((d) => d.name);
+  const firstDay = dayViews.get(days[0]);
 
   /** Slot eines Fahrzeugs an einem (sichtbaren) Tag */
   function slotOn(date: string, vehicleId: string) {
@@ -260,6 +274,31 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
               <input type="checkbox" className="size-5 accent-brand-600" checked={!hideWeekends} onChange={(e) => toggleWeekends(!e.target.checked)} />
               Wochenende
             </label>
+            <details className="relative">
+              <summary className={`flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg border px-3 font-semibold ${hiddenDeps.length ? "border-brand-600 bg-brand-50 text-brand-800" : "border-line hover:bg-slate-50"}`}>
+                Abteilungen{hiddenDeps.length > 0 && <span className="rounded-full bg-brand-700 px-2 text-xs leading-5 text-white">{hiddenDeps.length} aus</span>} ▾
+              </summary>
+              <div className="absolute right-0 z-40 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-xl bg-white p-2 shadow-xl ring-1 ring-line md:right-auto md:left-0">
+                <p className="px-2 pb-1 text-xs text-muted">Abgewählte Abteilungen werden komplett ausgeblendet (Mitarbeiter und Fahrzeuge).</p>
+                {(data?.departments ?? []).map((d) => (
+                  <label key={d.id} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-2 hover:bg-slate-50">
+                    <input
+                      type="checkbox"
+                      className="size-5 accent-brand-600"
+                      checked={!hiddenDeps.includes(d.id)}
+                      onChange={(e) => changeHidden(e.target.checked ? hiddenDeps.filter((x) => x !== d.id) : [...hiddenDeps, d.id])}
+                    />
+                    <span className="size-3 rounded-full" style={{ backgroundColor: d.color }} aria-hidden />
+                    {d.name}
+                  </label>
+                ))}
+                {hiddenDeps.length > 0 && (
+                  <button type="button" onClick={() => changeHidden([])} className="mt-1 min-h-10 w-full rounded-lg border border-line text-sm font-semibold hover:bg-slate-50">
+                    Alle einblenden
+                  </button>
+                )}
+              </div>
+            </details>
             <div className="flex overflow-hidden rounded-lg border border-line" role="group" aria-label="Ansicht">
               {(
                 [
@@ -297,6 +336,20 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
           <LiveIndicator status={liveStatus} />
         </div>
       </div>
+
+      {hiddenDeps.length > 0 && (
+        <div className="no-print flex flex-wrap items-center gap-2 rounded-lg border border-brand-100 bg-brand-50 px-3 py-2 text-sm">
+          <span className="font-semibold text-brand-800">Ausgeblendet: {hiddenNames.join(", ")}</span>
+          {firstDay?.hidden && (
+            <span className="text-muted">
+              ({firstDay.hidden.employees} Mitarbeiter, {firstDay.hidden.vehicles} Fahrzeuge am {formatDayShort(days[0])})
+            </span>
+          )}
+          <button type="button" onClick={() => changeHidden([])} className="ml-auto min-h-9 rounded-lg border border-line bg-white px-3 font-semibold hover:bg-slate-50">
+            Alle einblenden
+          </button>
+        </div>
+      )}
 
       {/* Tages-Reiter (Handy) */}
       <div

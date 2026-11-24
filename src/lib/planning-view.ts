@@ -35,6 +35,8 @@ export type DayView = {
   /** employeeId -> vehicleId (wer sitzt wo) */
   seatOf: Map<string, string>;
   stats: { assigned: number; available: number; absent: number };
+  /** ausgeblendete Abteilungen und was dadurch verborgen ist */
+  hidden?: { departments: Set<string>; employees: number; vehicles: number };
 };
 
 export function buildIndexes(data: PlanningData) {
@@ -150,5 +152,49 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
     poolEmployees,
     seatOf,
     stats: { assigned: seatOf.size, available: poolEmployees.length, absent: absent.length },
+  };
+}
+
+/** Abteilung eines Fahrzeugs: eigene laut Stammdaten, sonst die des Besitzers (null = keine) */
+export function vehicleDepartment(idx: Indexes, v: PVehicle): string | null {
+  if (v.departmentId) return v.departmentId;
+  return v.ownerId ? (idx.employees.get(v.ownerId)?.departmentId ?? null) : null;
+}
+
+/**
+ * Abteilungen ausblenden: Mitarbeiter und Fahrzeuge dieser Abteilungen verschwinden.
+ * Ein Fahrzeug bleibt sichtbar, wenn jemand aus einer sichtbaren Abteilung darin sitzt.
+ * Fahrzeuge ohne Abteilung werden nie ausgeblendet.
+ */
+export function filterDayByDepartments(day: DayView, idx: Indexes, hiddenDepartments: Set<string>): DayView {
+  if (hiddenDepartments.size === 0) return day;
+  const empHidden = (e: PEmployee) => hiddenDepartments.has(e.departmentId);
+  const slotVisible = (slot: VehicleSlot) => {
+    const dep = vehicleDepartment(idx, slot.vehicle);
+    if (!dep || !hiddenDepartments.has(dep)) return true;
+    return slot.crew.some((e) => !empHidden(e));
+  };
+
+  const sites = day.sites.map((g) => ({ ...g, items: g.items.filter(slotVisible) })).filter((g) => g.items.length > 0);
+  const poolVehicles = day.poolVehicles.filter(slotVisible);
+  const poolEmployees = day.poolEmployees.filter((p) => !empHidden(p.employee));
+  const absent = day.absent.filter((a) => !empHidden(a.employee));
+
+  const visibleVehicleIds = new Set([...poolVehicles.map((p) => p.vehicle.id), ...sites.flatMap((g) => g.items.map((i) => i.vehicle.id))]);
+  const allVehicleIds = new Set([...day.poolVehicles.map((p) => p.vehicle.id), ...day.sites.flatMap((g) => g.items.map((i) => i.vehicle.id))]);
+  const assigned = new Set([...sites.flatMap((g) => g.items.flatMap((i) => i.crew.map((e) => e.id))), ...poolVehicles.flatMap((p) => p.crew.map((e) => e.id))]);
+
+  return {
+    ...day,
+    sites,
+    poolVehicles,
+    poolEmployees,
+    absent,
+    stats: { assigned: assigned.size, available: poolEmployees.length, absent: absent.length },
+    hidden: {
+      departments: hiddenDepartments,
+      employees: day.poolEmployees.length - poolEmployees.length + (day.absent.length - absent.length),
+      vehicles: allVehicleIds.size - visibleVehicleIds.size,
+    },
   };
 }

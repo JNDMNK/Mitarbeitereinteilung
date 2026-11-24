@@ -51,6 +51,8 @@ model User {
   planningView     String    @default("cards")
   /// Kürzel für "eingeteilt von" (sonst Kürzel des verknüpften Mitarbeiters bzw. Benutzername)
   initials         String?
+  /// Benutzereinstellung: in der Planung ausgeblendete Abteilungen (IDs, kommagetrennt)
+  hiddenDepartments String   @default("")
   version          Int       @default(1)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -102,6 +104,7 @@ model Department {
   active    Boolean    @default(true)
   version   Int        @default(1)
   employees Employee[]
+  vehicles  Vehicle[]
 }
 
 model Employee {
@@ -139,6 +142,9 @@ model Vehicle {
   /// Standard-Fahrer / "Besitzer"
   defaultDriverId String?
   defaultDriver   Employee? @relation("VehicleDefaultDriver", fields: [defaultDriverId], references: [id])
+  /// optional; leer = Abteilung des Besitzers
+  departmentId    String?
+  department      Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   note            String?
   active          Boolean   @default(true)
   sortOrder       Int       @default(0)

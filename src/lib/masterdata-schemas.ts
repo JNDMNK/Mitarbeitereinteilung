@@ -72,6 +72,8 @@ const vehicleBase = z.object({
   seats: z.number({ message: "Bitte die Sitzplätze angeben." }).int().min(1, "Mindestens 1 Sitzplatz.").max(9, "Höchstens 9 Sitzplätze."),
   defaultDriverId: id.nullish().transform((v) => v ?? null),
   defaultMemberIds: z.array(id).max(8).default([]),
+  /** leer = Abteilung des Besitzers */
+  departmentId: id.nullish().transform((v) => v ?? null),
   note: optionalText(500),
   sortOrder: z.number().int().min(0).max(9999).default(0),
 });

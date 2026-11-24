@@ -11,20 +11,21 @@ export const metadata: Metadata = { title: "Fahrzeuge" };
 
 export default async function VehiclesPage() {
   await requirePagePermission("masterdata.edit");
-  const [vehicles, employees] = await Promise.all([
+  const [vehicles, employees, departments] = await Promise.all([
     listVehicles(),
     db.employee.findMany({
       where: { active: true },
-      select: { id: true, firstName: true, lastName: true, shortName: true, qualification: true, department: { select: { color: true } } },
+      select: { id: true, firstName: true, lastName: true, shortName: true, qualification: true, department: { select: { id: true, name: true, color: true } } },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
+    db.department.findMany({ where: { active: true }, select: { id: true, name: true, color: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
   ]);
   return (
     <>
       <LiveRefresh scopes={["masterdata"]} />
       <BackLink />
       <PageHeader title="Fahrzeuge" description="Standard-Besatzung wird beim ersten Einteilen eines Tages automatisch vorbelegt." />
-      <VehicleAdmin vehicles={vehicles} employees={employees} />
+      <VehicleAdmin vehicles={vehicles} employees={employees} departments={departments} />
     </>
   );
 }

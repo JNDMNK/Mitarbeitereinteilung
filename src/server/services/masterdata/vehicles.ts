@@ -14,6 +14,8 @@ export const vehicleSelect = {
   type: true,
   seats: true,
   defaultDriverId: true,
+  departmentId: true,
+  department: { select: { id: true, name: true, color: true } },
   note: true,
   active: true,
   sortOrder: true,
@@ -44,6 +46,12 @@ async function assertCrew(tx: Tx, seats: number, driverId: string | null, member
   if (inactive) throw badRequest(`${inactive.firstName} ${inactive.lastName} ist inaktiv und kann nicht Standard-Besatzung sein.`);
 }
 
+async function assertDepartment(tx: Tx, departmentId: string | null | undefined) {
+  if (!departmentId) return;
+  const d = await tx.department.findUnique({ where: { id: departmentId } });
+  if (!d) throw badRequest("Die gewählte Abteilung existiert nicht.");
+}
+
 function crewText(names: Map<string, string>, driverId: string | null, memberIds: string[]) {
   const d = driverId ? (names.get(driverId) ?? "?") : "–";
   const m = memberIds.map((id) => names.get(id) ?? "?").join(", ") || "–";
@@ -54,6 +62,7 @@ export async function createVehicle(actorId: string, input: z.infer<typeof vehic
   const { defaultMemberIds, ...data } = input;
   const result = await db.$transaction(async (tx) => {
     await assertCrew(tx, data.seats, data.defaultDriverId, defaultMemberIds);
+    await assertDepartment(tx, data.departmentId);
     const v = await tx.vehicle.create({
       data: {
         ...data,
@@ -82,6 +91,7 @@ export async function updateVehicle(actorId: string, id: string, input: z.infer<
       await assertCrew(tx, seats, driverId, memberIds);
     }
 
+    await assertDepartment(tx, data.departmentId);
     const res = await tx.vehicle.updateMany({ where: { id, version }, data: { ...data, version: { increment: 1 } } });
     if (res.count !== 1) throw conflict();
     if (defaultMemberIds) {
@@ -94,6 +104,7 @@ export async function updateVehicle(actorId: string, id: string, input: z.infer<
       name: "Bezeichnung",
       type: "Typ",
       seats: "Sitzplätze",
+      departmentId: "Abteilung",
       note: "Notiz",
       sortOrder: "Reihenfolge",
       active: "Status",

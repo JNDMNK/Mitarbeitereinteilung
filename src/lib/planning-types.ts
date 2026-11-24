@@ -20,6 +20,8 @@ export type PVehicle = {
   sortOrder: number;
   /** Besitzer / Standard-Fahrer laut Stammdaten */
   ownerId: string | null;
+  /** Abteilung laut Stammdaten (leer = Abteilung des Besitzers) */
+  departmentId: string | null;
   defaultIds: string[];
 };
 export type PSite = {

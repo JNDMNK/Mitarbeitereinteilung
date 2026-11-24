@@ -78,6 +78,7 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
         active: true,
         sortOrder: true,
         defaultDriverId: true,
+        departmentId: true,
         defaultMembers: { select: { employeeId: true }, orderBy: { sortOrder: "asc" } },
       },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],

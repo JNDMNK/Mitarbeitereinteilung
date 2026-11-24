@@ -82,10 +82,10 @@ describe("Tagesansicht aufbauen", () => {
     to: "2026-12-01",
     employees: [emp("a"), emp("b", "AZUBI_1"), emp("c"), emp("u")],
     vehicles: [
-      { id: "v1", licensePlate: "V1", name: "V1", type: null, seats: 2, active: true, sortOrder: 0, ownerId: "c", defaultIds: ["c"] },
-      { id: "v2", licensePlate: "V2", name: "V2", type: null, seats: 2, active: true, sortOrder: 1, ownerId: null, defaultIds: [] },
-      { id: "v3", licensePlate: "V3", name: "V3", type: null, seats: 2, active: true, sortOrder: 2, ownerId: "a", defaultIds: ["a", "b"] },
-      { id: "v4", licensePlate: "V4", name: "V4", type: null, seats: 2, active: true, sortOrder: 3, ownerId: "u", defaultIds: ["u"] },
+      { id: "v1", licensePlate: "V1", name: "V1", type: null, seats: 2, active: true, sortOrder: 0, ownerId: "c", departmentId: null, defaultIds: ["c"] },
+      { id: "v2", licensePlate: "V2", name: "V2", type: null, seats: 2, active: true, sortOrder: 1, ownerId: null, departmentId: null, defaultIds: [] },
+      { id: "v3", licensePlate: "V3", name: "V3", type: null, seats: 2, active: true, sortOrder: 2, ownerId: "a", departmentId: null, defaultIds: ["a", "b"] },
+      { id: "v4", licensePlate: "V4", name: "V4", type: null, seats: 2, active: true, sortOrder: 3, ownerId: "u", departmentId: null, defaultIds: ["u"] },
     ],
     sites: [{ id: "s1", name: "S1", address: null, customer: null, orderNumber: null, startDate: null, endDate: null, status: "ACTIVE", note: null, color: "#000000", active: true, adHoc: false }],
     departments: [{ id: "d", name: "D", color: "#111111", sortOrder: 0 }],
@@ -136,5 +136,59 @@ describe("Kürzel für 'eingeteilt von'", () => {
     expect(userInitials({ username: "max", employee: { shortName: "MMU" } })).toBe("MMU");
     expect(userInitials({ username: "stefan.schmidt" })).toBe("SSC");
     expect(userInitials({ username: "einteiler" })).toBe("EIN");
+  });
+});
+
+import { filterDayByDepartments, vehicleDepartment } from "@/lib/planning-view";
+
+describe("Abteilungen ausblenden", () => {
+  const emp = (id: string, dep: string) => ({ id, firstName: id, lastName: id, shortName: id.toUpperCase(), qualification: "GESELLE", departmentId: dep, phone: null, active: true });
+  const veh = (id: string, ownerId: string | null, departmentId: string | null = null) => ({
+    id, licensePlate: id, name: id, type: null, seats: 3, active: true, sortOrder: 0, ownerId, departmentId, defaultIds: ownerId ? [ownerId] : [],
+  });
+  const data: PlanningData = {
+    from: "2026-12-01",
+    to: "2026-12-01",
+    employees: [emp("e1", "elektro"), emp("e2", "elektro"), emp("s1", "sanitaer"), emp("s2", "sanitaer"), emp("h1", "heizung")],
+    vehicles: [veh("ve", "e1"), veh("vs", "s1"), veh("vh", "h1", "sanitaer"), veh("vx", null)],
+    sites: [{ id: "site", name: "S", address: null, customer: null, orderNumber: null, startDate: null, endDate: null, status: "ACTIVE", note: null, color: "#000000", active: true, adHoc: false }],
+    departments: [
+      { id: "elektro", name: "Elektro", color: "#111111", sortOrder: 0 },
+      { id: "sanitaer", name: "Sanitär", color: "#222222", sortOrder: 1 },
+      { id: "heizung", name: "Heizung", color: "#333333", sortOrder: 2 },
+    ],
+    absenceTypes: [{ id: "t", name: "Urlaub", code: "U", color: "#00ff00" }],
+    absences: [{ id: "a", employeeId: "s2", typeId: "t", startDate: "2026-12-01", endDate: "2026-12-01", note: null, withVehicle: false }],
+    vehicleDays: [
+      // Sanitär-Fahrzeug, aber mit Elektriker besetzt -> bleibt sichtbar
+      { id: "d1", date: "2026-12-01", vehicleId: "vs", note: null, version: 1, crew: [{ id: "c1", employeeId: "e2", sortOrder: 0, assignedById: null, createdAt: "" }], assignments: [{ id: "x1", siteId: "site", startMin: 420, endMin: 960, note: null, version: 1, updatedById: null, updatedAt: "" }] },
+    ],
+    planners: [],
+    settings: { defaultStartMin: 420, defaultEndMin: 960 },
+  };
+  const idx = buildIndexes(data);
+  const day = buildDay(data, idx, "2026-12-01");
+
+  it("Fahrzeug-Abteilung: eigene vor Besitzer, sonst keine", () => {
+    expect(vehicleDepartment(idx, data.vehicles[0])).toBe("elektro");
+    expect(vehicleDepartment(idx, data.vehicles[2])).toBe("sanitaer");
+    expect(vehicleDepartment(idx, data.vehicles[3])).toBeNull();
+  });
+  it("ohne Auswahl unverändert", () => {
+    expect(filterDayByDepartments(day, idx, new Set())).toBe(day);
+  });
+  it("Sanitär ausblenden: Mitarbeiter, Abwesende und Fahrzeuge weg, gemischte Besatzung bleibt", () => {
+    const f = filterDayByDepartments(day, idx, new Set(["sanitaer"]));
+    expect(f.poolEmployees.map((p) => p.employee.id).sort()).toEqual(["e1", "h1"]);
+    expect(f.absent).toHaveLength(0);
+    expect(f.poolVehicles.map((p) => p.vehicle.id).sort()).toEqual(["ve", "vx"]); // vh (Abteilung Sanitär) weg, vx ohne Abteilung bleibt
+    expect(f.sites[0].items.map((i) => i.vehicle.id)).toEqual(["vs"]); // mit Elektriker besetzt
+    expect(f.hidden).toMatchObject({ employees: 2, vehicles: 1 });
+  });
+  it("Elektro ausblenden: Elektro-Fahrzeug weg, Sanitär-Fahrzeug (sichtbare Abteilung) bleibt", () => {
+    const f = filterDayByDepartments(day, idx, new Set(["elektro"]));
+    expect(f.sites[0].items.map((i) => i.vehicle.id)).toEqual(["vs"]);
+    expect(f.poolEmployees.map((p) => p.employee.id).sort()).toEqual(["h1", "s1"]);
+    expect(f.poolVehicles.map((p) => p.vehicle.id).sort()).toEqual(["vh", "vx"]);
   });
 });

@@ -16,6 +16,8 @@ type Vehicle = {
   type: string | null;
   seats: number;
   defaultDriverId: string | null;
+  departmentId: string | null;
+  department: { id: string; name: string; color: string } | null;
   note: string | null;
   active: boolean;
   sortOrder: number;
@@ -23,11 +25,12 @@ type Vehicle = {
   defaultDriver: Person | null;
   defaultMembers: { employee: Person }[];
 };
-type EmployeeOption = { id: string; firstName: string; lastName: string; shortName: string; qualification: string; department: { color: string } };
+type EmployeeOption = { id: string; firstName: string; lastName: string; shortName: string; qualification: string; department: { id: string; name: string; color: string } };
+type DepartmentOption = { id: string; name: string; color: string };
 
 const TYPE_SUGGESTIONS = ["Transporter", "PKW", "LKW", "Pritsche", "Kastenwagen"];
 
-export function VehicleAdmin({ vehicles, employees }: { vehicles: Vehicle[]; employees: EmployeeOption[] }) {
+export function VehicleAdmin({ vehicles, employees, departments }: { vehicles: Vehicle[]; employees: EmployeeOption[]; departments: DepartmentOption[] }) {
   const page = useSave();
   const [query, setQuery] = useState("");
   const [showInactive, setShowInactive] = useState(false);
@@ -92,6 +95,16 @@ export function VehicleAdmin({ vehicles, employees }: { vehicles: Vehicle[]; emp
                 <span className="text-lg font-bold">{v.name}</span>
                 {v.type && <span className="text-muted">{v.type}</span>}
                 <Tag>{v.seats} Sitze</Tag>
+                {(() => {
+                  const dep = v.department ?? employees.find((e) => e.id === v.defaultDriverId)?.department;
+                  return dep ? (
+                    <span className="inline-flex items-center gap-1 text-sm text-muted" title={v.department ? "Abteilung des Fahrzeugs" : "Abteilung des Besitzers"}>
+                      <span className="size-2.5 rounded-full" style={{ backgroundColor: dep.color }} aria-hidden />
+                      {dep.name}
+                      {!v.department && " (über Besitzer)"}
+                    </span>
+                  ) : null;
+                })()}
                 {!v.active && <Tag>inaktiv</Tag>}
               </div>
               <div className="mt-1 text-sm text-muted">
@@ -123,6 +136,7 @@ export function VehicleAdmin({ vehicles, employees }: { vehicles: Vehicle[]; emp
             vehicle={editing === "new" ? null : editing}
             vehicles={vehicles}
             employees={employees}
+            departments={departments}
             onDone={(text) => {
               setEditing(null);
               page.setMsg({ tone: "success", text });
@@ -139,12 +153,14 @@ function VehicleForm({
   vehicle,
   vehicles,
   employees,
+  departments,
   onDone,
   onCancel,
 }: {
   vehicle: Vehicle | null;
   vehicles: Vehicle[];
   employees: EmployeeOption[];
+  departments: DepartmentOption[];
   onDone: (msg: string) => void;
   onCancel: () => void;
 }) {
@@ -183,6 +199,7 @@ function VehicleForm({
           seats,
           defaultDriverId: driverId || null,
           defaultMemberIds: memberIds.filter((id) => id !== driverId),
+          departmentId: str(f, "departmentId") || null,
           note: str(f, "note") || null,
           sortOrder: num(f, "sortOrder"),
         };
@@ -231,6 +248,20 @@ function VehicleForm({
           {employees.map((e) => (
             <option key={e.id} value={e.id}>
               {name(e)}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      <Field
+        label="Abteilung"
+        hint={`Für das Ausblenden in der Planung. Leer = Abteilung des Besitzers${driverId ? ` (${employees.find((e) => e.id === driverId)?.department.name ?? "–"})` : ""}.`}
+      >
+        <Select name="departmentId" defaultValue={vehicle?.departmentId ?? ""}>
+          <option value="">– wie Besitzer –</option>
+          {departments.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
             </option>
           ))}
         </Select>

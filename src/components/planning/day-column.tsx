@@ -334,8 +334,9 @@ export function DayHeader({ day, today, canEdit, open, sticky = true }: { day: D
               onClick={() => open({ kind: "copyDay", date: day.date })}
               className="min-h-10 rounded-lg bg-white/15 px-2 text-sm font-semibold hover:bg-white/25"
               title="Einteilung dieses Tages auf einen anderen Tag übernehmen"
+              aria-label="Tag übernehmen"
             >
-              ⧉ Tag
+              ⧉<span className="hidden sm:inline"> Tag</span>
             </button>
             <button type="button" onClick={() => open({ kind: "pickSiteForDay", date: day.date })} className="min-h-10 rounded-lg bg-white/15 px-2 text-sm font-semibold hover:bg-white/25">
               + Baustelle

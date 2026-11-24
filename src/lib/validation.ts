@@ -65,6 +65,8 @@ export const resetPasswordSchema = z.object({
 
 export const userPrefsSchema = z.object({
   hideWeekends: z.boolean().optional(),
+  /** in der Planung ausgeblendete Abteilungen */
+  hiddenDepartments: z.array(z.string().min(1).max(64)).max(100).optional(),
   planningView: z.enum(["cards", "timeline"]).optional(),
 });
 

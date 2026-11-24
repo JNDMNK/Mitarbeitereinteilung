@@ -5,7 +5,7 @@ import { formatDateTimeShort, formatDayLong, formatRange, isIsoDate, todayIso } 
 import { visibleDays } from "@/lib/planning-days";
 import { timeRange } from "@/lib/planning-logic";
 import type { PEmployee } from "@/lib/planning-types";
-import { buildDay, buildIndexes, type DayView, type Indexes } from "@/lib/planning-view";
+import { buildDay, buildIndexes, filterDayByDepartments, type DayView, type Indexes } from "@/lib/planning-view";
 import { requirePagePermission } from "@/server/page-auth";
 import { getPlanningData } from "@/server/services/planning";
 import { getSettings, logoUrl } from "@/server/services/settings";
@@ -23,6 +23,8 @@ export default async function PrintPage({ searchParams }: { searchParams: Promis
   const idx = buildIndexes(data);
   const logo = logoUrl(settings.logoFile);
   const printed = formatDateTimeShort(new Date().toISOString());
+  const hidden = new Set(user.hiddenDepartments);
+  const hiddenNames = data.departments.filter((d) => hidden.has(d.id)).map((d) => d.name);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -47,7 +49,15 @@ export default async function PrintPage({ searchParams }: { searchParams: Promis
       </form>
 
       {days.map((d) => (
-        <PrintDay key={d} day={buildDay(data, idx, d)} idx={idx} company={settings.companyName} logo={logo} printed={printed} />
+        <PrintDay
+          key={d}
+          day={filterDayByDepartments(buildDay(data, idx, d), idx, hidden)}
+          idx={idx}
+          company={settings.companyName}
+          logo={logo}
+          printed={printed}
+          hiddenNames={hiddenNames}
+        />
       ))}
     </div>
   );
@@ -57,7 +67,21 @@ function names(list: PEmployee[]) {
   return list.map((e) => `${e.firstName} ${e.lastName} (${QUALIFICATION_BADGES[e.qualification as Qualification] ?? "?"})`).join(", ");
 }
 
-function PrintDay({ day, idx, company, logo, printed }: { day: DayView; idx: Indexes; company: string; logo: string | null; printed: string }) {
+function PrintDay({
+  day,
+  idx,
+  company,
+  logo,
+  printed,
+  hiddenNames,
+}: {
+  day: DayView;
+  idx: Indexes;
+  company: string;
+  logo: string | null;
+  printed: string;
+  hiddenNames: string[];
+}) {
   const by = (id: string | null) => (id ? (idx.planners.get(id)?.initials ?? "") : "");
   return (
     <section className="print-page mb-8 rounded-xl bg-white p-6 text-[13px] text-black shadow-sm ring-1 ring-line print:mb-0 print:rounded-none print:p-0 print:shadow-none print:ring-0">
@@ -68,6 +92,7 @@ function PrintDay({ day, idx, company, logo, printed }: { day: DayView; idx: Ind
           <p className="text-xs">
             {day.stats.assigned} eingeteilt · {day.stats.available} frei · {day.stats.absent} abwesend · gedruckt {printed}
           </p>
+          {hiddenNames.length > 0 && <p className="text-xs font-semibold">Ohne Abteilung(en): {hiddenNames.join(", ")}</p>}
         </div>
         {logo && <img src={logo} alt="" className="max-h-14 max-w-40 object-contain" />}
       </header>

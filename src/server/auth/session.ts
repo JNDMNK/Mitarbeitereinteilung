@@ -37,6 +37,7 @@ export type SessionUser = {
   mustChangePassword: boolean;
   hideWeekends: boolean;
   planningView: string;
+  hiddenDepartments: string[];
   employee: { id: string; firstName: string; lastName: string; shortName: string } | null;
 };
 
@@ -115,6 +116,7 @@ export const getSession = cache(async (): Promise<CurrentSession | null> => {
       mustChangePassword: u.mustChangePassword,
       hideWeekends: u.hideWeekends,
       planningView: u.planningView,
+      hiddenDepartments: u.hiddenDepartments.split(",").filter(Boolean),
       employee: u.employee,
     },
   };

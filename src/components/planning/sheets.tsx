@@ -323,7 +323,8 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
     const v = idx.vehicles.get(sheet.vehicleId)!;
     const available = day.poolEmployees.map((p) => p.employee);
     const absent = day.absent.filter((a) => a.employee.active && !day.seatOf.has(a.employee.id)).map((a) => a.employee);
-    const elsewhere = data.employees.filter((e) => e.active && day.seatOf.has(e.id) && day.seatOf.get(e.id) !== v.id);
+    const hiddenDeps = day.hidden?.departments ?? new Set<string>();
+    const elsewhere = data.employees.filter((e) => e.active && !hiddenDeps.has(e.departmentId) && day.seatOf.has(e.id) && day.seatOf.get(e.id) !== v.id);
     return (
       <Dialog open onClose={close} title={`Mitarbeiter auf ${v.licensePlate}`}>
         <SearchList
