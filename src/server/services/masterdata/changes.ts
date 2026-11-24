@@ -25,3 +25,9 @@ export function describeChanges<T extends Record<string, unknown>>(
 export function summaryWith(base: string, changes: string[]): string {
   return changes.length ? `${base}: ${changes.join(", ")}` : base;
 }
+
+/** Deaktivierungszeitpunkt pflegen (Grundlage für das automatische Löschen). */
+export function deactivation(wasActive: boolean, active: boolean | undefined): { deactivatedAt?: Date | null } {
+  if (active === undefined || active === wasActive) return {};
+  return { deactivatedAt: active ? null : new Date() };
+}

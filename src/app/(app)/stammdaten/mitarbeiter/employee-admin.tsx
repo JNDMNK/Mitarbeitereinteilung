@@ -8,10 +8,11 @@ import { Field, Input, Select } from "@/components/ui/field";
 import { api } from "@/lib/api-client";
 import { PASSWORD_MIN_LENGTH, QUALIFICATION_LABELS, QUALIFICATIONS, type Qualification } from "@/lib/constants";
 import { formatDate, todayIso } from "@/lib/dates";
-import { ColorDot, FormActions, ListBox, matches, MessageBar, Row, str, Tag, toggleActive, Toolbar, useSave } from "@/components/masterdata/shared";
+import { AutoDeleteTag, ColorDot, FormActions, ListBox, matches, MessageBar, Row, str, Tag, toggleActive, Toolbar, useSave } from "@/components/masterdata/shared";
 
 type Employee = {
   id: string;
+  deactivatedAt: Date | string | null;
   firstName: string;
   lastName: string;
   shortName: string;
@@ -32,12 +33,14 @@ export function EmployeeAdmin({
   departments,
   takenUsernames,
   canDelete = false,
+  autoDeleteDays = 0,
 }: {
   employees: Employee[];
   departments: Department[];
   takenUsernames: string[];
   /** Endgültig löschen (nur Admin, nur inaktive) */
   canDelete?: boolean;
+  autoDeleteDays?: number;
 }) {
   const page = useSave();
   const [query, setQuery] = useState("");
@@ -168,6 +171,7 @@ export function EmployeeAdmin({
                   </Tag>
                 ))}
               {!e.active && <Tag>inaktiv</Tag>}
+                {!e.active && <AutoDeleteTag deactivatedAt={e.deactivatedAt} days={autoDeleteDays} />}
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
               <span className="inline-flex items-center gap-1">

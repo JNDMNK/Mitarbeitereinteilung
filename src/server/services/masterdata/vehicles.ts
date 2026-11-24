@@ -5,10 +5,11 @@ import { audit } from "../../audit";
 import { publishChange } from "../../events";
 import { db, type Tx } from "../../db";
 import { badRequest, conflict, notFound } from "../../errors";
-import { describeChanges, summaryWith } from "./changes";
+import { deactivation, describeChanges, summaryWith } from "./changes";
 
 export const vehicleSelect = {
   id: true,
+  deactivatedAt: true,
   kind: true,
   licensePlate: true,
   name: true,
@@ -99,7 +100,7 @@ export async function updateVehicle(actorId: string, id: string, input: z.infer<
     }
 
     await assertDepartment(tx, data.departmentId);
-    const res = await tx.vehicle.updateMany({ where: { id, version }, data: { ...data, version: { increment: 1 } } });
+    const res = await tx.vehicle.updateMany({ where: { id, version }, data: { ...data, ...deactivation(cur.active, data.active), version: { increment: 1 } } });
     if (res.count !== 1) throw conflict();
     if (defaultMemberIds) {
       await tx.vehicleDefaultMember.deleteMany({ where: { vehicleId: id } });
@@ -133,11 +134,11 @@ export async function updateVehicle(actorId: string, id: string, input: z.infer<
 }
 
 /** Fahrzeug/Raum endgültig löschen (nur wenn deaktiviert) – inkl. aller Tageseinsätze. */
-export async function deleteVehicle(actorId: string, id: string, version: number) {
+export async function deleteVehicle(actorId: string | null, id: string, version: number | null, reason?: string) {
   const result = await db.$transaction(async (tx) => {
     const v = await tx.vehicle.findUnique({ where: { id } });
     if (!v) throw notFound("Fahrzeug nicht gefunden.");
-    if (v.version !== version) throw conflict();
+    if (version !== null && v.version !== version) throw conflict();
     const label = v.kind === "ROOM" ? `Raum „${v.name}“` : `Fahrzeug ${v.licensePlate} (${v.name})`;
     if (v.active) throw badRequest(`${label} ist noch aktiv. Bitte zuerst deaktivieren, dann löschen.`);
     const days = await tx.vehicleDay.findMany({ where: { vehicleId: id }, select: { date: true } });
@@ -150,11 +151,11 @@ export async function deleteVehicle(actorId: string, id: string, version: number
       action: "vehicle.delete",
       entityType: "Vehicle",
       entityId: id,
-      summary: `${label} endgültig gelöscht – ${days.length} Tageseinsatz/-einsätze entfernt`,
+      summary: `${label} endgültig gelöscht${reason ? ` (${reason})` : ""} – ${days.length} Tageseinsatz/-einsätze entfernt`,
     });
     return { label, dates: [...new Set(days.map((d) => d.date))] };
   });
-  publishChange({ scope: "masterdata", userId: actorId });
-  publishChange({ scope: "planning", dates: result.dates, userId: actorId });
+  publishChange({ scope: "masterdata", userId: actorId ?? "system" });
+  publishChange({ scope: "planning", dates: result.dates, userId: actorId ?? "system" });
   return { message: `${result.label} wurde endgültig gelöscht (${result.dates.length} Tageseinsatz/-einsätze entfernt).` };
 }

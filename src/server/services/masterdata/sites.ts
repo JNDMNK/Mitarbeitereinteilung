@@ -7,7 +7,7 @@ import { audit } from "../../audit";
 import { publishChange } from "../../events";
 import { db } from "../../db";
 import { badRequest, conflict, forbidden, notFound } from "../../errors";
-import { describeChanges, summaryWith } from "./changes";
+import { deactivation, describeChanges, summaryWith } from "./changes";
 
 export function listSites() {
   return db.site.findMany({
@@ -36,7 +36,7 @@ export async function updateSite(actorId: string, id: string, input: z.infer<typ
     const end = data.endDate === undefined ? cur.endDate : data.endDate;
     if (start && end && start > end) throw badRequest("Das Ende darf nicht vor dem Beginn liegen.");
 
-    const res = await tx.site.updateMany({ where: { id, version }, data: { ...data, version: { increment: 1 } } });
+    const res = await tx.site.updateMany({ where: { id, version }, data: { ...data, ...deactivation(cur.active, data.active), version: { increment: 1 } } });
     if (res.count !== 1) throw conflict();
     const changes = describeChanges(
       cur,
@@ -62,11 +62,11 @@ export async function updateSite(actorId: string, id: string, input: z.infer<typ
  * Baustelle endgültig löschen (nur wenn deaktiviert) – inkl. aller Einsätze darauf.
  * Freie Einträge dürfen Einteiler und Admins löschen, feste Baustellen nur Admins.
  */
-export async function deleteSite(actor: { id: string; role: Role }, id: string, version: number) {
+export async function deleteSite(actor: { id: string | null; role: Role }, id: string, version: number | null, reason?: string) {
   const result = await db.$transaction(async (tx) => {
     const s = await tx.site.findUnique({ where: { id } });
     if (!s) throw notFound("Baustelle nicht gefunden.");
-    if (s.version !== version) throw conflict();
+    if (version !== null && s.version !== version) throw conflict();
     const label = s.adHoc ? `Freier Eintrag „${s.name}“` : `Baustelle „${s.name}“`;
     if (!s.adHoc && actor.role !== "ADMIN") throw forbidden("Feste Baustellen kann nur ein Admin endgültig löschen.");
     if (s.active) throw badRequest(`${label} ist noch aktiv. Bitte zuerst deaktivieren, dann löschen.`);
@@ -78,11 +78,11 @@ export async function deleteSite(actor: { id: string; role: Role }, id: string, 
       action: "site.delete",
       entityType: "Site",
       entityId: id,
-      summary: `${label} endgültig gelöscht – ${assignments.length} Einsatz/Einsätze entfernt`,
+      summary: `${label} endgültig gelöscht${reason ? ` (${reason})` : ""} – ${assignments.length} Einsatz/Einsätze entfernt`,
     });
     return { label, count: assignments.length, dates: [...new Set(assignments.map((a) => a.vehicleDay.date))] };
   });
-  publishChange({ scope: "masterdata", userId: actor.id });
-  if (result.dates.length) publishChange({ scope: "planning", dates: result.dates, userId: actor.id });
+  publishChange({ scope: "masterdata", userId: actor.id ?? "system" });
+  if (result.dates.length) publishChange({ scope: "planning", dates: result.dates, userId: actor.id ?? "system" });
   return { message: `${result.label} wurde endgültig gelöscht (${result.count} Einsatz/Einsätze entfernt).` };
 }

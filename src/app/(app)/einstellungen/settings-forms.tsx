@@ -152,3 +152,64 @@ export function LogoForm({ logoUrl }: { logoUrl: string | null }) {
     </div>
   );
 }
+
+export function CleanupForm(props: { version: number; autoDeleteSiteDays: number; autoDeleteEmployeeDays: number; autoDeleteVehicleDays: number }) {
+  const router = useRouter();
+  const [msg, setMsg] = useState<Msg>(null);
+  const [busy, setBusy] = useState(false);
+  const fields = [
+    { name: "autoDeleteSiteDays", label: "Baustellen und freie Einträge", value: props.autoDeleteSiteDays },
+    { name: "autoDeleteEmployeeDays", label: "Mitarbeiter", value: props.autoDeleteEmployeeDays },
+    { name: "autoDeleteVehicleDays", label: "Fahrzeuge und Räume", value: props.autoDeleteVehicleDays },
+  ] as const;
+
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const f = new FormData(e.currentTarget);
+        setBusy(true);
+        setMsg(null);
+        try {
+          const res = await api<{ result: { sites: number; employees: number; vehicles: number; errors: string[] } }>("/api/settings/cleanup", {
+            method: "PATCH",
+            body: {
+              version: props.version,
+              ...Object.fromEntries(fields.map((x) => [x.name, Number(f.get(x.name))])),
+            },
+          });
+          const r = res.result;
+          const total = r.sites + r.employees + r.vehicles;
+          setMsg({
+            tone: r.errors.length ? "error" : "success",
+            text:
+              `Gespeichert.${total ? ` Sofort gelöscht: ${r.sites} Baustelle(n), ${r.employees} Mitarbeiter, ${r.vehicles} Fahrzeug(e)/Räume.` : ""}` +
+              (r.errors.length ? ` Nicht gelöscht: ${r.errors.join("; ")}` : ""),
+          });
+          router.refresh();
+        } catch (err) {
+          setMsg({ tone: "error", text: errText(err, "Speichern fehlgeschlagen.") });
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
+      <p className="text-sm text-muted">
+        Deaktivierte Einträge werden nach so vielen Tagen automatisch endgültig gelöscht – inklusive ihrer Einteilungen und Einsätze. <strong>0 = nie automatisch löschen.</strong>
+      </p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {fields.map((x) => (
+          <Field key={x.name} label={x.label} hint="Tage nach Deaktivierung">
+            <Input name={x.name} type="number" min={0} max={3650} step={1} inputMode="numeric" defaultValue={x.value} required />
+          </Field>
+        ))}
+      </div>
+      <p className="text-sm text-muted">Geprüft wird beim Start und danach alle 6 Stunden. Jede Löschung steht im Änderungsprotokoll.</p>
+      <Button type="submit" disabled={busy}>
+        {busy ? "Speichern …" : "Speichern"}
+      </Button>
+    </form>
+  );
+}

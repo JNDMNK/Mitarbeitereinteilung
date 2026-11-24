@@ -88,6 +88,10 @@ model AppSettings {
   logoFile         String?
   defaultStartMin  Int      @default(420) // 07:00
   defaultEndMin    Int      @default(960) // 16:00
+  /// Automatisches Löschen deaktivierter Einträge nach X Tagen (0 = aus)
+  autoDeleteSiteDays     Int @default(30)
+  autoDeleteEmployeeDays Int @default(30)
+  autoDeleteVehicleDays  Int @default(30)
   version          Int      @default(1)
   updatedAt        DateTime @updatedAt
 }
@@ -122,6 +126,8 @@ model Employee {
   availableFrom  String?
   availableUntil String?
   active       Boolean    @default(true)
+  /// Zeitpunkt der Deaktivierung (für automatisches Löschen)
+  deactivatedAt DateTime?
   version      Int        @default(1)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -153,6 +159,8 @@ model Vehicle {
   department      Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   note            String?
   active          Boolean   @default(true)
+  /// Zeitpunkt der Deaktivierung (für automatisches Löschen)
+  deactivatedAt DateTime?
   sortOrder       Int       @default(0)
   version         Int       @default(1)
   createdAt       DateTime  @default(now())
@@ -187,6 +195,8 @@ model Site {
   note        String?
   color       String   // "#RRGGBB"
   active      Boolean  @default(true)
+  /// Zeitpunkt der Deaktivierung (für automatisches Löschen)
+  deactivatedAt DateTime?
   /// Freier Eintrag aus der Planung (nicht in den Stammdaten gepflegt)
   adHoc       Boolean  @default(false)
   version     Int      @default(1)

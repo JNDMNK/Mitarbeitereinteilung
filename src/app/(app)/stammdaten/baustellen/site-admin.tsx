@@ -7,10 +7,11 @@ import { Field, Input, Select } from "@/components/ui/field";
 import { api } from "@/lib/api-client";
 import { SITE_STATUS_LABELS, SITE_STATUSES, type SiteStatus } from "@/lib/constants";
 import { formatDate, mapsUrl, todayIso } from "@/lib/dates";
-import { ColorDot, ColorField, FormActions, ListBox, matches, MessageBar, Row, str, Tag, toggleActive, Toolbar, useSave } from "@/components/masterdata/shared";
+import { AutoDeleteTag, ColorDot, ColorField, FormActions, ListBox, matches, MessageBar, Row, str, Tag, toggleActive, Toolbar, useSave } from "@/components/masterdata/shared";
 
 type Site = {
   id: string;
+  deactivatedAt: Date | string | null;
   name: string;
   address: string | null;
   customer: string | null;
@@ -27,7 +28,7 @@ type Site = {
 
 const STATUS_TONE: Record<SiteStatus, "slate" | "green" | "amber"> = { PLANNED: "amber", ACTIVE: "green", DONE: "slate" };
 
-export function SiteAdmin({ sites, isAdmin = false }: { sites: Site[]; isAdmin?: boolean }) {
+export function SiteAdmin({ sites, isAdmin = false, autoDeleteDays = 0 }: { sites: Site[]; isAdmin?: boolean; autoDeleteDays?: number }) {
   const page = useSave();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"" | SiteStatus>("");
@@ -135,6 +136,7 @@ export function SiteAdmin({ sites, isAdmin = false }: { sites: Site[]; isAdmin?:
                 {s.adHoc && <Tag>freier Eintrag</Tag>}
                 {ended && <Tag tone="red">Zeitraum abgelaufen</Tag>}
                 {!s.active && <Tag>inaktiv</Tag>}
+                {!s.active && <AutoDeleteTag deactivatedAt={s.deactivatedAt} days={autoDeleteDays} />}
               </div>
               <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted">
                 {s.address && (

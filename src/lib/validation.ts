@@ -89,3 +89,14 @@ export const settingsSchema = z
     message: "Das Arbeitsende muss nach dem Arbeitsbeginn liegen.",
     path: ["defaultEndMin"],
   });
+
+const cleanupDays = (label: string) =>
+  z.number({ message: `${label}: bitte eine Zahl angeben.` }).int(`${label}: nur ganze Tage.`).min(0, `${label}: mindestens 0.`).max(3650, `${label}: höchstens 3650 Tage.`);
+
+/** Automatisches Löschen deaktivierter Einträge (0 = aus) */
+export const cleanupSettingsSchema = z.object({
+  version: z.number().int().positive(),
+  autoDeleteSiteDays: cleanupDays("Baustellen"),
+  autoDeleteEmployeeDays: cleanupDays("Mitarbeiter"),
+  autoDeleteVehicleDays: cleanupDays("Fahrzeuge/Räume"),
+});

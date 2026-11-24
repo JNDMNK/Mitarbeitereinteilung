@@ -1,3 +1,4 @@
+import { getSettings } from "@/server/services/settings";
 import type { Metadata } from "next";
 import { BackLink } from "@/components/masterdata/shared";
 import { LiveRefresh } from "@/components/live/live-refresh";
@@ -10,13 +11,14 @@ export const metadata: Metadata = { title: "Baustellen" };
 
 export default async function SitesPage() {
   const session = await requirePagePermission("masterdata.edit");
+  const settings = await getSettings();
   const sites = await listSites();
   return (
     <>
       <LiveRefresh scopes={["masterdata"]} />
       <BackLink />
       <PageHeader title="Baustellen" />
-      <SiteAdmin sites={sites} isAdmin={session.user.role === "ADMIN"} />
+      <SiteAdmin autoDeleteDays={settings.autoDeleteSiteDays} sites={sites} isAdmin={session.user.role === "ADMIN"} />
     </>
   );
 }

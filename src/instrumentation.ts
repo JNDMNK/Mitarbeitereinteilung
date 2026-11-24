@@ -6,5 +6,7 @@ export async function register() {
     } catch (err) {
       console.error("[bootstrap] Fehler beim Start:", err);
     }
+    const { startAutoCleanup } = await import("./server/services/auto-cleanup");
+    startAutoCleanup();
   }
 }

@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/field";
 import { api } from "@/lib/api-client";
-import { FormActions, ListBox, matches, MessageBar, num, Row, str, Tag, toggleActive, Toolbar, useSave } from "@/components/masterdata/shared";
+import { AutoDeleteTag, FormActions, ListBox, matches, MessageBar, num, Row, str, Tag, toggleActive, Toolbar, useSave } from "@/components/masterdata/shared";
 
 type Person = { id: string; firstName: string; lastName: string; shortName: string; active: boolean };
 type Vehicle = {
   id: string;
+  deactivatedAt: Date | string | null;
   kind: string;
   licensePlate: string;
   name: string;
@@ -37,6 +38,7 @@ export function VehicleAdmin({
   departments,
   kind = "VEHICLE",
   canDelete = false,
+  autoDeleteDays = 0,
 }: {
   vehicles: Vehicle[];
   employees: EmployeeOption[];
@@ -45,6 +47,7 @@ export function VehicleAdmin({
   kind?: "VEHICLE" | "ROOM";
   /** Endgültig löschen (nur Admin, nur inaktive) */
   canDelete?: boolean;
+  autoDeleteDays?: number;
 }) {
   const room = kind === "ROOM";
   const vehicles = allVehicles.filter((v) => (v.kind ?? "VEHICLE") === kind);
@@ -145,6 +148,7 @@ export function VehicleAdmin({
                   ) : null;
                 })()}
                 {!v.active && <Tag>inaktiv</Tag>}
+                {!v.active && <AutoDeleteTag deactivatedAt={v.deactivatedAt} days={autoDeleteDays} />}
               </div>
               <div className="mt-1 text-sm text-muted">
                 {crew.length === 0 ? (

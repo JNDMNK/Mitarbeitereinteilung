@@ -1,3 +1,4 @@
+import { getSettings } from "@/server/services/settings";
 import { can } from "@/lib/roles";
 import type { Metadata } from "next";
 import { BackLink } from "@/components/masterdata/shared";
@@ -12,6 +13,7 @@ export const metadata: Metadata = { title: "Räume" };
 
 export default async function RoomsPage() {
   const session = await requirePagePermission("masterdata.edit");
+  const settings = await getSettings();
   const canDelete = can(session.user.role, "admin.masterdata");
   const [vehicles, employees, departments] = await Promise.all([
     listVehicles(),
@@ -27,7 +29,7 @@ export default async function RoomsPage() {
       <LiveRefresh scopes={["masterdata"]} />
       <BackLink />
       <PageHeader title="Räume" description="Orte ohne Fahrzeug, z. B. Lager oder Schulungsraum – Mitarbeiter werden ganztägig eingeteilt." />
-      <VehicleAdmin canDelete={canDelete} vehicles={vehicles} employees={employees} departments={departments} kind="ROOM" />
+      <VehicleAdmin autoDeleteDays={settings.autoDeleteVehicleDays} canDelete={canDelete} vehicles={vehicles} employees={employees} departments={departments} kind="ROOM" />
     </>
   );
 }

@@ -36,7 +36,7 @@
    und lädt neu.
 6. **Aufzählungen als String** (statt Prisma-`enum`). Das ist auf SQLite und
    PostgreSQL identisch; geprüft wird per zod.
-7. **Deaktivieren statt Löschen** bei Stammdaten. Admins können deaktivierte Mitarbeiter, Fahrzeuge und Räume zusätzlich endgültig löschen (inkl. ihrer Einteilungen). Planungsdaten (Besatzung,
+7. **Deaktivieren statt Löschen** bei Stammdaten. Admins können deaktivierte Mitarbeiter, Fahrzeuge und Räume zusätzlich endgültig löschen (inkl. ihrer Einteilungen). Optional löscht ein Hintergrund-Job deaktivierte Einträge nach einer einstellbaren Frist (Standard 30 Tage, Einstellungen → Automatisches Löschen). Planungsdaten (Besatzung,
    Einsätze, Abwesenheiten) werden echt gelöscht, das Protokoll bleibt erhalten.
 
 ## Projektstruktur

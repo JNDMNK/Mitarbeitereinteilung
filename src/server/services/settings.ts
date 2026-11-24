@@ -4,7 +4,7 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { z } from "zod";
 import { formatMinutes } from "@/lib/time";
-import type { settingsSchema } from "@/lib/validation";
+import type { cleanupSettingsSchema, settingsSchema } from "@/lib/validation";
 import { audit } from "../audit";
 import { publishChange } from "../events";
 import { db } from "../db";
@@ -123,4 +123,23 @@ export async function readLogo(): Promise<{ data: Buffer; contentType: string; f
 /** URL inkl. Dateiname als Cache-Schlüssel -> neues Logo = neue URL */
 export function logoUrl(logoFile: string | null): string | null {
   return logoFile ? `/api/logo?v=${encodeURIComponent(logoFile)}` : null;
+}
+
+export async function updateCleanupSettings(actorId: string, input: z.infer<typeof cleanupSettingsSchema>) {
+  const { version, ...data } = input;
+  const result = await db.$transaction(async (tx) => {
+    const res = await tx.appSettings.updateMany({ where: { id: 1, version }, data: { ...data, version: { increment: 1 } } });
+    if (res.count !== 1) throw conflict();
+    const txt = (d: number) => (d === 0 ? "aus" : `${d} Tage`);
+    await audit(tx, {
+      userId: actorId,
+      action: "settings.update",
+      entityType: "AppSettings",
+      entityId: "1",
+      summary: `Automatisches Löschen geändert (Baustellen ${txt(data.autoDeleteSiteDays)}, Mitarbeiter ${txt(data.autoDeleteEmployeeDays)}, Fahrzeuge/Räume ${txt(data.autoDeleteVehicleDays)})`,
+    });
+    return tx.appSettings.findUniqueOrThrow({ where: { id: 1 } });
+  });
+  publishChange({ scope: "masterdata", userId: actorId });
+  return result;
 }

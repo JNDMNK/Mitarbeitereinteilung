@@ -190,3 +190,11 @@ export function matches(query: string, ...fields: (string | null | undefined)[])
 
 export const str = (f: FormData, key: string) => String(f.get(key) ?? "").trim();
 export const num = (f: FormData, key: string) => Number(f.get(key) ?? 0);
+
+/** Hinweis bei inaktiven Einträgen: wann sie automatisch gelöscht werden */
+export function AutoDeleteTag({ deactivatedAt, days }: { deactivatedAt: Date | string | null; days: number }) {
+  if (!deactivatedAt || days <= 0) return null;
+  const due = new Date(new Date(deactivatedAt).getTime() + days * 86400000);
+  const text = due.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" });
+  return <Tag tone="amber">wird am {text} automatisch gelöscht</Tag>;
+}

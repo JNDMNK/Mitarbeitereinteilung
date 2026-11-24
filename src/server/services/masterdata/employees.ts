@@ -9,10 +9,11 @@ import { destroyUserSessions } from "../../auth/session";
 import { publishChange } from "../../events";
 import { db, type Tx } from "../../db";
 import { badRequest, conflict, forbidden, notFound } from "../../errors";
-import { describeChanges, summaryWith } from "./changes";
+import { deactivation, describeChanges, summaryWith } from "./changes";
 
 export const employeeSelect = {
   id: true,
+  deactivatedAt: true,
   firstName: true,
   lastName: true,
   shortName: true,
@@ -82,7 +83,7 @@ export async function updateEmployee(actorId: string, id: string, input: z.infer
     if (from && until && from > until) throw badRequest("„im Betrieb bis“ darf nicht vor „von“ liegen.");
     if ((data.qualification ?? cur.qualification) === "PRAKTIKANT" && !until) throw badRequest("Bei Praktikanten bitte angeben, bis wann das Praktikum dauert.");
 
-    const res = await tx.employee.updateMany({ where: { id, version }, data: { ...data, version: { increment: 1 } } });
+    const res = await tx.employee.updateMany({ where: { id, version }, data: { ...data, ...deactivation(cur.active, data.active), version: { increment: 1 } } });
     if (res.count !== 1) throw conflict();
 
     let deactivatedUser: string | null = null;
@@ -184,14 +185,14 @@ export async function manageEmployeeLogin(actor: { id: string; role: Role }, emp
  * Abwesenheiten, Standard-Zuordnungen und einen reinen Mitarbeiter-Login.
  * Logins mit Rolle Admin/Einteiler bleiben bestehen und werden nur entkoppelt.
  */
-export async function deleteEmployee(actorId: string, id: string, version: number) {
+export async function deleteEmployee(actorId: string | null, id: string, version: number | null, reason?: string) {
   const result = await db.$transaction(async (tx) => {
     const emp = await tx.employee.findUnique({ where: { id }, include: { user: true } });
     if (!emp) throw notFound("Mitarbeiter nicht gefunden.");
-    if (emp.version !== version) throw conflict();
+    if (version !== null && emp.version !== version) throw conflict();
     const name = `${emp.firstName} ${emp.lastName}`;
     if (emp.active) throw badRequest(`${name} ist noch aktiv. Bitte zuerst deaktivieren, dann löschen.`);
-    if (emp.user && emp.user.id === actorId) throw badRequest("Der eigene Benutzer kann nicht gelöscht werden.");
+    if (emp.user && actorId && emp.user.id === actorId) throw badRequest("Der eigene Benutzer kann nicht gelöscht werden.");
 
     const crew = await tx.crewMember.findMany({ where: { employeeId: id }, select: { date: true } });
     const dates = [...new Set(crew.map((c) => c.date))];
@@ -225,12 +226,13 @@ export async function deleteEmployee(actorId: string, id: string, version: numbe
       action: "employee.delete",
       entityType: "Employee",
       entityId: id,
-      summary: `Mitarbeiter ${name} (${emp.shortName}) endgültig gelöscht – ${details.join(", ")}`,
+      summary: `Mitarbeiter ${name} (${emp.shortName}) endgültig gelöscht${reason ? ` (${reason})` : ""} – ${details.join(", ")}`,
     });
     return { name, dates, details };
   });
-  publishChange({ scope: "masterdata", userId: actorId });
-  publishChange({ scope: "planning", dates: result.dates, userId: actorId });
-  publishChange({ scope: "absences", userId: actorId });
+  const by = actorId ?? "system";
+  publishChange({ scope: "masterdata", userId: by });
+  publishChange({ scope: "planning", dates: result.dates, userId: by });
+  publishChange({ scope: "absences", userId: by });
   return { message: `${result.name} wurde endgültig gelöscht (${result.details.join(", ")}).` };
 }
