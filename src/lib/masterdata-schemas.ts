@@ -151,6 +151,7 @@ const absenceRefine = <T extends { startDate?: string; endDate?: string }>(s: z.
 export const absenceCreateSchema = absenceRefine(absenceBase);
 export const absenceUpdateSchema = absenceRefine(absenceBase.omit({ employeeId: true }).partial().extend({ version }));
 export const absenceDeleteSchema = z.object({ version });
+export const versionSchema = z.object({ version });
 export const absenceQuerySchema = z.object({ from: isoDate, to: isoDate });
 
 // --- Login eines Mitarbeiters nachträglich anlegen / freischalten ---------

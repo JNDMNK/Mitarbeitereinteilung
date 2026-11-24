@@ -31,10 +31,13 @@ export function EmployeeAdmin({
   employees,
   departments,
   takenUsernames,
+  canDelete = false,
 }: {
   employees: Employee[];
   departments: Department[];
   takenUsernames: string[];
+  /** Endgültig löschen (nur Admin, nur inaktive) */
+  canDelete?: boolean;
 }) {
   const page = useSave();
   const [query, setQuery] = useState("");
@@ -131,6 +134,19 @@ export function EmployeeAdmin({
                 >
                   {e.active ? "Deaktivieren" : "Aktivieren"}
                 </Button>
+                {canDelete && !e.active && (
+                  <Button
+                    variant="danger"
+                    disabled={page.busy}
+                    onClick={() => {
+                      const name = `${e.firstName} ${e.lastName}`;
+                      if (!confirm(`${name} endgültig löschen?\n\nAlle Einteilungen (auch vergangene Tage), Abwesenheiten, Standard-Zuordnungen${e.user ? ` und der Login "${e.user.username}"` : ""} werden gelöscht. Das kann nicht rückgängig gemacht werden.`)) return;
+                      void page.run(() => api(`/api/employees/${e.id}`, { method: "DELETE", body: { version: e.version } }), `${name} wurde endgültig gelöscht.`);
+                    }}
+                  >
+                    Endgültig löschen
+                  </Button>
+                )}
               </>
             }
           >

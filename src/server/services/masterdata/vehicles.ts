@@ -131,3 +131,30 @@ export async function updateVehicle(actorId: string, id: string, input: z.infer<
   publishChange({ scope: "masterdata", userId: actorId });
   return result;
 }
+
+/** Fahrzeug/Raum endgültig löschen (nur wenn deaktiviert) – inkl. aller Tageseinsätze. */
+export async function deleteVehicle(actorId: string, id: string, version: number) {
+  const result = await db.$transaction(async (tx) => {
+    const v = await tx.vehicle.findUnique({ where: { id } });
+    if (!v) throw notFound("Fahrzeug nicht gefunden.");
+    if (v.version !== version) throw conflict();
+    const label = v.kind === "ROOM" ? `Raum „${v.name}“` : `Fahrzeug ${v.licensePlate} (${v.name})`;
+    if (v.active) throw badRequest(`${label} ist noch aktiv. Bitte zuerst deaktivieren, dann löschen.`);
+    const days = await tx.vehicleDay.findMany({ where: { vehicleId: id }, select: { date: true } });
+    // Besatzung und Baustellen-Zeiten hängen per Cascade am VehicleDay
+    await tx.vehicleDay.deleteMany({ where: { vehicleId: id } });
+    await tx.vehicleDefaultMember.deleteMany({ where: { vehicleId: id } });
+    await tx.vehicle.delete({ where: { id } });
+    await audit(tx, {
+      userId: actorId,
+      action: "vehicle.delete",
+      entityType: "Vehicle",
+      entityId: id,
+      summary: `${label} endgültig gelöscht – ${days.length} Tageseinsatz/-einsätze entfernt`,
+    });
+    return { label, dates: [...new Set(days.map((d) => d.date))] };
+  });
+  publishChange({ scope: "masterdata", userId: actorId });
+  publishChange({ scope: "planning", dates: result.dates, userId: actorId });
+  return { message: `${result.label} wurde endgültig gelöscht (${result.dates.length} Tageseinsatz/-einsätze entfernt).` };
+}

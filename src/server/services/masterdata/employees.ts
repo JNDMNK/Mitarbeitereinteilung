@@ -178,3 +178,59 @@ export async function manageEmployeeLogin(actor: { id: string; role: Role }, emp
   if (passwordHash) await destroyUserSessions(user.id);
   return { message: `Login "${user.username}" von ${name} ist wieder freigeschaltet${passwordHash ? " – neues Start-Passwort gilt ab sofort" : ""}.` };
 }
+
+/**
+ * Mitarbeiter endgültig löschen (nur wenn deaktiviert). Entfernt Einteilungen,
+ * Abwesenheiten, Standard-Zuordnungen und einen reinen Mitarbeiter-Login.
+ * Logins mit Rolle Admin/Einteiler bleiben bestehen und werden nur entkoppelt.
+ */
+export async function deleteEmployee(actorId: string, id: string, version: number) {
+  const result = await db.$transaction(async (tx) => {
+    const emp = await tx.employee.findUnique({ where: { id }, include: { user: true } });
+    if (!emp) throw notFound("Mitarbeiter nicht gefunden.");
+    if (emp.version !== version) throw conflict();
+    const name = `${emp.firstName} ${emp.lastName}`;
+    if (emp.active) throw badRequest(`${name} ist noch aktiv. Bitte zuerst deaktivieren, dann löschen.`);
+    if (emp.user && emp.user.id === actorId) throw badRequest("Der eigene Benutzer kann nicht gelöscht werden.");
+
+    const crew = await tx.crewMember.findMany({ where: { employeeId: id }, select: { date: true } });
+    const dates = [...new Set(crew.map((c) => c.date))];
+    const crewCount = (await tx.crewMember.deleteMany({ where: { employeeId: id } })).count;
+    const absenceCount = (await tx.absence.deleteMany({ where: { employeeId: id } })).count;
+    await tx.vehicleDefaultMember.deleteMany({ where: { employeeId: id } });
+    const owned = await tx.vehicle.updateMany({ where: { defaultDriverId: id }, data: { defaultDriverId: null, version: { increment: 1 } } });
+
+    let removedUser: string | null = null;
+    let keptUser: string | null = null;
+    if (emp.user) {
+      if (emp.user.role === "EMPLOYEE") {
+        await tx.user.delete({ where: { id: emp.user.id } });
+        removedUser = emp.user.username;
+      } else {
+        await tx.user.update({ where: { id: emp.user.id }, data: { employeeId: null, version: { increment: 1 } } });
+        keptUser = emp.user.username;
+      }
+    }
+    await tx.employee.delete({ where: { id } });
+
+    const details = [
+      `${crewCount} Einteilung(en)`,
+      `${absenceCount} Abwesenheit(en)`,
+      ...(owned.count ? [`Halter bei ${owned.count} Fahrzeug(en) entfernt`] : []),
+      ...(removedUser ? [`Login "${removedUser}" gelöscht`] : []),
+      ...(keptUser ? [`Login "${keptUser}" bleibt ohne Mitarbeiter-Verknüpfung`] : []),
+    ];
+    await audit(tx, {
+      userId: actorId,
+      action: "employee.delete",
+      entityType: "Employee",
+      entityId: id,
+      summary: `Mitarbeiter ${name} (${emp.shortName}) endgültig gelöscht – ${details.join(", ")}`,
+    });
+    return { name, dates, details };
+  });
+  publishChange({ scope: "masterdata", userId: actorId });
+  publishChange({ scope: "planning", dates: result.dates, userId: actorId });
+  publishChange({ scope: "absences", userId: actorId });
+  return { message: `${result.name} wurde endgültig gelöscht (${result.details.join(", ")}).` };
+}

@@ -1,3 +1,4 @@
+import { can } from "@/lib/roles";
 import type { Metadata } from "next";
 import { BackLink } from "@/components/masterdata/shared";
 import { LiveRefresh } from "@/components/live/live-refresh";
@@ -10,7 +11,8 @@ import { VehicleAdmin } from "../fahrzeuge/vehicle-admin";
 export const metadata: Metadata = { title: "Räume" };
 
 export default async function RoomsPage() {
-  await requirePagePermission("masterdata.edit");
+  const session = await requirePagePermission("masterdata.edit");
+  const canDelete = can(session.user.role, "admin.masterdata");
   const [vehicles, employees, departments] = await Promise.all([
     listVehicles(),
     db.employee.findMany({
@@ -25,7 +27,7 @@ export default async function RoomsPage() {
       <LiveRefresh scopes={["masterdata"]} />
       <BackLink />
       <PageHeader title="Räume" description="Orte ohne Fahrzeug, z. B. Lager oder Schulungsraum – Mitarbeiter werden ganztägig eingeteilt." />
-      <VehicleAdmin vehicles={vehicles} employees={employees} departments={departments} kind="ROOM" />
+      <VehicleAdmin canDelete={canDelete} vehicles={vehicles} employees={employees} departments={departments} kind="ROOM" />
     </>
   );
 }

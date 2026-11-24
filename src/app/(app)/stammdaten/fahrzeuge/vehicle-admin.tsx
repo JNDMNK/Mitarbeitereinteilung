@@ -36,12 +36,15 @@ export function VehicleAdmin({
   employees,
   departments,
   kind = "VEHICLE",
+  canDelete = false,
 }: {
   vehicles: Vehicle[];
   employees: EmployeeOption[];
   departments: DepartmentOption[];
   /** "VEHICLE" = Fahrzeuge, "ROOM" = Räume */
   kind?: "VEHICLE" | "ROOM";
+  /** Endgültig löschen (nur Admin, nur inaktive) */
+  canDelete?: boolean;
 }) {
   const room = kind === "ROOM";
   const vehicles = allVehicles.filter((v) => (v.kind ?? "VEHICLE") === kind);
@@ -101,6 +104,19 @@ export function VehicleAdmin({
                   >
                     {v.active ? "Deaktivieren" : "Aktivieren"}
                   </Button>
+                  {canDelete && !v.active && (
+                    <Button
+                      variant="danger"
+                      disabled={page.busy}
+                      onClick={() => {
+                        const label = room ? `Raum „${v.name}“` : `Fahrzeug ${v.licensePlate} (${v.name})`;
+                        if (!confirm(`${label} endgültig löschen?\n\nAlle Einsätze dieses ${room ? "Raums" : "Fahrzeugs"} (auch vergangene Tage, mit Besatzung und Baustellen-Zeiten) werden gelöscht. Das kann nicht rückgängig gemacht werden.`)) return;
+                        void page.run(() => api(`/api/vehicles/${v.id}`, { method: "DELETE", body: { version: v.version } }), `${label} wurde endgültig gelöscht.`);
+                      }}
+                    >
+                      Endgültig löschen
+                    </Button>
+                  )}
                 </>
               }
             >
