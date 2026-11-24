@@ -202,7 +202,6 @@ function UserForm({
             password: f.get("password"),
             role,
             employeeId,
-            mustChangePassword: f.get("mustChangePassword") === "on",
           },
         });
         onDone(`Benutzer "${f.get("username")}" angelegt.`);
@@ -249,12 +248,6 @@ function UserForm({
           ))}
         </Select>
       </Field>
-      {!user && (
-        <label className="flex min-h-11 items-center gap-2">
-          <input type="checkbox" name="mustChangePassword" defaultChecked className="size-5 accent-brand-600" />
-          Passwort beim ersten Login ändern
-        </label>
-      )}
       <div className="flex justify-end gap-2">
         <Button type="submit" disabled={busy}>
           {busy ? "Speichern …" : "Speichern"}

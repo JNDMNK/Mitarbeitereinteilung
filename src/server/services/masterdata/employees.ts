@@ -54,7 +54,7 @@ export async function createEmployee(actorId: string, input: z.infer<typeof empl
     });
     if (login && passwordHash) {
       const user = await tx.user.create({
-        data: { username: login.username, passwordHash, role: "EMPLOYEE", employeeId: emp.id, mustChangePassword: true },
+        data: { username: login.username, passwordHash, role: "EMPLOYEE", employeeId: emp.id, mustChangePassword: false },
       });
       await audit(tx, {
         userId: actorId,
@@ -144,11 +144,11 @@ export async function manageEmployeeLogin(actor: { id: string; role: Role }, emp
     const passwordHash = await hashPassword(input.password);
     await db.$transaction(async (tx) => {
       const user = await tx.user.create({
-        data: { username: input.username, passwordHash, role: "EMPLOYEE", employeeId: emp.id, mustChangePassword: true },
+        data: { username: input.username, passwordHash, role: "EMPLOYEE", employeeId: emp.id, mustChangePassword: false },
       });
       await audit(tx, { userId: actor.id, action: "user.create", entityType: "User", entityId: user.id, summary: `Login "${user.username}" für ${name} angelegt` });
     });
-    return { message: `Login "${input.username}" für ${name} angelegt. Beim ersten Anmelden muss ein eigenes Passwort vergeben werden.` };
+    return { message: `Login "${input.username}" für ${name} angelegt.` };
   }
 
   // freischalten
@@ -163,7 +163,7 @@ export async function manageEmployeeLogin(actor: { id: string; role: Role }, emp
         active: true,
         failedLogins: 0,
         lockedUntil: null,
-        ...(passwordHash ? { passwordHash, mustChangePassword: true } : {}),
+        ...(passwordHash ? { passwordHash, mustChangePassword: false } : {}),
         version: { increment: 1 },
       },
     });

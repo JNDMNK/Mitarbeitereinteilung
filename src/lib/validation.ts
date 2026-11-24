@@ -47,7 +47,7 @@ export const createUserSchema = z.object({
   password: passwordSchema,
   role: roleSchema,
   employeeId: z.string().min(1).nullable().optional(),
-  mustChangePassword: z.boolean().optional().default(true),
+  mustChangePassword: z.boolean().optional().default(false),
 });
 
 export const updateUserSchema = z.object({

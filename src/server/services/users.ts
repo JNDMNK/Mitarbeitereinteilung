@@ -55,7 +55,7 @@ export async function createUser(actorId: string, input: z.infer<typeof createUs
         passwordHash,
         role: input.role,
         employeeId: input.employeeId ?? null,
-        mustChangePassword: input.mustChangePassword,
+        mustChangePassword: false,
       },
       select: userListSelect,
     });
@@ -131,7 +131,7 @@ export async function adminResetPassword(actorId: string, userId: string, passwo
     where: { id: userId },
     data: {
       passwordHash: await hashPassword(password),
-      mustChangePassword: true,
+      mustChangePassword: false,
       failedLogins: 0,
       lockedUntil: null,
       version: { increment: 1 },

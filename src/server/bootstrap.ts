@@ -40,7 +40,7 @@ export async function bootstrap() {
           username: initialAdminUser.trim().toLowerCase(),
           passwordHash: await hashPassword(initialAdminPassword),
           role: "ADMIN",
-          mustChangePassword: true,
+          mustChangePassword: false,
         },
       });
       await audit(db, {
@@ -50,7 +50,7 @@ export async function bootstrap() {
         entityId: admin.id,
         summary: `Erster Admin "${admin.username}" beim Start angelegt`,
       });
-      console.log(`[bootstrap] Erster Admin "${admin.username}" angelegt. Passwortänderung beim ersten Login erforderlich.`);
+      console.log(`[bootstrap] Erster Admin "${admin.username}" angelegt. Passwort kann unter „Konto“ geändert werden.`);
     } else {
       console.warn("[bootstrap] Keine Benutzer vorhanden und INITIAL_ADMIN_USER/INITIAL_ADMIN_PASSWORD nicht gesetzt.");
     }

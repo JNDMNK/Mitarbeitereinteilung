@@ -50,7 +50,7 @@ Die ausgegebene Zeile kopieren – das ist der `SESSION_SECRET`.
 | **APP_URL** | Die Adresse, unter der die App später im Browser aufgerufen wird, z. B. `https://einteilung.meinefirma.de` – ohne `/` am Ende |
 | **SESSION_SECRET** | Den Wert aus Schritt 2 |
 | **INITIAL_ADMIN_USER** | z. B. `admin` |
-| **INITIAL_ADMIN_PASSWORD** | Start-Passwort (mind. 10 Zeichen), wird beim ersten Login geändert |
+| **INITIAL_ADMIN_PASSWORD** | Start-Passwort (mind. 10 Zeichen); später unter „Konto“ änderbar |
 
 Unter **Show more settings** (optional): `TRUST_PROXY` (1 = hinter Nginx), `TZ`, `PUID`/`PGID` (Unraid-Standard 99/100),
 `SEED_DEMO=1` legt beim ersten Start Beispieldaten zum Ausprobieren an.
@@ -59,7 +59,7 @@ Unter **Show more settings** (optional): `TRUST_PROXY` (1 = hinter Nginx), `TZ`,
 
 ```
 [migrate] 1 Migration(en) angewendet.
-[bootstrap] Erster Admin "admin" angelegt. Passwortänderung beim ersten Login erforderlich.
+[bootstrap] Erster Admin "admin" angelegt. Passwort kann unter „Konto“ geändert werden.
 ```
 
 > Ohne Reverse Proxy (nur im Heimnetz testen): `APP_URL` auf `http://<Unraid-IP>:3010` und `TRUST_PROXY` auf `0` setzen.

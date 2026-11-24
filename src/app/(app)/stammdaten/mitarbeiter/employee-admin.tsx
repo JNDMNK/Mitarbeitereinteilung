@@ -277,7 +277,7 @@ function EmployeeForm({
                 }),
           "",
         );
-        if (ok) onDone(`${first} ${last} gespeichert${withLogin ? ` – Login "${effUser}" angelegt (Passwortwechsel beim ersten Login)` : ""}.`);
+        if (ok) onDone(`${first} ${last} gespeichert${withLogin ? ` – Login "${effUser}" angelegt` : ""}.`);
       }}
     >
       {form.msg?.tone === "error" && <MessageBar msg={form.msg} />}
@@ -429,7 +429,7 @@ function LoginForm({
       )}
       <Field
         label={existing ? "Neues Start-Passwort (optional)" : "Start-Passwort"}
-        hint={existing ? "Leer lassen, um das bisherige Passwort zu behalten." : `Mind. ${PASSWORD_MIN_LENGTH} Zeichen, muss beim ersten Login geändert werden.`}
+        hint={existing ? "Leer lassen, um das bisherige Passwort zu behalten." : `Mind. ${PASSWORD_MIN_LENGTH} Zeichen.`}
       >
         <Input
           type="text"
