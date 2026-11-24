@@ -9,14 +9,14 @@ import { SiteAdmin } from "./site-admin";
 export const metadata: Metadata = { title: "Baustellen" };
 
 export default async function SitesPage() {
-  await requirePagePermission("masterdata.edit");
+  const session = await requirePagePermission("masterdata.edit");
   const sites = await listSites();
   return (
     <>
       <LiveRefresh scopes={["masterdata"]} />
       <BackLink />
       <PageHeader title="Baustellen" />
-      <SiteAdmin sites={sites} />
+      <SiteAdmin sites={sites} isAdmin={session.user.role === "ADMIN"} />
     </>
   );
 }

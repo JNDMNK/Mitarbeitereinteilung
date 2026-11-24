@@ -27,7 +27,7 @@ type Site = {
 
 const STATUS_TONE: Record<SiteStatus, "slate" | "green" | "amber"> = { PLANNED: "amber", ACTIVE: "green", DONE: "slate" };
 
-export function SiteAdmin({ sites }: { sites: Site[] }) {
+export function SiteAdmin({ sites, isAdmin = false }: { sites: Site[]; isAdmin?: boolean }) {
   const page = useSave();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"" | SiteStatus>("");
@@ -112,6 +112,19 @@ export function SiteAdmin({ sites }: { sites: Site[] }) {
                   >
                     {s.active ? "Deaktivieren" : "Aktivieren"}
                   </Button>
+                  {!s.active && (s.adHoc || isAdmin) && (
+                    <Button
+                      variant="danger"
+                      disabled={page.busy}
+                      onClick={() => {
+                        const label = s.adHoc ? `Freien Eintrag „${s.name}“` : `Baustelle „${s.name}“`;
+                        if (!confirm(`${label} endgültig löschen?\n\nAlle Einsätze darauf (auch vergangene Tage) werden entfernt; die Fahrzeuge stehen an diesen Tagen dann ohne Baustelle da. Das kann nicht rückgängig gemacht werden.`)) return;
+                        void page.run(() => api(`/api/sites/${s.id}`, { method: "DELETE", body: { version: s.version } }), `„${s.name}“ wurde endgültig gelöscht.`);
+                      }}
+                    >
+                      Endgültig löschen
+                    </Button>
+                  )}
                 </>
               }
             >
