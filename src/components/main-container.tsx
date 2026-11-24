@@ -7,5 +7,5 @@ import type { ReactNode } from "react";
 export function MainContainer({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const wide = pathname === "/planung" || pathname.startsWith("/planung/");
-  return <main className={`mx-auto p-3 md:p-6 ${wide ? "max-w-screen-2xl 2xl:max-w-none" : "max-w-screen-2xl"}`}>{children}</main>;
+  return <main className={`mx-auto p-3 md:p-6 ${wide ? "max-w-screen-2xl xl:max-w-none" : "max-w-screen-2xl"}`}>{children}</main>;
 }

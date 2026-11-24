@@ -22,7 +22,7 @@ export function PoolSidebar({
   open: (s: Sheet) => void;
 }) {
   return (
-    <aside className="sticky top-16 max-h-[calc(100dvh-5rem)] w-72 shrink-0 space-y-3 overflow-y-auto pr-1" aria-label="Nicht eingeteilte Mitarbeiter">
+    <aside className="sticky top-16 max-h-[calc(100dvh-5rem)] w-56 shrink-0 2xl:w-64 space-y-3 overflow-y-auto pr-1" aria-label="Nicht eingeteilte Mitarbeiter">
       <h2 className="text-sm font-bold tracking-wide text-muted uppercase">Nicht eingeteilt</h2>
       {days.map((day) => (
         <Drop
@@ -42,7 +42,7 @@ export function PoolSidebar({
           {day.poolEmployees.length === 0 ? (
             <p className="text-sm text-muted">Alle eingeteilt.</p>
           ) : (
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-col gap-1">
               {day.poolEmployees.map((p) => (
                 <DraggableEmployee
                   key={p.employee.id}
@@ -55,6 +55,7 @@ export function PoolSidebar({
                   own={p.employee.id === ownEmployeeId}
                   open={open}
                   suffix="side"
+                  fullWidth
                 />
               ))}
             </div>

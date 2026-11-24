@@ -33,9 +33,11 @@ export function DraggableEmployee({
   suffix,
   assignedBy,
   isOwner,
+  fullWidth,
 }: {
   employee: PEmployee;
   date: string;
+  fullWidth?: boolean;
   fromVehicleId: string | null;
   assignedBy?: string;
   isOwner?: boolean;
@@ -62,8 +64,9 @@ export function DraggableEmployee({
       dragProps={drag.props}
       dragging={drag.isDragging}
       assignedBy={assignedBy}
-      label={idx.names.get(employee.id)}
+      label={fullWidth ? `${employee.lastName}, ${employee.firstName}` : idx.names.get(employee.id)}
       isOwner={isOwner}
+      fullWidth={fullWidth}
     />
   );
 }

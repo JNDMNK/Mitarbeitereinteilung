@@ -14,8 +14,8 @@ import { PlanningSheets, type Sheet } from "./sheets";
 import { TimelineDay } from "./timeline-day";
 import { PoolSidebar } from "./pool-sidebar";
 
-const WIDE_QUERY = "(min-width: 1536px)";
-/** Breiter Bildschirm (≥ 1536 px): freie Mitarbeiter in eigener Seitenleiste */
+const WIDE_QUERY = "(min-width: 1280px)";
+/** Breiter Bildschirm (≥ 1280 px, z. B. MacBook Pro 14"): freie Mitarbeiter in eigener Seitenleiste */
 function useWideScreen() {
   return useSyncExternalStore(
     (cb) => {

@@ -18,6 +18,7 @@ export function EmployeeChip({
   assignedBy,
   label,
   isOwner,
+  fullWidth,
 }: {
   employee: PEmployee;
   /** fährt sein eigenes Fahrzeug (Besitzer) */
@@ -33,6 +34,8 @@ export function EmployeeChip({
   dragRef?: Ref<HTMLButtonElement>;
   dragProps?: HTMLAttributes<HTMLElement>;
   dragging?: boolean;
+  /** über die ganze Breite (eine Person pro Zeile), Qualifikation rechts */
+  fullWidth?: boolean;
 }) {
   const absent = !!absenceType;
   const body = (
@@ -43,7 +46,13 @@ export function EmployeeChip({
         </span>
       )}
       <span className="truncate">{label ?? `${employee.lastName} ${employee.firstName.slice(0, 1)}.`}</span>
-      <QualificationBadge q={employee.qualification} />
+      {fullWidth ? (
+        <span className="ml-auto shrink-0">
+          <QualificationBadge q={employee.qualification} />
+        </span>
+      ) : (
+        <QualificationBadge q={employee.qualification} />
+      )}
       {absenceType && (
         <span className="rounded px-1 font-mono text-[11px] leading-5 font-bold text-white" style={{ backgroundColor: absenceType.color }} title={absenceType.name}>
           {absenceType.code}
@@ -51,7 +60,7 @@ export function EmployeeChip({
       )}
     </>
   );
-  const cls = `inline-flex max-w-full min-h-11 md:min-h-7 items-center gap-1 rounded-md border-l-4 px-1.5 py-0.5 text-sm shadow-sm ring-1 ${
+  const cls = `${fullWidth ? "flex w-full text-left" : "inline-flex max-w-full"} min-h-11 md:min-h-7 items-center gap-1 rounded-md border-l-4 px-1.5 py-0.5 text-sm shadow-sm ring-1 ${
     own ? "bg-brand-50 font-bold ring-2 ring-brand-600" : absent ? "bg-slate-100 text-slate-500 ring-line" : "bg-white ring-line"
   } ${onClick ? "cursor-pointer hover:ring-2 hover:ring-brand-600 active:bg-slate-50" : ""} ${dragProps && Object.keys(dragProps).length ? "touch-manipulation select-none [-webkit-touch-callout:none]" : ""} ${dragging ? "opacity-30" : ""}`;
   const style = { borderLeftColor: department?.color ?? "#94a3b8" };
