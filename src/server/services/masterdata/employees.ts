@@ -19,6 +19,8 @@ export const employeeSelect = {
   qualification: true,
   departmentId: true,
   phone: true,
+  availableFrom: true,
+  availableUntil: true,
   active: true,
   version: true,
   department: { select: { id: true, name: true, color: true } },
@@ -74,6 +76,11 @@ export async function updateEmployee(actorId: string, id: string, input: z.infer
     const cur = await tx.employee.findUnique({ where: { id }, include: { user: true, department: true } });
     if (!cur) throw notFound("Mitarbeiter nicht gefunden.");
     if (data.departmentId && data.departmentId !== cur.departmentId) await assertDepartment(tx, data.departmentId);
+    // Zeitraum gegen den zusammengeführten Stand prüfen
+    const from = data.availableFrom === undefined ? cur.availableFrom : data.availableFrom;
+    const until = data.availableUntil === undefined ? cur.availableUntil : data.availableUntil;
+    if (from && until && from > until) throw badRequest("„im Betrieb bis“ darf nicht vor „von“ liegen.");
+    if ((data.qualification ?? cur.qualification) === "PRAKTIKANT" && !until) throw badRequest("Bei Praktikanten bitte angeben, bis wann das Praktikum dauert.");
 
     const res = await tx.employee.updateMany({ where: { id, version }, data: { ...data, version: { increment: 1 } } });
     if (res.count !== 1) throw conflict();
@@ -90,7 +97,17 @@ export async function updateEmployee(actorId: string, id: string, input: z.infer
     const changes = describeChanges(
       cur,
       data,
-      { firstName: "Vorname", lastName: "Nachname", shortName: "Kürzel", qualification: "Ausbildung", departmentId: "Abteilung", phone: "Telefon", active: "Status" },
+      {
+        firstName: "Vorname",
+        lastName: "Nachname",
+        shortName: "Kürzel",
+        qualification: "Ausbildung",
+        departmentId: "Abteilung",
+        phone: "Telefon",
+        availableFrom: "im Betrieb ab",
+        availableUntil: "im Betrieb bis",
+        active: "Status",
+      },
       (key, v) =>
         key === "qualification"
           ? (QUALIFICATION_LABELS[v as Qualification] ?? String(v))

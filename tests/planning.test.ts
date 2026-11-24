@@ -76,7 +76,7 @@ import { buildDay, buildIndexes } from "@/lib/planning-view";
 import type { PlanningData } from "@/lib/planning-types";
 
 describe("Tagesansicht aufbauen", () => {
-  const emp = (id: string, q = "GESELLE") => ({ id, firstName: id, lastName: id, shortName: id.toUpperCase(), qualification: q, departmentId: "d", phone: null, active: true });
+  const emp = (id: string, q = "GESELLE") => ({ id, firstName: id, lastName: id, shortName: id.toUpperCase(), qualification: q, departmentId: "d", phone: null, active: true, availableFrom: null, availableUntil: null });
   const data: PlanningData = {
     from: "2026-12-01",
     to: "2026-12-01",
@@ -103,8 +103,7 @@ describe("Tagesansicht aufbauen", () => {
     expect(day.sites).toHaveLength(1);
     expect(day.sites[0].items[0].crew.map((e) => e.id)).toEqual(["a"]);
   });
-  it("Pool: Fahrzeug mit Besatzung zuerst, dann freie", () => {
-    // gesperrte Fahrzeuge (Besitzer mit Fahrzeug abwesend) ans Ende
+  it("Pool: feste Reihenfolge laut Stammdaten (Besatzung ändert nichts), gesperrte ans Ende", () => {
     expect(day.poolVehicles.map((v) => v.vehicle.id)).toEqual(["v2", "v3", "v4"]);
     expect(day.poolVehicles[0].crewWarnings.some((w) => w.text.includes("Nur Azubis"))).toBe(true);
   });
@@ -142,7 +141,7 @@ describe("Kürzel für 'eingeteilt von'", () => {
 import { filterDayByDepartments, vehicleDepartment } from "@/lib/planning-view";
 
 describe("Abteilungen ausblenden", () => {
-  const emp = (id: string, dep: string) => ({ id, firstName: id, lastName: id, shortName: id.toUpperCase(), qualification: "GESELLE", departmentId: dep, phone: null, active: true });
+  const emp = (id: string, dep: string) => ({ id, firstName: id, lastName: id, shortName: id.toUpperCase(), qualification: "GESELLE", departmentId: dep, phone: null, active: true, availableFrom: null, availableUntil: null });
   const veh = (id: string, ownerId: string | null, departmentId: string | null = null) => ({
     id, licensePlate: id, name: id, type: null, seats: 3, active: true, sortOrder: 0, ownerId, departmentId, defaultIds: ownerId ? [ownerId] : [],
   });
@@ -190,5 +189,63 @@ describe("Abteilungen ausblenden", () => {
     expect(f.sites[0].items.map((i) => i.vehicle.id)).toEqual(["vs"]);
     expect(f.poolEmployees.map((p) => p.employee.id).sort()).toEqual(["h1", "s1"]);
     expect(f.poolVehicles.map((p) => p.vehicle.id).sort()).toEqual(["vh", "vx"]);
+  });
+});
+
+import { isAvailableOn } from "@/lib/constants";
+describe("Praktikanten / Zeitraum im Betrieb", () => {
+  it("Zeitraum prüfen", () => {
+    expect(isAvailableOn({ availableFrom: "2026-12-01", availableUntil: "2026-12-19" }, "2026-12-01")).toBe(true);
+    expect(isAvailableOn({ availableFrom: "2026-12-01", availableUntil: "2026-12-19" }, "2026-11-30")).toBe(false);
+    expect(isAvailableOn({ availableFrom: null, availableUntil: "2026-12-19" }, "2026-12-20")).toBe(false);
+    expect(isAvailableOn({ availableFrom: null, availableUntil: null }, "2030-01-01")).toBe(true);
+  });
+  const emp = (id: string, extra = {}) => ({ id, firstName: id, lastName: id, shortName: id.toUpperCase(), qualification: "GESELLE", departmentId: "d", phone: null, active: true, availableFrom: null, availableUntil: null, ...extra });
+  const data: PlanningData = {
+    from: "2026-11-30",
+    to: "2026-11-30",
+    employees: [emp("g"), emp("p", { qualification: "PRAKTIKANT", availableFrom: "2026-12-01", availableUntil: "2026-12-19" })],
+    vehicles: [
+      { id: "v9", licensePlate: "V9", name: "V9", type: null, seats: 3, active: true, sortOrder: 9, ownerId: null, departmentId: null, defaultIds: [] },
+      { id: "v1", licensePlate: "V1", name: "V1", type: null, seats: 3, active: true, sortOrder: 1, ownerId: null, departmentId: null, defaultIds: [] },
+    ],
+    sites: [],
+    departments: [{ id: "d", name: "D", color: "#111111", sortOrder: 0 }],
+    absenceTypes: [],
+    absences: [],
+    vehicleDays: [{ id: "x", date: "2026-11-30", vehicleId: "v9", note: null, version: 1, crew: [{ id: "c", employeeId: "g", sortOrder: 0, assignedById: null, createdAt: "" }], assignments: [] }],
+    planners: [],
+    settings: { defaultStartMin: 420, defaultEndMin: 960 },
+  };
+  const idx = buildIndexes(data);
+  it("vor dem Praktikum nicht im Pool", () => {
+    expect(buildDay(data, idx, "2026-11-30").poolEmployees.map((p) => p.employee.id)).toEqual([]);
+    expect(buildDay(data, idx, "2026-12-01").poolEmployees.map((p) => p.employee.id)).toEqual(["g", "p"]);
+  });
+  it("besetztes Fahrzeug springt nicht nach oben", () => {
+    expect(buildDay(data, idx, "2026-11-30").poolVehicles.map((p) => p.vehicle.id)).toEqual(["v1", "v9"]);
+  });
+  it("nur Praktikant + Azubi -> Warnung", () => {
+    expect(crewWarnings({ seats: 3 }, [{ id: "p", firstName: "P", lastName: "P", qualification: "PRAKTIKANT" }], new Set(), true)[0].text).toBe(
+      "Nur Azubis/Praktikanten – kein Geselle/Meister",
+    );
+  });
+});
+
+import { compactNames } from "@/lib/names";
+describe("Kompakte Namen", () => {
+  it("Nachname + Initiale, bei Gleichheit eindeutig", () => {
+    const m = compactNames([
+      { id: "1", firstName: "Max", lastName: "Müller" },
+      { id: "2", firstName: "Moritz", lastName: "Müller" },
+      { id: "3", firstName: "Jonas", lastName: "Weber" },
+      { id: "4", firstName: "Anna", lastName: "Schmidt" },
+      { id: "5", firstName: "Ann", lastName: "Schmidt" },
+    ]);
+    expect(m.get("3")).toBe("Weber J.");
+    expect(m.get("1")).toBe("Müller Ma.");
+    expect(m.get("2")).toBe("Müller Mo.");
+    expect(m.get("5")).toBe("Schmidt Ann");
+    expect(m.get("4")).toBe("Schmidt Anna");
   });
 });

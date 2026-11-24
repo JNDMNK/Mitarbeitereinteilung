@@ -1,4 +1,4 @@
-import { isApprentice } from "./constants";
+import { isUnqualified } from "./constants";
 import { formatDate } from "./dates";
 import { DAY_MINUTES, formatMinutes, overlaps, SLOT_MINUTES } from "./time";
 import type { PAbsence, PEmployee, PSite, PVehicle } from "./planning-types";
@@ -22,7 +22,10 @@ export function crewWarnings(
     if (absentIds.has(e.id)) w.push({ level: "error", text: `${e.firstName} ${e.lastName} ist abwesend` });
   }
   if (crew.length > vehicle.seats) w.push({ level: "error", text: `Überbelegt: ${crew.length} Personen bei ${vehicle.seats} Sitzplätzen` });
-  if (crew.length > 0 && crew.every((e) => isApprentice(e.qualification))) w.push({ level: "warn", text: "Nur Azubis – kein Geselle/Meister" });
+  if (crew.length > 0 && crew.every((e) => isUnqualified(e.qualification))) {
+    const label = crew.some((e) => e.qualification === "PRAKTIKANT") ? "Nur Azubis/Praktikanten" : "Nur Azubis";
+    w.push({ level: "warn", text: `${label} – kein Geselle/Meister` });
+  }
   if (crew.length === 0 && hasAssignment) w.push({ level: "warn", text: "Keine Besatzung" });
   return w;
 }

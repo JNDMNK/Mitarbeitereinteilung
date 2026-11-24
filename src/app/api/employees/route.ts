@@ -1,4 +1,4 @@
-import { employeeCreateSchema } from "@/lib/masterdata-schemas";
+import { employeeCreateSchemaChecked } from "@/lib/masterdata-schemas";
 import { can } from "@/lib/roles";
 import { apiRoute, parseJson } from "@/server/api";
 import { createEmployee, listEmployees } from "@/server/services/masterdata/employees";
@@ -17,6 +17,6 @@ export const GET = apiRoute({ permission: "planning.view" }, async ({ session })
 });
 
 export const POST = apiRoute({ permission: "masterdata.edit" }, async ({ req, session }) => {
-  const input = await parseJson(req, employeeCreateSchema);
+  const input = await parseJson(req, employeeCreateSchemaChecked);
   return { employee: await createEmployee(session.user.id, input) };
 });

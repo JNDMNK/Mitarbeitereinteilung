@@ -50,14 +50,8 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
         const crew = (vd?.crew ?? []).map((c) => idx.employees.get(c.employeeId)).filter((e): e is PEmployee => !!e);
         return { vehicle, vd, crew };
       });
-    const first = (r: Row) => r.vd?.assignments[0]?.startMin ?? Infinity;
-    return list.sort(
-      (a, b) =>
-        Number(!!b.vd?.assignments.length) - Number(!!a.vd?.assignments.length) ||
-        first(a) - first(b) ||
-        Number(b.crew.length > 0) - Number(a.crew.length > 0) ||
-        a.vehicle.sortOrder - b.vehicle.sortOrder,
-    );
+    // feste Reihenfolge laut Stammdaten – Fahrzeuge springen beim Einteilen nicht umher
+    return list.sort((a, b) => a.vehicle.sortOrder - b.vehicle.sortOrder || a.vehicle.name.localeCompare(b.vehicle.name));
   }, [data, idx, day]);
 
   const axis = useMemo(
@@ -93,7 +87,7 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
   return (
     <section className="space-y-2" aria-label={`Zeitleiste ${day.date}`}>
       <DayHeader day={day} today={today} canEdit={canEdit} open={open} sticky={false} />
-      <AbsentBar day={day} ownEmployeeId={ownEmployeeId} open={open} />
+      <AbsentBar day={day} ownEmployeeId={ownEmployeeId} open={open} idx={idx} />
 
       <div ref={scrollRef} data-no-swipe className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-line">
         <div className="min-w-[860px]">
@@ -137,11 +131,11 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
                       </span>
                     </span>
                     <span className={`truncate text-xs ${r.crew.some((e) => e.id === ownEmployeeId) ? "font-bold text-brand-700" : "text-muted"}`}>
-                      {r.crew.length ? r.crew.map((e) => (absentIds.has(e.id) ? `${e.shortName}⚠` : e.shortName)).join(", ") : "–"}
+                      {r.crew.length ? r.crew.map((e) => `${idx.names.get(e.id) ?? e.shortName}${absentIds.has(e.id) ? "⚠" : ""}`).join(", ") : "–"}
                     </span>
                     {owner && (
                       <span className="truncate text-[11px] text-slate-600" title={`Besitzer: ${owner.employee.firstName} ${owner.employee.lastName}`}>
-                        👤 {owner.employee.shortName}
+                        👤 {idx.names.get(owner.employee.id) ?? owner.employee.shortName}
                         {owner.state === "absent" ? ` abwesend (${owner.absence?.type?.code ?? "?"})` : owner.state === "elsewhere" ? ` auf ${owner.elsewhereVehicle?.licensePlate ?? "?"}` : ""}
                       </span>
                     )}

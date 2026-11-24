@@ -1,3 +1,5 @@
+import { isAvailableOn } from "./constants";
+import { compactNames } from "./names";
 import { absenceOn, crewWarnings, siteWarnings, type Warning } from "./planning-logic";
 import type { PAbsence, PAbsenceType, PAssignment, PEmployee, PlanningData, PSite, PVehicle, PVehicleDay } from "./planning-types";
 
@@ -47,6 +49,8 @@ export function buildIndexes(data: PlanningData) {
     departments: new Map(data.departments.map((d) => [d.id, d])),
     types: new Map(data.absenceTypes.map((t) => [t.id, t])),
     planners: new Map((data.planners ?? []).map((p) => [p.id, p])),
+    /** "Müller M." – kompakte, eindeutige Anzeigenamen */
+    names: compactNames(data.employees),
   };
 }
 export type Indexes = ReturnType<typeof buildIndexes>;
@@ -56,6 +60,7 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
   const absent: AbsentEntry[] = [];
   const absentIds = new Set<string>();
   for (const e of data.employees) {
+    if (!isAvailableOn(e, date)) continue;
     const a = absenceOn(data.absences, e.id, date);
     if (a) {
       absent.push({ employee: e, absence: a, type: idx.types.get(a.typeId) });
@@ -69,7 +74,10 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
     if (!vehicle) return null;
     const crew = vd.crew.map((c) => idx.employees.get(c.employeeId)).filter((e): e is PEmployee => !!e);
     for (const e of crew) seatOf.set(e.id, vehicle.id);
-    return { vehicle, vehicleDay: vd, crew, crewWarnings: crewWarnings(vehicle, crew, absentIds, vd.assignments.length > 0), defaultMembers: [] };
+    const outside: Warning[] = crew
+      .filter((e) => !isAvailableOn(e, date))
+      .map((e) => ({ level: "error", text: `${e.firstName} ${e.lastName} ist an diesem Tag nicht im Betrieb` }));
+    return { vehicle, vehicleDay: vd, crew, crewWarnings: [...outside, ...crewWarnings(vehicle, crew, absentIds, vd.assignments.length > 0)], defaultMembers: [] };
   };
 
   const siteMap = new Map<string, SiteGroup>();
@@ -119,13 +127,12 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
     slot.defaultMembers = v.defaultIds
       .filter((id) => id !== v.ownerId)
       .map((id) => idx.employees.get(id))
-      .filter((e): e is PEmployee => !!e && e.active);
+      .filter((e): e is PEmployee => !!e && e.active && isAvailableOn(e, date));
   };
   const poolOrder = () =>
     poolVehicles.sort(
       (a, b) =>
         Number(!!a.unavailable) - Number(!!b.unavailable) ||
-        Number(b.crew.length > 0) - Number(a.crew.length > 0) ||
         a.vehicle.sortOrder - b.vehicle.sortOrder ||
         a.vehicle.name.localeCompare(b.vehicle.name),
     );
@@ -140,7 +147,7 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
   const depOrder = (e: PEmployee) => idx.departments.get(e.departmentId)?.sortOrder ?? 999;
   // Pool = nur verfügbare Mitarbeiter; Abwesende stehen ausschließlich in der Abwesenheitsleiste
   const poolEmployees: PoolEmployee[] = data.employees
-    .filter((e) => e.active && !seatOf.has(e.id) && !absentIds.has(e.id))
+    .filter((e) => e.active && !seatOf.has(e.id) && !absentIds.has(e.id) && isAvailableOn(e, date))
     .sort((a, b) => depOrder(a) - depOrder(b) || a.lastName.localeCompare(b.lastName))
     .map((e) => ({ employee: e }));
 

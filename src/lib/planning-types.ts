@@ -9,6 +9,9 @@ export type PEmployee = {
   departmentId: string;
   phone: string | null;
   active: boolean;
+  /** Zeitraum im Betrieb (z. B. Praktikum) */
+  availableFrom: string | null;
+  availableUntil: string | null;
 };
 export type PVehicle = {
   id: string;

@@ -113,11 +113,14 @@ model Employee {
   lastName     String
   /// Kürzel, z. B. "MMU"
   shortName    String     @unique
-  /// "AZUBI_1" | "AZUBI_2" | "AZUBI_3" | "AZUBI_4" | "GESELLE" | "MEISTER"
+  /// "PRAKTIKANT" | "AZUBI_1" | "AZUBI_2" | "AZUBI_3" | "AZUBI_4" | "GESELLE" | "MEISTER"
   qualification String
   departmentId String
   department   Department @relation(fields: [departmentId], references: [id])
   phone        String?
+  /// Zeitraum im Betrieb (z. B. Praktikum), "YYYY-MM-DD", leer = unbegrenzt
+  availableFrom  String?
+  availableUntil String?
   active       Boolean    @default(true)
   version      Int        @default(1)
   createdAt    DateTime   @default(now())

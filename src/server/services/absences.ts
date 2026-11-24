@@ -41,6 +41,12 @@ async function assertNoOverlap(tx: Tx, employeeId: string, start: string, end: s
   }
 }
 
+function assertInPeriod(emp: { availableFrom: string | null; availableUntil: string | null }, start: string, end: string) {
+  if ((emp.availableFrom && start < emp.availableFrom) || (emp.availableUntil && end > emp.availableUntil)) {
+    throw badRequest(`Der Zeitraum liegt außerhalb der Zeit im Betrieb (${formatRange(emp.availableFrom ?? start, emp.availableUntil ?? end)}).`);
+  }
+}
+
 function assertLength(start: string, end: string) {
   if (diffDays(start, end) + 1 > MAX_DAYS) throw badRequest("Eine Abwesenheit darf höchstens ein Jahr umfassen.");
 }
@@ -91,6 +97,7 @@ export async function createAbsence(actorId: string, input: z.infer<typeof absen
   const result = await db.$transaction(async (tx) => {
     const emp = await tx.employee.findUnique({ where: { id: input.employeeId } });
     if (!emp || !emp.active) throw badRequest("Bitte einen aktiven Mitarbeiter wählen.");
+    assertInPeriod(emp, input.startDate, input.endDate);
     const type = await assertType(tx, input.typeId);
     await assertNoOverlap(tx, input.employeeId, input.startDate, input.endDate);
     // "mit Fahrzeug" nur, wenn der Mitarbeiter wirklich ein Fahrzeug besitzt
@@ -125,6 +132,7 @@ export async function updateAbsence(actorId: string, id: string, input: z.infer<
     const end = data.endDate ?? cur.endDate;
     if (start > end) throw badRequest("Das Ende darf nicht vor dem Beginn liegen.");
     assertLength(start, end);
+    assertInPeriod(cur.employee, start, end);
     const type = data.typeId ? await assertType(tx, data.typeId, cur.typeId) : cur.type;
     await assertNoOverlap(tx, cur.employeeId, start, end, id);
 

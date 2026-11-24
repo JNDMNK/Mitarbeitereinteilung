@@ -30,11 +30,13 @@ export function DraggableEmployee({
   open,
   suffix,
   assignedBy,
+  isOwner,
 }: {
   employee: PEmployee;
   date: string;
   fromVehicleId: string | null;
   assignedBy?: string;
+  isOwner?: boolean;
   day: DayView;
   idx: Indexes;
   canEdit: boolean;
@@ -58,6 +60,8 @@ export function DraggableEmployee({
       dragProps={drag.props}
       dragging={drag.isDragging}
       assignedBy={assignedBy}
+      label={idx.names.get(employee.id)}
+      isOwner={isOwner}
     />
   );
 }
@@ -137,6 +141,7 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
         employee={e}
         date={day.date}
         fromVehicleId={vehicle.id}
+        isOwner={vehicle.ownerId === e.id}
         assignedBy={(() => {
           const row = slot?.vehicleDay?.crew.find((c) => c.employeeId === e.id);
           return plannerText(idx, row?.assignedById, row?.createdAt);
@@ -153,7 +158,7 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
   return (
     <section className="min-w-0 space-y-3" aria-label={formatDayLong(day.date)}>
       <DayHeader day={day} today={today} canEdit={canEdit} open={open} />
-      <AbsentBar day={day} ownEmployeeId={ownEmployeeId} open={open} />
+      <AbsentBar day={day} ownEmployeeId={ownEmployeeId} open={open} idx={idx} />
 
       {/* Baustellen */}
       {day.sites.length === 0 && (
@@ -170,7 +175,7 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
           canEdit={canEdit}
           className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-line"
         >
-          <div className="flex items-start gap-2 border-b border-line px-3 py-2" style={{ boxShadow: `inset 6px 0 0 ${g.site.color}` }}>
+          <div className="flex items-start gap-2 border-b border-line px-3 py-1.5" style={{ boxShadow: `inset 6px 0 0 ${g.site.color}` }}>
             <div className="min-w-0 flex-1 pl-1.5">
               <h3 className="leading-tight font-bold">{g.site.name}</h3>
               {g.site.address && (
@@ -199,7 +204,7 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
                 id={`vehdrop:${day.date}:${it.vehicle.id}:${it.assignment.id}`}
                 data={{ kind: "vehicle", accepts: "employee", date: day.date, vehicleId: it.vehicle.id }}
                 canEdit={canEdit}
-                className="space-y-1.5 py-2 pr-3 pl-4"
+                className="space-y-1 py-1.5 pr-2 pl-4"
               >
                 <div className="flex items-center gap-2">
                   <span className="shrink-0 rounded bg-slate-800 px-1.5 font-mono text-xs leading-6 font-bold text-white">
@@ -223,7 +228,7 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
                     />
                   </div>
                 </div>
-                {it.owner && <OwnerLine owner={it.owner} ownEmployeeId={ownerHighlight} />}
+                {it.owner && it.owner.state !== "here" && <OwnerLine owner={it.owner} ownEmployeeId={ownerHighlight} name={idx.names.get(it.owner.employee.id)} />}
                 {it.crew.length > 0 ? (
                   <div className="flex flex-wrap gap-1">{crewChips(it.crew, it.vehicle, it.assignment.id, it)}</div>
                 ) : (
@@ -285,9 +290,16 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open }: Pro
                   <UnavailableNote entry={p.unavailable} />
                 ) : (
                   <>
-                    {p.owner && <OwnerLine owner={p.owner} ownEmployeeId={ownerHighlight} />}
-                    {p.crew.length === 0 && p.defaultMembers.length > 0 && (
-                      <p className="text-xs text-muted">Standard-Mitfahrer: {p.defaultMembers.map((e) => e.shortName).join(", ")}</p>
+                    {p.owner && p.owner.state !== "here" && (
+                      <OwnerLine
+                        owner={p.owner}
+                        ownEmployeeId={ownerHighlight}
+                        name={idx.names.get(p.owner.employee.id)}
+                        extra={p.crew.length === 0 && p.defaultMembers.length > 0 ? `+ ${p.defaultMembers.map((e) => idx.names.get(e.id) ?? e.shortName).join(", ")}` : undefined}
+                      />
+                    )}
+                    {!p.owner && p.crew.length === 0 && p.defaultMembers.length > 0 && (
+                      <p className="text-xs text-muted">Standard: {p.defaultMembers.map((e) => idx.names.get(e.id) ?? e.shortName).join(", ")}</p>
                     )}
                   </>
                 )}
@@ -348,7 +360,7 @@ export function DayHeader({ day, today, canEdit, open, sticky = true }: { day: D
   );
 }
 
-export function AbsentBar({ day, ownEmployeeId, open }: { day: DayView; ownEmployeeId: string | null; open: (s: Sheet) => void }) {
+export function AbsentBar({ day, ownEmployeeId, open, idx }: { day: DayView; ownEmployeeId: string | null; open: (s: Sheet) => void; idx?: Indexes }) {
   if (day.absent.length === 0) return null;
   return (
 <div className="rounded-xl bg-white p-2 shadow-sm ring-1 ring-line">
@@ -365,7 +377,7 @@ export function AbsentBar({ day, ownEmployeeId, open }: { day: DayView; ownEmplo
                 <span className="rounded px-1 font-mono leading-5 font-bold text-white" style={{ backgroundColor: a.type?.color }}>
                   {a.type?.code}
                 </span>
-                {a.employee.shortName}
+                {idx?.names.get(a.employee.id) ?? a.employee.shortName}
               </button>
             ))}
           </div>

@@ -49,14 +49,28 @@ const employeeBase = z.object({
   qualification: z.enum(QUALIFICATIONS, { message: "Bitte den Ausbildungsstand wählen." }),
   departmentId: id,
   phone: optionalText(40),
+  /** Zeitraum im Betrieb (z. B. Praktikum) */
+  availableFrom: optionalDate,
+  availableUntil: optionalDate,
 });
+const employeePeriodRefine = <T extends { availableFrom?: string | null; availableUntil?: string | null; qualification?: string }>(s: z.ZodType<T>) =>
+  s
+    .refine((v) => !v.availableFrom || !v.availableUntil || v.availableFrom <= v.availableUntil, {
+      message: "„im Betrieb bis“ darf nicht vor „von“ liegen.",
+      path: ["availableUntil"],
+    })
+    .refine((v) => v.qualification !== "PRAKTIKANT" || !!v.availableUntil, {
+      message: "Bei Praktikanten bitte angeben, bis wann das Praktikum dauert.",
+      path: ["availableUntil"],
+    });
 export const employeeCreateSchema = employeeBase.extend({
   /** optional direkt einen Login (Rolle Mitarbeiter) anlegen */
   login: z
     .object({ username: usernameSchema, password: passwordSchema })
     .nullish(),
 });
-export const employeeUpdateSchema = employeeBase.partial().extend({ version, active: z.boolean().optional() });
+export const employeeCreateSchemaChecked = employeePeriodRefine(employeeCreateSchema);
+export const employeeUpdateSchema = employeePeriodRefine(employeeBase.partial().extend({ version, active: z.boolean().optional() }));
 
 // --- Fahrzeuge -----------------------------------------------------------
 const vehicleBase = z.object({

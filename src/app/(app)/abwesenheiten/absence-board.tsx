@@ -25,7 +25,18 @@ type Absence = {
 };
 type Department = { id: string; name: string; color: string; sortOrder: number };
 type AbsenceType = { id: string; name: string; code: string; color: string; active: boolean };
-type Employee = { id: string; firstName: string; lastName: string; shortName: string; active: boolean; department: Department };
+type Employee = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  shortName: string;
+  active: boolean;
+  availableFrom?: string | null;
+  availableUntil?: string | null;
+  qualification?: string;
+  department: Department;
+};
+const inPeriod = (e: Employee, d: string) => (!e.availableFrom || e.availableFrom <= d) && (!e.availableUntil || e.availableUntil >= d);
 
 type Selection = { employeeId: string; anchor: string; current: string; mode: "drag" | "tap" };
 type DialogState = { kind: "create"; employeeId: string | null; start: string; end: string } | { kind: "edit"; absence: Absence } | null;
@@ -118,7 +129,7 @@ export function AbsenceBoard(props: {
   }
 
   function onCellPointerDown(e: React.PointerEvent, employee: Employee, day: string) {
-    if (!canEdit || !employee.active) return;
+    if (!canEdit || !employee.active || !inPeriod(employee, day)) return;
     const existing = byCell.get(employee.id)?.get(day);
     if (existing) return; // Klick auf bestehende Abwesenheit -> onClick
     if (e.pointerType === "mouse") {
@@ -133,7 +144,7 @@ export function AbsenceBoard(props: {
       if (canEdit) setDialog({ kind: "edit", absence: existing });
       return;
     }
-    if (!canEdit || !employee.active || pointerType === "mouse") return;
+    if (!canEdit || !employee.active || !inPeriod(employee, day) || pointerType === "mouse") return;
     // Touch: 1. Tippen = Beginn, 2. Tippen in derselben Zeile = Ende
     if (selection?.mode === "tap" && selection.employeeId === employee.id) {
       openCreate(employee.id, selection.anchor, day);
@@ -289,6 +300,11 @@ export function AbsenceBoard(props: {
                             <span className={`hidden truncate md:inline ${own ? "font-bold" : ""}`}>
                               {e.lastName}, {e.firstName}
                             </span>
+                            {e.qualification === "PRAKTIKANT" && (
+                              <span className="rounded bg-sky-200 px-1 text-[10px] font-bold text-sky-950" title="Praktikant">
+                                P
+                              </span>
+                            )}
                           </span>
                         </th>
                         {days.map((d) => {
@@ -297,16 +313,18 @@ export function AbsenceBoard(props: {
                           return (
                             <td
                               key={d}
-                              title={a ? `${a.type.name}: ${formatRange(a.startDate, a.endDate)}${a.withVehicle ? " – mit Fahrzeug" : ""}${a.note ? ` – ${a.note}` : ""}` : formatDayLong(d)}
+                              title={!inPeriod(e, d) ? "nicht im Betrieb" : a ? `${a.type.name}: ${formatRange(a.startDate, a.endDate)}${a.withVehicle ? " – mit Fahrzeug" : ""}${a.note ? ` – ${a.note}` : ""}` : formatDayLong(d)}
                               onPointerDown={(ev) => {
                                 lastPointerType.current = ev.pointerType;
                                 onCellPointerDown(ev, e, d);
                               }}
                               onPointerEnter={() => {
-                                if (selection?.mode === "drag" && selection.employeeId === e.id && !a) setSelection({ ...selection, current: d });
+                                if (selection?.mode === "drag" && selection.employeeId === e.id && !a && inPeriod(e, d)) setSelection({ ...selection, current: d });
                               }}
                               onClick={(ev) => onCellClick(ev, e, d, lastPointerType.current)}
-                              className={`h-10 border-b border-line p-0.5 text-center ${isWeekend(d) ? "bg-slate-100" : ""} ${d === today ? "border-x-2 border-x-brand-700" : ""} ${canEdit && e.active ? "cursor-pointer hover:bg-brand-50" : ""}`}
+                              className={`h-10 border-b border-line p-0.5 text-center ${
+                                !inPeriod(e, d) ? "bg-[repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9_4px,#e2e8f0_4px,#e2e8f0_8px)]" : isWeekend(d) ? "bg-slate-100" : ""
+                              } ${d === today ? "border-x-2 border-x-brand-700" : ""} ${canEdit && e.active && inPeriod(e, d) ? "cursor-pointer hover:bg-brand-50" : ""}`}
                             >
                               {a ? (
                                 <span

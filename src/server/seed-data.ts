@@ -62,6 +62,14 @@ export async function seedDemo(db: PrismaClient, opts: { withLogins: boolean }) 
     emp[shortName] = e.id;
   }
 
+  // Praktikant (nur in einem Zeitraum im Betrieb)
+  const intern = await db.employee.upsert({
+    where: { shortName: "MLA" },
+    update: {},
+    create: { firstName: "Mia", lastName: "Lang", shortName: "MLA", qualification: "PRAKTIKANT", departmentId: deps["Elektro"], availableFrom: isoDate(3), availableUntil: isoDate(24) },
+  });
+  emp.MLA = intern.id;
+
   const vehicles = [
     { licensePlate: "WÜ-EL 101", name: "Sprinter 1", type: "Transporter", seats: 3, driver: "MMU", members: ["JWE"] },
     { licensePlate: "WÜ-EL 102", name: "Sprinter 2", type: "Transporter", seats: 3, driver: "SSC", members: ["LFI"] },

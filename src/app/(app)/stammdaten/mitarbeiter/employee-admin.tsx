@@ -7,6 +7,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/field";
 import { api } from "@/lib/api-client";
 import { PASSWORD_MIN_LENGTH, QUALIFICATION_LABELS, QUALIFICATIONS, type Qualification } from "@/lib/constants";
+import { formatDate, todayIso } from "@/lib/dates";
 import { ColorDot, FormActions, ListBox, matches, MessageBar, Row, str, Tag, toggleActive, Toolbar, useSave } from "@/components/masterdata/shared";
 
 type Employee = {
@@ -17,6 +18,8 @@ type Employee = {
   qualification: string;
   departmentId: string;
   phone: string | null;
+  availableFrom: string | null;
+  availableUntil: string | null;
   active: boolean;
   version: number;
   department: { id: string; name: string; color: string };
@@ -138,6 +141,16 @@ export function EmployeeAdmin({
               </span>
               <span className="font-mono text-sm font-semibold text-muted">{e.shortName}</span>
               <QualificationBadge q={e.qualification} />
+              {(e.availableFrom || e.availableUntil) &&
+                (e.availableUntil && e.availableUntil < todayIso() ? (
+                  <Tag>{e.qualification === "PRAKTIKANT" ? "Praktikum" : "Zeitraum"} beendet</Tag>
+                ) : (
+                  <Tag tone="brand">
+                    {e.qualification === "PRAKTIKANT" ? "Praktikum" : "im Betrieb"}{" "}
+                    {e.availableFrom ? `${formatDate(e.availableFrom)} – ` : "bis "}
+                    {e.availableUntil ? formatDate(e.availableUntil) : "offen"}
+                  </Tag>
+                ))}
               {!e.active && <Tag>inaktiv</Tag>}
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
@@ -230,6 +243,7 @@ function EmployeeForm({
   const [short, setShort] = useState(employee?.shortName ?? "");
   const [shortTouched, setShortTouched] = useState(!!employee);
   const [withLogin, setWithLogin] = useState(false);
+  const [qualification, setQualification] = useState(employee?.qualification ?? "GESELLE");
   const [username, setUsername] = useState("");
   const [userTouched, setUserTouched] = useState(false);
 
@@ -248,9 +262,11 @@ function EmployeeForm({
           firstName: first,
           lastName: last,
           shortName: effShort,
-          qualification: str(f, "qualification"),
+          qualification,
           departmentId: str(f, "departmentId"),
           phone: str(f, "phone") || null,
+          availableFrom: str(f, "availableFrom") || null,
+          availableUntil: str(f, "availableUntil") || null,
         };
         const ok = await form.run(
           () =>
@@ -292,7 +308,7 @@ function EmployeeForm({
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Ausbildungsstand">
-          <Select name="qualification" defaultValue={employee?.qualification ?? "GESELLE"} required>
+          <Select name="qualification" value={qualification} onChange={(e) => setQualification(e.target.value)} required>
             {QUALIFICATIONS.map((q) => (
               <option key={q} value={q}>
                 {QUALIFICATION_LABELS[q]}
@@ -310,6 +326,19 @@ function EmployeeForm({
           </Select>
         </Field>
       </div>
+
+      <fieldset className={`rounded-lg border p-3 ${qualification === "PRAKTIKANT" ? "border-sky-300 bg-sky-50" : "border-line"}`}>
+        <legend className="px-1 text-sm font-semibold">{qualification === "PRAKTIKANT" ? "Praktikumszeitraum" : "Zeitraum im Betrieb (optional, z. B. befristet)"}</legend>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="von">
+            <Input name="availableFrom" type="date" defaultValue={employee?.availableFrom ?? ""} />
+          </Field>
+          <Field label={qualification === "PRAKTIKANT" ? "bis (Pflicht)" : "bis"}>
+            <Input name="availableUntil" type="date" defaultValue={employee?.availableUntil ?? ""} required={qualification === "PRAKTIKANT"} />
+          </Field>
+        </div>
+        <p className="mt-1 text-xs text-muted">Außerhalb dieses Zeitraums erscheint die Person nicht in der Planung und kann nicht eingeteilt werden.</p>
+      </fieldset>
 
       {!employee && (
         <div className="rounded-lg border border-line p-3">

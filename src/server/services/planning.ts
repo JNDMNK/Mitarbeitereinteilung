@@ -1,6 +1,7 @@
 import "server-only";
 import type { z } from "zod";
-import { formatDayShort } from "@/lib/dates";
+import { isAvailableOn } from "@/lib/constants";
+import { formatDayShort, formatRange } from "@/lib/dates";
 import { absenceOn, findOverlap, siteWarnings, timeRange } from "@/lib/planning-logic";
 import type {
   assignmentCreateSchema,
@@ -64,7 +65,18 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
   const [employees, vehicles, sites, planners] = await Promise.all([
     db.employee.findMany({
       where: { OR: [{ active: true }, { id: { in: [...usedEmployees] } }] },
-      select: { id: true, firstName: true, lastName: true, shortName: true, qualification: true, departmentId: true, phone: true, active: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        shortName: true,
+        qualification: true,
+        departmentId: true,
+        phone: true,
+        active: true,
+        availableFrom: true,
+        availableUntil: true,
+      },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
     db.vehicle.findMany({
@@ -126,6 +138,12 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
 // ---------------------------------------------------------------------------
 
 const fullName = (e: { firstName: string; lastName: string }) => `${e.firstName} ${e.lastName}`;
+const periodText = (e: { availableFrom: string | null; availableUntil: string | null }) =>
+  e.availableFrom && e.availableUntil
+    ? formatRange(e.availableFrom, e.availableUntil)
+    : e.availableUntil
+      ? `bis ${formatRange(e.availableUntil, e.availableUntil)}`
+      : `ab ${formatRange(e.availableFrom!, e.availableFrom!)}`;
 
 async function loadVehicle(tx: Tx, vehicleId: string) {
   const v = await tx.vehicle.findUnique({
@@ -194,6 +212,7 @@ async function ensureVehicleDay(tx: Tx, actorId: string, date: string, vehicleId
     const abs = absences.find((a) => a.employeeId === empId);
     const busy = taken.find((t) => t.employeeId === empId);
     if (!e.active) skipped.push(`${e.shortName} (inaktiv)`);
+    else if (!isAvailableOn(e, date)) skipped.push(`${e.shortName} (nicht im Betrieb)`);
     else if (abs) skipped.push(`${e.shortName} (${abs.type.name})`);
     else if (busy) skipped.push(`${e.shortName} (schon auf ${busy.vehicleDay.vehicle.licensePlate})`);
     else if (added.length >= vehicle.seats) skipped.push(`${e.shortName} (kein Sitzplatz frei)`);
@@ -255,6 +274,10 @@ async function assignCrewTx(
   }
   if (currentVehicleId === p.vehicleId) return;
   await assertVehicleAvailable(tx, vehicle, p.date);
+
+  if (!isAvailableOn(emp, p.date)) {
+    throw badRequest(`${fullName(emp)} ist am ${formatDayShort(p.date)} nicht im Betrieb (${periodText(emp)}).`);
+  }
 
   // Abwesende können nicht eingeteilt werden (nur zurück in den Pool)
   const absence = await absentOn(tx, emp.id, p.date);
@@ -514,12 +537,19 @@ async function copyCrewInto(
   actorId: string,
   targetVdId: string,
   toDate: string,
-  crew: { employeeId: string; employee: { firstName: string; lastName: string; shortName: string; active: boolean } }[],
+  crew: {
+    employeeId: string;
+    employee: { firstName: string; lastName: string; shortName: string; active: boolean; availableFrom: string | null; availableUntil: string | null };
+  }[],
   skipped: { absent: string[]; busy: string[] },
 ) {
   let added = 0;
   for (const c of crew) {
     if (!c.employee.active) continue;
+    if (!isAvailableOn(c.employee, toDate)) {
+      skipped.absent.push(`${c.employee.shortName} (nicht im Betrieb)`);
+      continue;
+    }
     const abs = await absentOn(tx, c.employeeId, toDate);
     if (abs) {
       skipped.absent.push(`${c.employee.shortName} (${abs.type.code})`);

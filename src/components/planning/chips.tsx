@@ -16,8 +16,14 @@ export function EmployeeChip({
   dragProps,
   dragging,
   assignedBy,
+  label,
+  isOwner,
 }: {
   employee: PEmployee;
+  /** fährt sein eigenes Fahrzeug (Besitzer) */
+  isOwner?: boolean;
+  /** kompakter Anzeigename, z. B. "Müller M." */
+  label?: string;
   /** z. B. "ESC (Erik Schmidt), 23.11. 14:05" */
   assignedBy?: string;
   department?: PDepartment;
@@ -31,10 +37,12 @@ export function EmployeeChip({
   const absent = !!absenceType;
   const body = (
     <>
-      <span className="truncate">
-        {employee.firstName} {employee.lastName}
-      </span>
-      <span className="font-mono text-[11px] font-semibold text-muted">{employee.shortName}</span>
+      {isOwner && (
+        <span aria-label="Besitzer des Fahrzeugs" className="text-xs">
+          👤
+        </span>
+      )}
+      <span className="truncate">{label ?? `${employee.lastName} ${employee.firstName.slice(0, 1)}.`}</span>
       <QualificationBadge q={employee.qualification} />
       {absenceType && (
         <span className="rounded px-1 font-mono text-[11px] leading-5 font-bold text-white" style={{ backgroundColor: absenceType.color }} title={absenceType.name}>
@@ -43,11 +51,11 @@ export function EmployeeChip({
       )}
     </>
   );
-  const cls = `inline-flex max-w-full min-h-11 md:min-h-9 items-center gap-1.5 rounded-md border-l-4 px-2 py-1 text-sm shadow-sm ring-1 ${
+  const cls = `inline-flex max-w-full min-h-11 md:min-h-7 items-center gap-1 rounded-md border-l-4 px-1.5 py-0.5 text-sm shadow-sm ring-1 ${
     own ? "bg-brand-50 font-bold ring-2 ring-brand-600" : absent ? "bg-slate-100 text-slate-500 ring-line" : "bg-white ring-line"
   } ${onClick ? "cursor-pointer hover:ring-2 hover:ring-brand-600 active:bg-slate-50" : ""} ${dragProps && Object.keys(dragProps).length ? "touch-manipulation select-none [-webkit-touch-callout:none]" : ""} ${dragging ? "opacity-30" : ""}`;
   const style = { borderLeftColor: department?.color ?? "#94a3b8" };
-  const title = `${employee.firstName} ${employee.lastName}${absenceType ? ` – ${absenceType.name}` : ""}${own ? " (Sie)" : ""}${assignedBy ? `\neingeteilt von ${assignedBy}` : ""}`;
+  const title = `${employee.firstName} ${employee.lastName} (${employee.shortName})${isOwner ? " – Besitzer des Fahrzeugs" : ""}${absenceType ? ` – ${absenceType.name}` : ""}${own ? " (Sie)" : ""}${assignedBy ? `\neingeteilt von ${assignedBy}` : ""}`;
   return onClick ? (
     <button type="button" ref={dragRef} {...dragProps} onClick={onClick} className={cls} style={style} title={title}>
       {body}
@@ -125,7 +133,18 @@ export function ByBadge({ initials, title }: { initials: string; title: string }
 }
 
 /** "👤 Max Müller · heute auf WÜ-EL 102" – Besitzer laut Stammdaten mit Tagesstatus */
-export function OwnerLine({ owner, ownEmployeeId }: { owner?: OwnerInfo; ownEmployeeId?: string | null }) {
+export function OwnerLine({
+  owner,
+  ownEmployeeId,
+  name,
+  extra,
+}: {
+  owner?: OwnerInfo;
+  ownEmployeeId?: string | null;
+  name?: string;
+  /** z. B. Standard-Mitfahrer in derselben Zeile */
+  extra?: string;
+}) {
   if (!owner) return null;
   const e = owner.employee;
   const status =
@@ -137,13 +156,11 @@ export function OwnerLine({ owner, ownEmployeeId }: { owner?: OwnerInfo; ownEmpl
           ? { text: `abwesend (${owner.absence?.type?.code ?? "?"})`, cls: "text-red-700" }
           : { text: "nicht eingeteilt", cls: "text-muted" };
   return (
-    <p className="flex flex-wrap items-center gap-x-1.5 text-xs" title="Besitzer / Standard-Fahrer laut Stammdaten">
+    <p className="flex flex-wrap items-center gap-x-1 text-xs" title={`Besitzer / Standard-Fahrer laut Stammdaten: ${e.firstName} ${e.lastName}`}>
       <span aria-hidden>👤</span>
-      <span className={`font-semibold ${e.id === ownEmployeeId ? "text-brand-700" : "text-slate-700"}`}>
-        {e.firstName} {e.lastName}
-      </span>
-      <span className="text-muted">(Besitzer)</span>
+      <span className={`font-semibold ${e.id === ownEmployeeId ? "text-brand-700" : "text-slate-700"}`}>{name ?? `${e.lastName} ${e.firstName.slice(0, 1)}.`}</span>
       {status && <span className={`font-semibold ${status.cls}`}>· {status.text}</span>}
+      {extra && <span className="text-muted">· {extra}</span>}
     </p>
   );
 }

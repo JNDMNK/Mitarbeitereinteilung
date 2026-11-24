@@ -29,8 +29,27 @@ export default async function AbsencesPage({ searchParams }: { searchParams: Pro
   for (const v of owned) (ownedVehicles[v.defaultDriverId!] ??= []).push(v.licensePlate);
   const employees = await db.employee.findMany({
     // aktive Mitarbeiter + inaktive, die im Monat noch Abwesenheiten haben (Historie)
-    where: { OR: [{ active: true }, { id: { in: [...withAbsence] } }] },
-    select: { id: true, firstName: true, lastName: true, shortName: true, active: true, department: { select: { id: true, name: true, color: true, sortOrder: true } } },
+    // aktive Mitarbeiter, deren Zeitraum im Betrieb den Monat berührt, + Historie
+    where: {
+      OR: [
+        {
+          active: true,
+          AND: [{ OR: [{ availableFrom: null }, { availableFrom: { lte: to } }] }, { OR: [{ availableUntil: null }, { availableUntil: { gte: from } }] }],
+        },
+        { id: { in: [...withAbsence] } },
+      ],
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      shortName: true,
+      active: true,
+      availableFrom: true,
+      availableUntil: true,
+      qualification: true,
+      department: { select: { id: true, name: true, color: true, sortOrder: true } },
+    },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
 
