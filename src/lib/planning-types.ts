@@ -68,6 +68,10 @@ export type PAssignment = {
   startMin: number;
   endMin: number;
   note: string | null;
+  /** fester Kundentermin */
+  fixed?: boolean;
+  fixedTimeMin?: number | null;
+  fixedNote?: string | null;
   version: number;
   /** wer den Einsatz zuletzt geplant/geändert hat */
   updatedById: string | null;

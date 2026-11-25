@@ -35,3 +35,14 @@ describe("Gruppierung nach Qualifikation", () => {
     expect(g[1].items.map((x) => x.i)).toEqual([2, 5]);
   });
 });
+
+import { fixedConfirmText, fixedLabel } from "@/lib/planning-logic";
+describe("Fester Termin", () => {
+  it("Beschriftung mit und ohne Uhrzeit", () => {
+    expect(fixedLabel({ fixed: false, fixedTimeMin: 540 })).toBeNull();
+    expect(fixedLabel({ fixed: true, fixedTimeMin: 545 })).toBe("📌 Termin 09:05");
+    expect(fixedLabel({ fixed: true, fixedTimeMin: null })).toBe("📌 Fester Termin");
+    expect(fixedConfirmText({ fixed: true, fixedTimeMin: 540 }, "verschieben")).toContain("Termin 09:00");
+    expect(fixedConfirmText({ fixed: false }, "verschieben")).toBeNull();
+  });
+});

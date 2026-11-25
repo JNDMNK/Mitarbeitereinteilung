@@ -27,7 +27,7 @@ function useWideScreen() {
     () => false,
   );
 }
-import { timeRange } from "@/lib/planning-logic";
+import { fixedConfirmText, timeRange } from "@/lib/planning-logic";
 import { Toasts } from "./toasts";
 import { usePlanningActions, usePlanningData } from "./use-planning";
 import { useQueryClient } from "@tanstack/react-query";
@@ -166,19 +166,28 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
 
     // Fahrzeug
     const v = idx.vehicles.get(drag.vehicleId)!;
+    // fester Kundentermin: vor dem Verschieben/Entfernen nachfragen (Kopieren ist unkritisch)
+    const srcAssignment = drag.assignmentId ? data?.vehicleDays.flatMap((x) => x.assignments).find((x) => x.id === drag.assignmentId) : undefined;
+    const confirmFixed = (action: string) => {
+      const ask = !copy && srcAssignment ? fixedConfirmText(srcAssignment, action) : null;
+      return !ask || confirm(ask);
+    };
     if (drop.kind === "site") {
       if (sameDay && !copy && drag.siteId === drop.siteId) return;
+      if (!confirmFixed(sameDay ? "auf eine andere Baustelle setzen" : `auf ${formatDayShort(drop.date)} verschieben`)) return;
       setSheet({ kind: "dropTime", drag, toDate: drop.date, toSiteId: drop.siteId, copy });
       return;
     }
     if (drop.kind === "pool") {
       if (sameDay) {
         if (drag.assignmentId && !copy && drag.assignmentVersion !== null) {
+          if (!confirmFixed("von der Baustelle nehmen")) return;
           const site = drag.siteId ? idx.sites.get(drag.siteId) : undefined;
           void actions.run("assignment-delete", { id: drag.assignmentId, version: drag.assignmentVersion }, `${v.licensePlate} von „${site?.name ?? "Baustelle"}“ zurück in den Pool.`);
         }
         return;
       }
+      if (!confirmFixed(`auf ${formatDayShort(drop.date)} verschieben`)) return;
       void actions.run(
         "vehicle-transfer",
         { fromDate: drag.date, toDate: drop.date, vehicleId: v.id, assignmentId: drag.assignmentId, fromVersion: drag.vdVersion, toSiteId: null, copy },

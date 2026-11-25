@@ -152,12 +152,18 @@ function VehicleLine({ v }: { v: DVehicle }) {
   return (
     <div className="flex flex-wrap items-center gap-[0.25rem] py-[0.15rem]">
       {v.time && <span className="rounded bg-ink px-[0.3rem] font-mono text-[0.8rem] font-bold text-white">{v.time}</span>}
+      {v.fixed && (
+        <span className="rounded bg-amber-400 px-[0.3rem] text-[0.8rem] font-bold text-amber-950 ring-1 ring-amber-600" title={v.fixedNote ?? undefined}>
+          {v.fixed}
+        </span>
+      )}
       {v.isRoom ? (
         <span className="text-[0.95rem] font-semibold">🏠 {v.name}</span>
       ) : (
         <span className="rounded border-[0.12rem] border-ink px-[0.25rem] font-mono text-[0.85rem] font-bold whitespace-nowrap">{v.plate}</span>
       )}
       {v.crew.length === 0 ? <span className="text-[0.9rem] text-muted">ohne Besatzung</span> : v.crew.map((p) => <Person key={p.id} p={p} />)}
+      {v.fixedNote && <span className="w-full text-[0.8rem] font-semibold text-amber-900">📌 {v.fixedNote}</span>}
       {v.note && <span className="w-full text-[0.8rem] text-muted italic">{v.note}</span>}
       {v.warning && <span className="w-full text-[0.8rem] font-semibold text-red-700">⚠ {v.warning}</span>}
     </div>

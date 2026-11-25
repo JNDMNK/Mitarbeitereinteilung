@@ -18,6 +18,7 @@ import type {
 } from "@/lib/planning-schemas";
 import type { PlanningData, PlanningResult } from "@/lib/planning-types";
 import { userInitials } from "@/lib/initials";
+import { formatMinutes } from "@/lib/time";
 import { audit } from "../audit";
 import { db, type Tx } from "../db";
 import { ApiError, badRequest, conflict, notFound } from "../errors";
@@ -42,7 +43,7 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
           orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
         },
         assignments: {
-          select: { id: true, siteId: true, startMin: true, endMin: true, note: true, version: true, updatedById: true, updatedAt: true },
+          select: { id: true, siteId: true, startMin: true, endMin: true, note: true, fixed: true, fixedTimeMin: true, fixedNote: true, version: true, updatedById: true, updatedAt: true },
           orderBy: { startMin: "asc" },
         },
       },
@@ -146,6 +147,7 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
 // Hilfen
 // ---------------------------------------------------------------------------
 
+const fixedTimeText = (min: number | null | undefined) => (min === null || min === undefined ? "" : ` ${formatMinutes(min)} Uhr`);
 const fullName = (e: { firstName: string; lastName: string }) => `${e.firstName} ${e.lastName}`;
 const periodText = (e: { availableFrom: string | null; availableUntil: string | null }) =>
   e.availableFrom && e.availableUntil
@@ -574,7 +576,17 @@ export async function createAssignment(actorId: string, input: z.infer<typeof as
     const vd = await ensureVehicleDay(tx, actorId, input.date, input.vehicleId, messages);
     await assertNoOverlap(tx, vd.id, input.startMin, input.endMin);
     await tx.siteAssignment.create({
-      data: { vehicleDayId: vd.id, siteId: site.id, startMin: input.startMin, endMin: input.endMin, note: input.note || null, updatedById: actorId },
+      data: {
+        vehicleDayId: vd.id,
+        siteId: site.id,
+        startMin: input.startMin,
+        endMin: input.endMin,
+        note: input.note || null,
+        fixed: !!input.fixed,
+        fixedTimeMin: input.fixed ? (input.fixedTimeMin ?? null) : null,
+        fixedNote: input.fixed ? input.fixedNote || null : null,
+        updatedById: actorId,
+      },
     });
     await bumpVehicleDay(tx, vd.id);
     warnings.push(...siteWarnings(site, input.date).map((w) => w.text));
@@ -584,7 +596,7 @@ export async function createAssignment(actorId: string, input: z.infer<typeof as
       entityType: "SiteAssignment",
       entityId: vd.id,
       date: input.date,
-      summary: `${vehicle.licensePlate} auf „${site.name}“ eingeplant, ${timeRange(input.startMin, input.endMin)} (${formatDayShort(input.date)})`,
+      summary: `${vehicle.licensePlate} auf „${site.name}“ eingeplant, ${timeRange(input.startMin, input.endMin)} (${formatDayShort(input.date)})${input.fixed ? ` – 📌 fester Termin${fixedTimeText(input.fixedTimeMin)}` : ""}`,
     });
   });
   return finish(actorId, [input.date], messages, warnings);
@@ -610,7 +622,17 @@ export async function updateAssignment(actorId: string, input: z.infer<typeof as
 
     const res = await tx.siteAssignment.updateMany({
       where: { id: cur.id, version: input.version },
-      data: { siteId: site.id, startMin: start, endMin: end, ...(input.note !== undefined ? { note: input.note || null } : {}), updatedById: actorId, version: { increment: 1 } },
+      data: {
+        siteId: site.id,
+        startMin: start,
+        endMin: end,
+        ...(input.note !== undefined ? { note: input.note || null } : {}),
+        ...(input.fixed !== undefined
+          ? { fixed: input.fixed, fixedTimeMin: input.fixed ? (input.fixedTimeMin ?? null) : null, fixedNote: input.fixed ? input.fixedNote || null : null }
+          : {}),
+        updatedById: actorId,
+        version: { increment: 1 },
+      },
     });
     if (res.count !== 1) throw conflict();
     await bumpVehicleDay(tx, cur.vehicleDayId);
@@ -620,6 +642,11 @@ export async function updateAssignment(actorId: string, input: z.infer<typeof as
     if (site.id !== cur.siteId) changes.push(`Baustelle „${cur.site.name}“ → „${site.name}“`);
     if (start !== cur.startMin || end !== cur.endMin) changes.push(`Zeit ${timeRange(cur.startMin, cur.endMin)} → ${timeRange(start, end)}`);
     if (input.note !== undefined && (input.note || null) !== cur.note) changes.push("Notiz geändert");
+    if (input.fixed !== undefined) {
+      const newTime = input.fixed ? (input.fixedTimeMin ?? null) : null;
+      if (input.fixed !== cur.fixed) changes.push(input.fixed ? `📌 fester Termin${fixedTimeText(newTime)}` : "fester Termin aufgehoben");
+      else if (input.fixed && newTime !== cur.fixedTimeMin) changes.push(`Terminuhrzeit${fixedTimeText(cur.fixedTimeMin)} →${fixedTimeText(newTime) || " –"}`);
+    }
     await audit(tx, {
       userId: actorId,
       action: "assignment.update",
@@ -766,7 +793,16 @@ export async function transferVehicle(actorId: string, input: z.infer<typeof veh
       siteName = site.name;
       await assertNoOverlap(tx, target.id, input.startMin!, input.endMin!);
       await tx.siteAssignment.create({
-        data: { vehicleDayId: target.id, siteId: site.id, startMin: input.startMin!, endMin: input.endMin!, note: srcAssignment?.note ?? null, updatedById: actorId },
+        data: {
+          vehicleDayId: target.id,
+          siteId: site.id,
+          startMin: input.startMin!,
+          endMin: input.endMin!,
+          note: srcAssignment?.note ?? null,
+          // fester Termin wandert beim Verschieben mit, beim Kopieren nicht
+          ...(!input.copy && srcAssignment?.fixed ? { fixed: true, fixedTimeMin: srcAssignment.fixedTimeMin, fixedNote: srcAssignment.fixedNote } : {}),
+          updatedById: actorId,
+        },
       });
       warnings.push(...siteWarnings(site, input.toDate).map((w) => w.text));
     }

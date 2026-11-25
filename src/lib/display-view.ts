@@ -2,12 +2,12 @@
 import { groupByQualification, QUALIFICATION_BADGES, type Qualification } from "./constants";
 import { formatDayShort, isoWeek } from "./dates";
 import { holidayName } from "./holidays";
-import { timeRange } from "./planning-logic";
+import { fixedLabel, timeRange } from "./planning-logic";
 import type { PEmployee, PlanningData } from "./planning-types";
 import { buildDay, buildIndexes, type VehicleSlot } from "./planning-view";
 
 export type DPerson = { id: string; name: string; badge: string; quali: string; color: string };
-export type DVehicle = { id: string; plate: string; name: string; isRoom: boolean; time?: string; note?: string | null; crew: DPerson[]; warning?: string };
+export type DVehicle = { id: string; plate: string; name: string; isRoom: boolean; time?: string; note?: string | null; fixed?: string | null; fixedNote?: string | null; crew: DPerson[]; warning?: string };
 export type DSite = { id: string; name: string; orderNumber: string | null; address: string | null; color: string; vehicles: DVehicle[] };
 export type DDay = {
   date: string;
@@ -69,7 +69,11 @@ export function buildDisplayDays(data: PlanningData, days: string[], today: stri
         orderNumber: g.site.orderNumber,
         address: g.site.address,
         color: g.site.color,
-        vehicles: g.items.map((it) => vehicle(it, timeRange(it.assignment.startMin, it.assignment.endMin), it.assignment.note)),
+        vehicles: g.items.map((it) => ({
+          ...vehicle(it, timeRange(it.assignment.startMin, it.assignment.endMin), it.assignment.note),
+          fixed: fixedLabel(it.assignment),
+          fixedNote: it.assignment.fixed ? it.assignment.fixedNote : null,
+        })),
       })),
       idleVehicles: day.poolVehicles.filter((p) => p.crew.length > 0 && !p.unavailable).map((p) => vehicle(p)),
       rooms: day.rooms.filter((r) => r.crew.length > 0).map((r) => vehicle(r)),

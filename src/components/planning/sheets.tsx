@@ -7,7 +7,7 @@ import { Input, Select } from "@/components/ui/field";
 import { QualificationBadge } from "@/components/qualification-badge";
 import { formatDayShort, formatRange, mapsUrl } from "@/lib/dates";
 import { QUALIFICATION_LABELS, type Qualification } from "@/lib/constants";
-import { findOverlap, suggestSlot, timeRange } from "@/lib/planning-logic";
+import { findOverlap, fixedConfirmText, fixedLabel, suggestSlot, timeRange } from "@/lib/planning-logic";
 import { addDays, formatDateTimeShort } from "@/lib/dates";
 import type { NewSite, PlanningAction } from "@/lib/planning-schemas";
 import type { DragData } from "./dnd";
@@ -278,6 +278,11 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
               </>
             );
           })()}
+          {a?.fixed && (
+            <p className="rounded-lg bg-amber-100 px-3 py-2 font-semibold text-amber-950 ring-1 ring-amber-400">
+              {fixedLabel(a)} – fester Kundentermin{a.fixedNote ? ` · ${a.fixedNote}` : ""}
+            </p>
+          )}
           {a?.updatedById && idx.planners.get(a.updatedById) && (
             <p className="text-sm text-muted">
               zuletzt geplant von <strong className="font-mono">{idx.planners.get(a.updatedById)!.initials}</strong> ({idx.planners.get(a.updatedById)!.name}),{" "}
@@ -288,8 +293,16 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
             <>
               {a && site && (
                 <>
-                  <Action onClick={() => setSheet({ kind: "time", date: sheet.date, vehicleId: v.id, siteId: site.id, assignmentId: a.id })}>🕒 Zeit ändern …</Action>
-                  <Action onClick={() => setSheet({ kind: "pickSite", date: sheet.date, vehicleId: v.id, assignmentId: a.id })}>🏗️ Andere Baustelle …</Action>
+                  <Action onClick={() => setSheet({ kind: "time", date: sheet.date, vehicleId: v.id, siteId: site.id, assignmentId: a.id })}>🕒 Zeit / 📌 Termin ändern …</Action>
+                  <Action
+                    onClick={() => {
+                      const ask = fixedConfirmText(a, "auf eine andere Baustelle setzen");
+                      if (ask && !confirm(ask)) return;
+                      setSheet({ kind: "pickSite", date: sheet.date, vehicleId: v.id, assignmentId: a.id });
+                    }}
+                  >
+                    🏗️ Andere Baustelle …
+                  </Action>
                 </>
               )}
               {!slotIn(day, v.id)?.unavailable && (
@@ -316,6 +329,8 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
                 <Action
                   disabled={busy}
                   onClick={async () => {
+                    const ask = fixedConfirmText(a, "von der Baustelle nehmen");
+                    if (ask && !confirm(ask)) return;
                     close();
                     await run("assignment-delete", { id: a.id, version: a.version }, `${v.licensePlate} von „${site.name}“ entfernt.`);
                   }}
@@ -328,7 +343,9 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
                   tone="danger"
                   disabled={busy}
                   onClick={async () => {
-                    if (!confirm(v.kind === "ROOM" ? `${v.name} für ${dateLabel} leeren? Alle Personen gehen zurück in den Pool.` : `${v.licensePlate} für ${dateLabel} freigeben? Besatzung geht zurück in den Pool, alle Einsätze des Fahrzeugs an diesem Tag werden entfernt.`)) return;
+                    const fixedOnes = vd.assignments.filter((x) => x.fixed);
+                    const fixedHint = fixedOnes.length ? `\n\nAchtung: ${fixedOnes.map((x) => `${fixedLabel(x)} (${idx.sites.get(x.siteId)?.name ?? "Baustelle"})`).join(", ")} – fester Kundentermin!` : "";
+                    if (!confirm(v.kind === "ROOM" ? `${v.name} für ${dateLabel} leeren? Alle Personen gehen zurück in den Pool.` : `${v.licensePlate} für ${dateLabel} freigeben? Besatzung geht zurück in den Pool, alle Einsätze des Fahrzeugs an diesem Tag werden entfernt.${fixedHint}`)) return;
                     close();
                     await run("vehicle-release", { date: sheet.date, vehicleId: v.id, version: vd.version }, `${v.licensePlate} freigegeben.`);
                   }}
@@ -688,19 +705,21 @@ function TimeDialog({
         </>
       }
       initial={current ? { startMin: current.startMin, endMin: current.endMin } : null}
+      fixedInitial={{ fixed: !!current?.fixed, fixedTimeMin: current?.fixedTimeMin ?? null, fixedNote: current?.fixedNote ?? null }}
       others={others}
       data={data}
       idx={idx}
-      submitLabel={current ? "Zeit speichern" : "Einplanen"}
+      submitLabel={current ? "Speichern" : "Einplanen"}
       close={close}
       busy={busy}
-      onSubmit={async (start, end) => {
-        if (current) await run("assignment-update", { id: current.id, version: current.version, startMin: start, endMin: end }, `Zeit auf ${timeRange(start, end)} geändert.`);
+      onSubmit={async (start, end, fx) => {
+        const pin = fx.fixed ? ` – 📌 Termin${fx.fixedTimeMin !== null ? ` ${formatMinutes(fx.fixedTimeMin)}` : ""}` : "";
+        if (current) await run("assignment-update", { id: current.id, version: current.version, startMin: start, endMin: end, ...fx }, `${timeRange(start, end)} gespeichert${pin}.`);
         else
           await run(
             "assignment-create",
-            { date: sheet.date, vehicleId: vehicle.id, ...(sheet.newSite ? { newSite: sheet.newSite } : { siteId: site.id }), startMin: start, endMin: end },
-            `${vehicle.licensePlate} auf „${site.name}“ ${timeRange(start, end)} eingeplant.`,
+            { date: sheet.date, vehicleId: vehicle.id, ...(sheet.newSite ? { newSite: sheet.newSite } : { siteId: site.id }), startMin: start, endMin: end, ...fx },
+            `${vehicle.licensePlate} auf „${site.name}“ ${timeRange(start, end)} eingeplant${pin}.`,
           );
       }}
     />
@@ -767,6 +786,8 @@ function DropTimeDialog({
   );
 }
 
+type FixedValue = { fixed: boolean; fixedTimeMin: number | null; fixedNote: string | null };
+
 function TimeWindowDialog({
   title,
   intro,
@@ -778,7 +799,10 @@ function TimeWindowDialog({
   close,
   busy,
   onSubmit,
+  fixedInitial,
 }: {
+  /** fester Termin: Startwerte; ohne Angabe wird der Abschnitt nicht angezeigt */
+  fixedInitial?: FixedValue;
   title: string;
   intro: ReactNode;
   initial: { startMin: number; endMin: number } | null;
@@ -788,9 +812,11 @@ function TimeWindowDialog({
   submitLabel: string;
   close: () => void;
   busy: boolean;
-  onSubmit: (start: number, end: number) => Promise<void>;
+  onSubmit: (start: number, end: number, fixed: FixedValue) => Promise<void>;
 }) {
   const { defaultStartMin: ds, defaultEndMin: de } = data.settings;
+  const [fixed, setFixed] = useState<FixedValue>(fixedInitial ?? { fixed: false, fixedTimeMin: null, fixedNote: null });
+  const fiveMinOptions = useMemo(() => Array.from({ length: (22 - 5) * 12 + 1 }, (_, i) => 5 * 60 + i * 5), []);
   const suggestion = useMemo(() => initial ?? suggestSlot(others, ds, de), [initial, others, ds, de]);
   const [start, setStart] = useState(suggestion?.startMin ?? ds);
   const [end, setEnd] = useState(suggestion?.endMin ?? de);
@@ -810,7 +836,7 @@ function TimeWindowDialog({
         onSubmit={async (e) => {
           e.preventDefault();
           close();
-          await onSubmit(start, end);
+          await onSubmit(start, end, fixed);
         }}
       >
         <p>{intro}</p>
@@ -863,6 +889,38 @@ function TimeWindowDialog({
               ))}
             </ul>
           </div>
+        )}
+        {fixedInitial && (
+          <fieldset className={`rounded-lg border-2 p-3 ${fixed.fixed ? "border-amber-500 bg-amber-50" : "border-line"}`}>
+            <label className="flex min-h-11 items-center gap-2 font-semibold">
+              <input
+                type="checkbox"
+                className="size-5 accent-amber-600"
+                checked={fixed.fixed}
+                onChange={(e) => setFixed((f) => ({ ...f, fixed: e.target.checked, fixedTimeMin: e.target.checked ? (f.fixedTimeMin ?? start) : f.fixedTimeMin }))}
+              />
+              📌 Fester Termin mit dem Kunden
+            </label>
+            {fixed.fixed && (
+              <div className="mt-2 grid grid-cols-[8rem_1fr] gap-3">
+                <label className="block">
+                  <span className="mb-1 block text-sm font-semibold">Terminuhrzeit</span>
+                  <Select value={fixed.fixedTimeMin ?? ""} onChange={(e) => setFixed((f) => ({ ...f, fixedTimeMin: e.target.value === "" ? null : Number(e.target.value) }))}>
+                    <option value="">– ohne –</option>
+                    {fiveMinOptions.map((t) => (
+                      <option key={t} value={t}>
+                        {formatMinutes(t)}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm font-semibold">Notiz (optional)</span>
+                  <Input value={fixed.fixedNote ?? ""} maxLength={200} placeholder="z. B. Hr. Maier, Tel. 0931 …" onChange={(e) => setFixed((f) => ({ ...f, fixedNote: e.target.value || null }))} />
+                </label>
+              </div>
+            )}
+          </fieldset>
         )}
         {invalid && <p className="font-semibold text-red-700">Das Ende muss nach dem Beginn liegen.</p>}
         {clash && !invalid && (

@@ -44,6 +44,13 @@ export const newSiteSchema = z.object({
 });
 export type NewSite = z.infer<typeof newSiteSchema>;
 
+/** Fester Kundentermin (📌) */
+const fixedFields = {
+  fixed: z.boolean().optional(),
+  fixedTimeMin: z.number().int().min(0).max(1439).nullish(),
+  fixedNote: z.string().trim().max(200).nullish(),
+};
+
 const timeWindow = <T extends { startMin?: number; endMin?: number }>(s: z.ZodType<T>) =>
   s.refine((v) => v.startMin === undefined || v.endMin === undefined || v.endMin > v.startMin, {
     message: "Das Ende muss nach dem Beginn liegen.",
@@ -62,6 +69,7 @@ export const assignmentCreateSchema = timeWindow(
       startMin: minute,
       endMin: minute,
       note: z.string().trim().max(300).nullish(),
+      ...fixedFields,
     })
     .refine((v) => !!v.siteId !== !!v.newSite, { message: "Bitte eine Baustelle wählen oder frei eingeben.", path: ["siteId"] }),
 );
@@ -75,6 +83,7 @@ export const assignmentUpdateSchema = timeWindow(
     startMin: minute.optional(),
     endMin: minute.optional(),
     note: z.string().trim().max(300).nullish(),
+    ...fixedFields,
   }),
 );
 

@@ -20,6 +20,9 @@ export type MyDay = {
     startMin: number;
     endMin: number;
     assignmentNote: string | null;
+    fixed: boolean;
+    fixedTimeMin: number | null;
+    fixedNote: string | null;
   }[];
 };
 
@@ -46,6 +49,9 @@ export async function getMyAssignments(employeeId: string, from: string, days = 
                 startMin: true,
                 endMin: true,
                 note: true,
+                fixed: true,
+                fixedTimeMin: true,
+                fixedNote: true,
                 site: { select: { id: true, name: true, address: true, customer: true, orderNumber: true, note: true, color: true } },
               },
             },
@@ -85,7 +91,7 @@ export async function getMyAssignments(employeeId: string, from: string, days = 
           .map((c) => c.employee)
           .filter((e) => e.id !== employeeId)
           .map((e) => ({ ...e, isDriver: e.id === driverId, absent: absentOn(e.id, date) })),
-        sites: (vd?.assignments ?? []).map((a) => ({ ...a.site, startMin: a.startMin, endMin: a.endMin, assignmentNote: a.note })),
+        sites: (vd?.assignments ?? []).map((a) => ({ ...a.site, startMin: a.startMin, endMin: a.endMin, assignmentNote: a.note, fixed: a.fixed, fixedTimeMin: a.fixedTimeMin, fixedNote: a.fixedNote })),
       };
     })
     // Wochenende/Feiertage nur zeigen, wenn dort etwas ansteht

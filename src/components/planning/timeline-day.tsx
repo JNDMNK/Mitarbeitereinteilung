@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { crewWarnings, timeRange } from "@/lib/planning-logic";
+import { crewWarnings, timeRange, fixedConfirmText, fixedLabel } from "@/lib/planning-logic";
 import type { PAssignment, PEmployee, PlanningData, PVehicle, PVehicleDay } from "@/lib/planning-types";
 import type { DayView, Indexes } from "@/lib/planning-view";
 import { formatMinutes } from "@/lib/time";
@@ -338,6 +338,8 @@ function Bar({
       notifyError(`Überschneidet sich mit ${timeRange(hit.startMin, hit.endMin)} (${idx.sites.get(hit.siteId)?.name ?? "Einsatz"}) – nicht gespeichert.`);
       return;
     }
+    const ask = fixedConfirmText(a, `auf ${timeRange(d.preview.startMin, d.preview.endMin)} ändern`);
+    if (ask && !confirm(ask)) return;
     setPending({ version: a.version, iv: d.preview });
     const res = await updateTime(a, d.preview);
     if (!res.ok) setPending(null);
@@ -346,7 +348,7 @@ function Bar({
   const left = toPercent(Math.max(shown.startMin, axis.startMin), axis);
   const width = toPercent(Math.min(shown.endMin, axis.endMin), axis) - left;
   const by = a.updatedById ? idx.planners.get(a.updatedById) : undefined;
-  const label = `${site?.name ?? "?"} · ${timeRange(shown.startMin, shown.endMin)}${by ? ` · geplant von ${by.initials}` : ""}`;
+  const label = `${site?.name ?? "?"} · ${timeRange(shown.startMin, shown.endMin)}${a.fixed ? ` · ${fixedLabel(a)}${a.fixedNote ? ` (${a.fixedNote})` : ""}` : ""}${by ? ` · geplant von ${by.initials}` : ""}`;
 
   return (
     <div
@@ -365,7 +367,7 @@ function Bar({
       }}
       className={`absolute top-2 bottom-2 z-10 flex items-center overflow-hidden rounded-md shadow ring-1 ring-black/20 select-none ${canEdit ? "cursor-grab touch-none active:cursor-grabbing" : "cursor-pointer"} ${
         drag ? "z-[15] shadow-xl" : ""
-      } ${clash ? "ring-4 ring-red-600" : ""} ${pending && pending.version === a.version ? "opacity-70" : ""}`}
+      } ${clash ? "ring-4 ring-red-600" : a.fixed ? "ring-4 ring-amber-400" : ""} ${pending && pending.version === a.version ? "opacity-70" : ""}`}
       style={{ left: `${left}%`, width: `${Math.max(width, 0.5)}%`, backgroundColor: color, color: fg }}
     >
       {canEdit && (
@@ -375,7 +377,15 @@ function Bar({
           aria-hidden
         />
       )}
-      <span className="min-w-0 truncate px-3 text-xs leading-tight font-bold">
+      {a.fixed && a.fixedTimeMin !== null && a.fixedTimeMin !== undefined && a.fixedTimeMin >= shown.startMin && a.fixedTimeMin <= shown.endMin && (
+        <span
+          className="pointer-events-none absolute inset-y-0 w-1 bg-amber-300 shadow-[0_0_0_1px_rgba(0,0,0,0.4)]"
+          style={{ left: `${((a.fixedTimeMin - shown.startMin) / (shown.endMin - shown.startMin)) * 100}%` }}
+          aria-hidden
+        />
+      )}
+      <span className="relative min-w-0 truncate px-3 text-xs leading-tight font-bold">
+        {a.fixed && <span className="mr-1 rounded bg-amber-400 px-1 text-amber-950">{fixedLabel(a)}</span>}
         {site?.name}
         <span className="block font-mono font-semibold opacity-90">
           {timeRange(shown.startMin, shown.endMin)}

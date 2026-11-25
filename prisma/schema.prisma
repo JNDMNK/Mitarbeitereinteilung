@@ -318,6 +318,12 @@ model SiteAssignment {
   startMin     Int        // Minuten seit 0:00, Vielfaches von 15
   endMin       Int        // > startMin, max. 1440
   note         String?
+  /// fester Termin mit dem Kunden (nicht verschieben)
+  fixed        Boolean    @default(false)
+  /// Uhrzeit des Termins in Minuten (optional, kann vom Arbeitsfenster abweichen)
+  fixedTimeMin Int?
+  /// z. B. Ansprechpartner / Telefon
+  fixedNote    String?
   /// wer den Einsatz zuletzt geplant/geändert hat
   updatedById  String?
   updatedBy    User?      @relation("AssignmentUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)

@@ -4,7 +4,7 @@ import { QUALIFICATION_BADGES, type Qualification } from "@/lib/constants";
 import { holidayName } from "@/lib/holidays";
 import { formatDateTimeShort, formatDayLong, isoWeek, formatRange, isIsoDate, todayIso } from "@/lib/dates";
 import { visibleDays } from "@/lib/planning-days";
-import { timeRange } from "@/lib/planning-logic";
+import { fixedLabel, timeRange } from "@/lib/planning-logic";
 import type { PEmployee } from "@/lib/planning-types";
 import { buildDay, buildIndexes, filterDayByDepartments, type DayView, type Indexes } from "@/lib/planning-view";
 import { requirePagePermission } from "@/server/page-auth";
@@ -132,7 +132,10 @@ function PrintDay({
                       </>
                     )}
                   </td>
-                  <td className="py-1.5 pr-2 font-mono whitespace-nowrap">{timeRange(it.assignment.startMin, it.assignment.endMin)}</td>
+                  <td className="py-1.5 pr-2 font-mono whitespace-nowrap">
+                    {timeRange(it.assignment.startMin, it.assignment.endMin)}
+                    {it.assignment.fixed && <div className="mt-0.5 rounded border-2 border-black px-1 font-sans text-xs font-bold">{fixedLabel(it.assignment)}</div>}
+                  </td>
                   <td className="py-1.5 pr-2 whitespace-nowrap">
                     <strong className="font-mono">{it.vehicle.licensePlate}</strong>
                     <div className="text-xs">{it.vehicle.name}</div>
@@ -140,6 +143,7 @@ function PrintDay({
                   </td>
                   <td className="py-1.5 pr-2">
                     {names(it.crew) || "–"}
+                    {it.assignment.fixed && it.assignment.fixedNote && <div className="text-xs font-bold">📌 {it.assignment.fixedNote}</div>}
                     {it.assignment.note && <div className="text-xs italic">Hinweis: {it.assignment.note}</div>}
                     {it.crewWarnings.map((w) => (
                       <div key={w.text} className="text-xs font-semibold">

@@ -5,7 +5,7 @@ import { PageHeader, Placeholder } from "@/components/page-header";
 import { QualificationBadge } from "@/components/qualification-badge";
 import { holidayName } from "@/lib/holidays";
 import { addDays, formatDayLong, isoWeek, formatRange, mapsUrl, navigationUrl, todayIso } from "@/lib/dates";
-import { timeRange } from "@/lib/planning-logic";
+import { fixedLabel, timeRange } from "@/lib/planning-logic";
 import { requirePagePermission } from "@/server/page-auth";
 import { getMyAssignments, type MyDay } from "@/server/services/my-assignments";
 
@@ -113,6 +113,11 @@ function DayCard({ day, today, big = false }: { day: MyDay; today: string; big?:
                 {day.sites.map((s) => (
                   <li key={`${s.id}-${s.startMin}`} className="rounded-xl border border-line p-3" style={{ borderLeft: `8px solid ${s.color}` }}>
                     <p className={`font-mono font-bold ${big ? "text-2xl" : "text-xl"}`}>{timeRange(s.startMin, s.endMin)}</p>
+                    {s.fixed && (
+                      <p className="my-1 inline-block rounded-lg bg-amber-400 px-2 py-0.5 text-lg font-bold text-amber-950 ring-1 ring-amber-600">
+                        {fixedLabel(s)} – bitte pünktlich{s.fixedNote ? ` · ${s.fixedNote}` : ""}
+                      </p>
+                    )}
                     <p className={`font-bold ${big ? "text-xl" : "text-lg"}`}>{s.name}</p>
                     {(s.customer || s.orderNumber) && <p className="text-sm text-muted">{[s.customer, s.orderNumber && `Projekt-Nr. ${s.orderNumber}`].filter(Boolean).join(" · ")}</p>}
                     {s.address && (

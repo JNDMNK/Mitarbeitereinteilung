@@ -9,7 +9,7 @@ import { timeRange } from "@/lib/planning-logic";
 import type { PEmployee, PVehicle } from "@/lib/planning-types";
 import type { DayView, Indexes, VehicleSlot } from "@/lib/planning-view";
 import { formatDateTimeShort } from "@/lib/dates";
-import { ByBadge, EmployeeChip, OwnerLine, UnavailableNote, VehicleLabel, WarningList, DueBadges } from "./chips";
+import { ByBadge, EmployeeChip, OwnerLine, UnavailableNote, VehicleLabel, WarningList, DueBadges, FixedBadge } from "./chips";
 import { dropZoneClass, useDragItem, useDropZone, type DragData, type DropData } from "./dnd";
 import type { Sheet } from "./sheets";
 
@@ -222,6 +222,7 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
                   <span className="shrink-0 rounded bg-slate-800 px-1.5 font-mono text-xs leading-6 font-bold text-white">
                     {timeRange(it.assignment.startMin, it.assignment.endMin)}
                   </span>
+                  <FixedBadge a={it.assignment} />
                   {it.assignment.updatedById && idx.planners.get(it.assignment.updatedById) && (
                     <ByBadge
                       initials={idx.planners.get(it.assignment.updatedById)!.initials}
@@ -251,6 +252,7 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
                 ) : (
                   canEdit && <p className="text-xs text-muted">Mitarbeiter hierher ziehen</p>
                 )}
+                {it.assignment.fixed && it.assignment.fixedNote && <p className="text-xs font-semibold text-amber-900">📌 {it.assignment.fixedNote}</p>}
                 {it.assignment.note && <p className="text-xs text-muted italic">{it.assignment.note}</p>}
                 <WarningList warnings={it.crewWarnings} />
               </Drop>

@@ -2,7 +2,7 @@
 
 import type { HTMLAttributes, Ref } from "react";
 import { QualificationBadge } from "@/components/qualification-badge";
-import type { Warning } from "@/lib/planning-logic";
+import { fixedLabel, type Warning } from "@/lib/planning-logic";
 import type { PAbsenceType, PDepartment, PEmployee, PVehicle } from "@/lib/planning-types";
 import type { DueNote, OwnerInfo, Unavailable } from "@/lib/planning-view";
 import { formatDate } from "@/lib/dates";
@@ -202,5 +202,19 @@ export function DueBadges({ due }: { due?: DueNote[] }) {
         </span>
       ))}
     </>
+  );
+}
+
+/** Fester Kundentermin */
+export function FixedBadge({ a, compact }: { a: { fixed?: boolean; fixedTimeMin?: number | null; fixedNote?: string | null }; compact?: boolean }) {
+  const label = fixedLabel(a);
+  if (!label) return null;
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded bg-amber-400 px-1.5 font-bold text-amber-950 ring-1 ring-amber-600 ${compact ? "text-[11px] leading-5" : "text-xs leading-6"}`}
+      title={`Fester Kundentermin${a.fixedNote ? ` – ${a.fixedNote}` : ""}`}
+    >
+      {label}
+    </span>
   );
 }

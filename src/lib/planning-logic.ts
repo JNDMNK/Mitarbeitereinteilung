@@ -76,3 +76,18 @@ export function suggestSlot(
 export function timeRange(startMin: number, endMin: number): string {
   return `${formatMinutes(startMin)}–${formatMinutes(endMin)}`;
 }
+
+/** Text für einen festen Kundentermin, z. B. „📌 Termin 09:00“ */
+export function fixedLabel(a: { fixed?: boolean; fixedTimeMin?: number | null }): string | null {
+  if (!a.fixed) return null;
+  if (a.fixedTimeMin === null || a.fixedTimeMin === undefined) return "📌 Fester Termin";
+  const h = String(Math.floor(a.fixedTimeMin / 60)).padStart(2, "0");
+  const m = String(a.fixedTimeMin % 60).padStart(2, "0");
+  return `📌 Termin ${h}:${m}`;
+}
+
+/** Rückfrage-Text, bevor ein fester Termin verändert wird */
+export function fixedConfirmText(a: { fixed?: boolean; fixedTimeMin?: number | null }, action: string): string | null {
+  const l = fixedLabel(a);
+  return l ? `${l.replace("📌 ", "")} – das ist ein fester Kundentermin.\n\nWirklich ${action}?` : null;
+}
