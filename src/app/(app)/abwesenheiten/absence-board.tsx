@@ -256,7 +256,8 @@ export function AbsenceBoard(props: {
       )}
 
       {/* Steuerleiste */}
-      <div className="no-print flex flex-wrap items-end gap-2 rounded-xl bg-white p-3 shadow-sm ring-1 ring-line">
+      <div className="no-print space-y-2 rounded-xl bg-white p-3 shadow-sm ring-1 ring-line">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
           <Link href={href({ monat: addMonths(from, -1).slice(0, 7) })} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-line bg-white text-xl font-bold hover:bg-slate-50" aria-label="Vorheriger Monat">
             ◀
@@ -276,6 +277,13 @@ export function AbsenceBoard(props: {
           onChange={(e) => e.target.value && router.push(href({ monat: e.target.value }))}
           className="min-h-11 rounded-lg border border-line px-2"
         />
+        {canEdit && (
+          <Button className="ml-auto" onClick={() => openCreate(null, today, today)}>
+            + Abwesenheit
+          </Button>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-40">
           <Select aria-label="Abteilung" value={departmentFilter} onChange={(e) => router.push(href({ abteilung: e.target.value }))}>
             <option value="">Alle Abteilungen</option>
@@ -304,11 +312,7 @@ export function AbsenceBoard(props: {
             Liste
           </Link>
         </div>
-        {canEdit && (
-          <Button className="ml-auto" onClick={() => openCreate(null, today, today)}>
-            + Abwesenheit
-          </Button>
-        )}
+      </div>
       </div>
 
       {/* Filter: Qualifikation (Mehrfachauswahl) */}
@@ -332,7 +336,7 @@ export function AbsenceBoard(props: {
               className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold ${on ? "border-brand-700 bg-brand-50 text-brand-800 ring-1 ring-brand-700" : "border-line bg-white hover:bg-slate-50"}`}
             >
               <span className="font-mono text-xs">{QUALIFICATION_BADGES[q]}</span>
-              {QUALIFICATION_GROUP_LABELS[q]}
+              {QUALIFICATION_GROUP_LABELS[q].replace("Azubis ", "")}
               {on && <span aria-hidden>✓</span>}
             </Link>
           );
