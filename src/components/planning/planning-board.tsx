@@ -294,7 +294,8 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
           <div id="planning-options" className={`${showOptions ? "flex" : "hidden"} w-full flex-wrap items-center gap-2 md:flex md:w-auto`}>
             <label className="flex min-h-11 cursor-pointer items-center gap-2 px-1">
               <input type="checkbox" className="size-5 accent-brand-600" checked={!hideWeekends} onChange={(e) => toggleWeekends(!e.target.checked)} />
-              Wochenende &amp; Feiertage
+              <span className="md:hidden xl:inline">Wochenende &amp; Feiertage</span>
+              <span className="hidden md:inline xl:hidden" title="Wochenende &amp; Feiertage">WE &amp; Feiertage</span>
             </label>
             <details className="relative">
               <summary className={`flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg border px-3 font-semibold ${hiddenDeps.length ? "border-brand-600 bg-brand-50 text-brand-800" : "border-line hover:bg-slate-50"}`}>

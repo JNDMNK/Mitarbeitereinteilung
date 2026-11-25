@@ -179,7 +179,7 @@ function DayHead({ day }: { day: DDay }) {
     <div className={`shrink-0 px-[0.7rem] py-[0.4rem] ${day.isToday ? "bg-brand-700 text-white" : off ? "bg-slate-300" : "bg-ink text-white"}`}>
       <div className="flex items-baseline gap-[0.5rem]">
         <span className="text-[1.5rem] leading-tight font-bold">{day.isToday ? `Heute, ${day.short}` : day.long}</span>
-        <span className="rounded bg-white/20 px-[0.35rem] text-[0.85rem] font-semibold">KW {day.kw}</span>
+        <span className="rounded bg-white/20 px-[0.35rem] text-[0.85rem] font-semibold whitespace-nowrap">KW {day.kw}</span>
       </div>
       <div className="text-[0.85rem] opacity-90">
         {day.holiday && <strong>🎉 {day.holiday} · </strong>}

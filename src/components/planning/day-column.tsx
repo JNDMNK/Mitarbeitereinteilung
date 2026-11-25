@@ -188,8 +188,8 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
             <div className="min-w-0 flex-1 pl-1.5">
               <h3 className="leading-tight font-bold">
                 {g.site.name}
-                {g.site.orderNumber && <span className="ml-1.5 font-mono text-xs font-semibold text-muted">Projekt-Nr. {g.site.orderNumber}</span>}
               </h3>
+              {g.site.orderNumber && <div className="truncate font-mono text-xs font-semibold text-muted">Projekt-Nr. {g.site.orderNumber}</div>}
               {g.site.address && (
                 <a href={mapsUrl(g.site.address)} target="_blank" rel="noopener noreferrer" className="block truncate text-xs text-brand-700 underline">
                   📍 {g.site.address}
@@ -360,7 +360,7 @@ export function DayHeader({ day, today, canEdit, open, sticky = true }: { day: D
       >
         <div className="min-w-0">
           <h2 className="text-lg leading-tight font-bold">
-            {formatDayShort(day.date)} <span className="ml-1 rounded bg-white/20 px-1.5 py-0.5 align-middle text-xs font-semibold">KW {isoWeek(day.date)}</span>
+            {formatDayShort(day.date)} <span className="ml-1 rounded bg-white/20 px-1.5 py-0.5 align-middle text-xs font-semibold whitespace-nowrap">KW {isoWeek(day.date)}</span>
           </h2>
           <p className="truncate text-xs opacity-90">
             {isToday ? "Heute · " : ""}
@@ -387,10 +387,17 @@ export function DayHeader({ day, today, canEdit, open, sticky = true }: { day: D
               title="Einteilung dieses Tages auf einen anderen Tag übernehmen"
               aria-label="Tag übernehmen"
             >
-              ⧉<span className="hidden sm:inline"> Tag</span>
+              ⧉<span className="hidden sm:inline md:hidden xl:inline"> Tag</span>
             </button>
-            <button type="button" onClick={() => open({ kind: "pickSiteForDay", date: day.date })} className="min-h-10 rounded-lg bg-white/15 px-2 text-sm font-semibold hover:bg-white/25">
-              + Baustelle
+            <button
+              type="button"
+              onClick={() => open({ kind: "pickSiteForDay", date: day.date })}
+              className="min-h-10 rounded-lg bg-white/15 px-2 text-sm font-semibold whitespace-nowrap hover:bg-white/25"
+              title="Baustelle einplanen"
+              aria-label="Baustelle einplanen"
+            >
+              +<span className="md:hidden xl:inline"> Baustelle</span>
+              <span className="hidden md:inline xl:hidden"> 🏗️</span>
             </button>
           </>
         )}

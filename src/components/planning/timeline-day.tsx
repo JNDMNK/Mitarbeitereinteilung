@@ -99,7 +99,8 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
             <div className="relative h-7 flex-1">
               {hours.map((h) => (
                 <span key={h} className="absolute top-1 -translate-x-1/2 text-xs font-semibold text-slate-600" style={{ left: `${toPercent(h, axis)}%` }}>
-                  {h < axis.endMin ? formatMinutes(h) : ""}
+                  {/* erste und letzte Linie ohne Beschriftung (würde am Rand abgeschnitten) */}
+                  {h > axis.startMin && h < axis.endMin ? formatMinutes(h) : ""}
                 </span>
               ))}
             </div>
