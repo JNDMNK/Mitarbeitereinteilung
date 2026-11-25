@@ -77,9 +77,7 @@ export function DisplayBoard({
   logoUrl,
   canLeave,
   nav,
-  free,
 }: {
-  free: FreeMode;
   nav: { prev: string; next: string; isToday: boolean; start: string };
   days: DDay[];
   count: number;
@@ -88,12 +86,12 @@ export function DisplayBoard({
   logoUrl: string | null;
   canLeave: boolean;
 }) {
-  const colRefs = useFitToScreen([days, count, free]);
+  const colRefs = useFitToScreen([days, count]);
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-slate-100 text-ink">
       <LiveRefresh scopes={["planning", "absences", "masterdata"]} fallbackMs={60_000} />
-      <DisplayHeader companyName={companyName} logoUrl={logoUrl} count={count} mode="plan" today={today} nav={nav} canLeave={canLeave} homeHref={`/anzeige?tage=${count}${free !== "namen" ? `&frei=${free}` : ""}`} free={free} />
+      <DisplayHeader companyName={companyName} logoUrl={logoUrl} count={count} mode="plan" today={today} nav={nav} canLeave={canLeave} homeHref={`/anzeige?tage=${count}`} />
 
       <main className="grid min-h-0 flex-1 gap-[0.6rem] p-[0.6rem]" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
         {days.map((d, i) => (
@@ -105,7 +103,7 @@ export function DisplayBoard({
               }}
               className="min-h-0 flex-1 overflow-hidden p-[0.5rem]"
             >
-              <DayBody day={d} free={free} />
+              <DayBody day={d} />
             </div>
           </section>
         ))}
@@ -174,9 +172,7 @@ function VehicleLine({ v }: { v: DVehicle }) {
   );
 }
 
-export type FreeMode = "namen" | "anzahl" | "aus";
-
-function DayBody({ day, free }: { day: DDay; free: FreeMode }) {
+function DayBody({ day }: { day: DDay }) {
   const empty = day.sites.length === 0 && day.idleVehicles.length === 0 && day.rooms.length === 0;
   return (
     <div className="flex min-h-full flex-col">
@@ -243,9 +239,9 @@ function DayBody({ day, free }: { day: DDay; free: FreeMode }) {
         </Section>
       )}
     </div>
-      {free !== "aus" && day.stats.available > 0 && (
+      {day.stats.available > 0 && (
         <div className="mt-auto pt-[0.6rem]">
-          <FreeBox day={day} mode={free} />
+          <FreeBox day={day} />
         </div>
       )}
     </div>
@@ -253,23 +249,14 @@ function DayBody({ day, free }: { day: DDay; free: FreeMode }) {
 }
 
 /** Nicht eingeteilte Mitarbeiter: grauer Kasten unten in der Tagesspalte */
-function FreeBox({ day, mode }: { day: DDay; mode: FreeMode }) {
+function FreeBox({ day }: { day: DDay }) {
   return (
     <div className="rounded-[0.4rem] bg-slate-100 px-[0.5rem] py-[0.35rem] ring-1 ring-slate-300">
       <div className="flex items-baseline justify-between gap-[0.5rem]">
         <span className="text-[0.8rem] font-bold tracking-wide text-slate-700 uppercase">Nicht eingeteilt</span>
         <span className="text-[1.4rem] leading-none font-bold text-slate-800">{day.stats.available}</span>
       </div>
-      {mode === "anzahl" ? (
-        <div className="mt-[0.2rem] flex flex-wrap gap-x-[0.6rem] text-[0.8rem] text-slate-700">
-          {day.free.map((g) => (
-            <span key={g.label}>
-              {g.label} <strong>{g.people.length}</strong>
-            </span>
-          ))}
-        </div>
-      ) : (
-        day.free.map((g) => (
+      {day.free.map((g) => (
           <div key={g.label} className="mt-[0.3rem]">
             <div className="mb-[0.15rem] border-b border-slate-300 text-[0.7rem] font-semibold tracking-wide text-slate-600 uppercase">
               {g.label} ({g.people.length})
@@ -280,8 +267,7 @@ function FreeBox({ day, mode }: { day: DDay; mode: FreeMode }) {
               ))}
             </div>
           </div>
-        ))
-      )}
+        ))}
     </div>
   );
 }
