@@ -1,3 +1,4 @@
+import { groupByQualification } from "@/lib/constants";
 /* eslint-disable @next/next/no-img-element -- Logo aus /api/logo */
 import type { Metadata } from "next";
 import { QUALIFICATION_BADGES, type Qualification } from "@/lib/constants";
@@ -210,14 +211,21 @@ function PrintDay({
           {day.absent.length === 0 ? (
             <p className="italic">niemand</p>
           ) : (
-            <ul>
-              {day.absent.map((a) => (
-                <li key={a.employee.id}>
-                  <strong className="font-mono">{a.type?.code}</strong> {a.employee.firstName} {a.employee.lastName}
-                  <span className="text-xs"> ({a.type?.name}, {formatRange(a.absence.startDate, a.absence.endDate)})</span>
-                </li>
+            <div className="space-y-1">
+              {groupByQualification(day.absent, (a) => a.employee.qualification).map((g) => (
+                <div key={g.q}>
+                  <div className="text-xs font-bold uppercase">{g.label}</div>
+                  <ul>
+                    {g.items.map((a) => (
+                      <li key={a.employee.id}>
+                        <strong className="font-mono">{a.type?.code}</strong> {a.employee.firstName} {a.employee.lastName}
+                        <span className="text-xs"> ({a.type?.name}, {formatRange(a.absence.startDate, a.absence.endDate)})</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </div>
         <div className="break-inside-avoid">

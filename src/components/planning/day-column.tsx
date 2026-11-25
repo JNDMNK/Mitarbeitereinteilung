@@ -413,8 +413,12 @@ export function AbsentBar({ day, ownEmployeeId, open, idx }: { day: DayView; own
   return (
 <div className="rounded-xl bg-white p-2 shadow-sm ring-1 ring-line">
           <h3 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">Abwesend ({day.absent.length})</h3>
-          <div className="flex flex-wrap gap-1">
-            {day.absent.map((a) => (
+          <div className="flex flex-wrap items-center gap-1">
+            {groupByQualification(day.absent, (a) => a.employee.qualification).flatMap((g) => [
+              <span key={`g-${g.q}`} className="ml-1 text-[11px] font-semibold text-muted first:ml-0">
+                {g.label.replace("Azubis ", "")}:
+              </span>,
+              ...g.items.map((a) => (
               <button
                 key={a.employee.id}
                 type="button"
@@ -428,7 +432,8 @@ export function AbsentBar({ day, ownEmployeeId, open, idx }: { day: DayView; own
                 {idx?.names.get(a.employee.id) ?? a.employee.shortName}
                 <QualificationBadge q={a.employee.qualification} />
               </button>
-            ))}
+              )),
+            ])}
           </div>
         </div>
   );
