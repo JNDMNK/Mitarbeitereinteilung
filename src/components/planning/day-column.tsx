@@ -189,14 +189,32 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
               <h3 className="leading-tight font-bold">
                 {g.site.name}
               </h3>
-              {g.site.orderNumber && <div className="truncate font-mono text-xs font-semibold text-muted">Projekt-Nr. {g.site.orderNumber}</div>}
+              {(g.site.orderNumber || g.site.customer) && (
+                <div className="truncate text-xs font-semibold text-muted">
+                  {g.site.orderNumber && <span className="font-mono">Projekt-Nr. {g.site.orderNumber}</span>}
+                  {g.site.orderNumber && g.site.customer && " · "}
+                  {g.site.customer}
+                </div>
+              )}
               {g.site.address && (
                 <a href={mapsUrl(g.site.address)} target="_blank" rel="noopener noreferrer" className="block truncate text-xs text-brand-700 underline">
                   📍 {g.site.address}
                 </a>
               )}
+              {g.site.note && <p className="line-clamp-2 text-xs text-muted italic" title={g.site.note}>{g.site.note}</p>}
               <WarningList warnings={g.warnings} />
             </div>
+            {canEdit && g.site.adHoc && (
+              <button
+                type="button"
+                onClick={() => open({ kind: "editSite", date: day.date, siteId: g.site.id })}
+                className="min-h-9 shrink-0 rounded-lg border border-line px-2 text-sm font-semibold hover:bg-slate-50"
+                title="Freien Eintrag bearbeiten (Name, Adresse, Projekt-Nr., Notiz)"
+                aria-label="Freien Eintrag bearbeiten"
+              >
+                ✏️
+              </button>
+            )}
             {canEdit && (
               <button
                 type="button"

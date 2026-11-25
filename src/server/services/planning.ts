@@ -106,7 +106,7 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
     }),
     db.site.findMany({
       where: { OR: [{ active: true, status: { not: "DONE" } }, { id: { in: [...usedSites] } }] },
-      select: { id: true, name: true, address: true, customer: true, orderNumber: true, startDate: true, endDate: true, status: true, note: true, color: true, active: true, adHoc: true },
+      select: { id: true, name: true, address: true, customer: true, orderNumber: true, startDate: true, endDate: true, status: true, note: true, color: true, active: true, adHoc: true, version: true },
       orderBy: { name: "asc" },
     }),
     db.user.findMany({

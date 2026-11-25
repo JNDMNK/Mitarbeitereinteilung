@@ -46,6 +46,7 @@ export type PSite = {
   active: boolean;
   /** freier Eintrag aus der Planung */
   adHoc: boolean;
+  version?: number;
 };
 export type PDepartment = { id: string; name: string; color: string; sortOrder: number };
 export type PAbsenceType = { id: string; name: string; code: string; color: string };

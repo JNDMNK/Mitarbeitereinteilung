@@ -16,7 +16,8 @@ import { OutageForm } from "@/components/outage-form";
 import { useQueryClient } from "@tanstack/react-query";
 import type { VehicleSlot } from "@/lib/planning-view";
 import type { RunOptions, RunResult } from "./use-planning";
-import type { PlanningData } from "@/lib/planning-types";
+import type { PlanningData, PSite } from "@/lib/planning-types";
+import { api, ApiClientError } from "@/lib/api-client";
 import type { DayView, Indexes } from "@/lib/planning-view";
 import { formatMinutes, gridOptions } from "@/lib/time";
 
@@ -36,7 +37,8 @@ export type Sheet =
   | { kind: "copyEmployee"; date: string; employeeId: string }
   | { kind: "copyVehicle"; date: string; vehicleId: string; assignmentId?: string }
   | { kind: "copyDay"; date: string }
-  | { kind: "outage"; date: string; vehicleId: string };
+  | { kind: "outage"; date: string; vehicleId: string }
+  | { kind: "editSite"; date: string; siteId: string };
 
 type Run = (action: PlanningAction, body: unknown, success?: string, options?: RunOptions) => Promise<RunResult>;
 
@@ -192,6 +194,25 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
     );
   }
 
+  // ---------------- Freien Eintrag bearbeiten ----------------
+  if (sheet.kind === "editSite") {
+    const site = idx.sites.get(sheet.siteId);
+    if (!site) return null;
+    return (
+      <EditSiteDialog
+        key={site.id}
+        site={site}
+        close={close}
+        onDone={(msg) => {
+          close();
+          notify("success", [msg]);
+          void qc.invalidateQueries({ queryKey: ["planning"] });
+        }}
+        onError={(msg) => notify("error", [msg])}
+      />
+    );
+  }
+
   // ---------------- Ausfall (Werkstatt …) ----------------
   if (sheet.kind === "outage") {
     const v = idx.vehicles.get(sheet.vehicleId)!;
@@ -294,6 +315,9 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
               {a && site && (
                 <>
                   <Action onClick={() => setSheet({ kind: "time", date: sheet.date, vehicleId: v.id, siteId: site.id, assignmentId: a.id })}>🕒 Zeit / 📌 Termin ändern …</Action>
+                  {site.adHoc && (
+                    <Action onClick={() => setSheet({ kind: "editSite", date: sheet.date, siteId: site.id })}>✏️ Freien Eintrag „{site.name}“ bearbeiten …</Action>
+                  )}
                   <Action
                     onClick={() => {
                       const ask = fixedConfirmText(a, "auf eine andere Baustelle setzen");
@@ -1073,6 +1097,78 @@ function FreeSiteDialog({
           </Button>
           <Button type="submit" disabled={busy || !name.trim()}>
             Weiter
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/** Freien Eintrag (Baustelle aus der Planung) umbenennen oder ergänzen */
+function EditSiteDialog({ site, close, onDone, onError }: { site: PSite; close: () => void; onDone: (msg: string) => void; onError: (msg: string) => void }) {
+  const [name, setName] = useState(site.name);
+  const [address, setAddress] = useState(site.address ?? "");
+  const [orderNumber, setOrderNumber] = useState(site.orderNumber ?? "");
+  const [customer, setCustomer] = useState(site.customer ?? "");
+  const [note, setNote] = useState(site.note ?? "");
+  const [busy, setBusy] = useState(false);
+  return (
+    <Dialog open onClose={close} title="✏️ Freien Eintrag bearbeiten">
+      <form
+        className="space-y-3"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!name.trim()) return;
+          setBusy(true);
+          try {
+            await api(`/api/sites/${site.id}`, {
+              method: "PATCH",
+              body: {
+                version: site.version,
+                name: name.trim(),
+                address: address.trim() || null,
+                orderNumber: orderNumber.trim() || null,
+                customer: customer.trim() || null,
+                note: note.trim() || null,
+                status: site.status,
+              },
+            });
+            onDone(`„${name.trim()}“ gespeichert.`);
+          } catch (err) {
+            onError(err instanceof ApiClientError ? err.message : "Speichern fehlgeschlagen.");
+            setBusy(false);
+          }
+        }}
+      >
+        <p className="text-sm text-muted">Änderungen gelten für alle Tage, an denen dieser Eintrag eingeplant ist.</p>
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold">Bezeichnung</span>
+          <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} autoFocus />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold">Adresse (für die Navigation)</span>
+          <Input value={address} onChange={(e) => setAddress(e.target.value)} maxLength={200} placeholder="Straße Nr., PLZ Ort" />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="mb-1 block text-sm font-semibold">Projekt-Nr.</span>
+            <Input value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} maxLength={50} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-semibold">Kunde</span>
+            <Input value={customer} onChange={(e) => setCustomer(e.target.value)} maxLength={100} />
+          </label>
+        </div>
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold">Notiz</span>
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} rows={3} className="block w-full rounded-lg border border-line px-3 py-2 text-base" placeholder="z. B. Schlüssel beim Nachbarn, Zufahrt über Hof" />
+        </label>
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={close}>
+            Abbrechen
+          </Button>
+          <Button type="submit" disabled={busy || !name.trim()}>
+            {busy ? "Speichern …" : "Speichern"}
           </Button>
         </div>
       </form>
