@@ -25,3 +25,13 @@ describe("Feiertage Bayern", () => {
     expect(remainingWorkdaysOfWeek("2026-05-11")).toEqual(["2026-05-12", "2026-05-13", "2026-05-15"]); // ohne Himmelfahrt
   });
 });
+
+import { groupByQualification } from "@/lib/constants";
+describe("Gruppierung nach Qualifikation", () => {
+  it("Meister, Gesellen, Azubis nach Lehrjahr, Praktikanten", () => {
+    const items = ["PRAKTIKANT", "AZUBI_2", "GESELLE", "AZUBI_1", "MEISTER", "GESELLE"].map((q, i) => ({ q, i }));
+    const g = groupByQualification(items, (x) => x.q);
+    expect(g.map((x) => x.label)).toEqual(["Meister", "Gesellen", "Azubis 1. Lehrjahr", "Azubis 2. Lehrjahr", "Praktikanten"]);
+    expect(g[1].items.map((x) => x.i)).toEqual([2, 5]);
+  });
+});

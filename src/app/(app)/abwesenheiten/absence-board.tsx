@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { MessageBar, useSave } from "@/components/masterdata/shared";
+import { QualificationBadge } from "@/components/qualification-badge";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -12,7 +13,7 @@ import { api } from "@/lib/api-client";
 import { addMonths, eachDay, formatDayLong, isoWeek, formatMonth, formatRange, isWeekend, weekdayShort } from "@/lib/dates";
 import { holidayName } from "@/lib/holidays";
 import { OutageForm, type OutageValue } from "@/components/outage-form";
-import { outageLabel } from "@/lib/constants";
+import { outageLabel, QUALIFICATION_GROUP_LABELS, qualificationRank, type Qualification } from "@/lib/constants";
 
 type Absence = {
   id: string;
@@ -55,6 +56,8 @@ export function AbsenceBoard(props: {
   today: string;
   departmentFilter: string;
   view: "table" | "list";
+  /** Tabellenzeilen gruppieren nach Qualifikation (Standard) oder Abteilung */
+  grouping: "quali" | "abteilung";
   canEdit: boolean;
   ownEmployeeId: string | null;
   absences: Absence[];
@@ -68,7 +71,7 @@ export function AbsenceBoard(props: {
   outages: Outage[];
   canEditOutages: boolean;
 }) {
-  const { from, to, today, canEdit, absences, departments, types, employees, departmentFilter, view, ownEmployeeId, ownedVehicles, vehicles, outages, canEditOutages } = props;
+  const { from, to, today, canEdit, absences, departments, types, employees, departmentFilter, view, grouping, ownEmployeeId, ownedVehicles, vehicles, outages, canEditOutages } = props;
   const [outageDialog, setOutageDialog] = useState<OutageDialog>(null);
   const router = useRouter();
   const page = useSave();
@@ -80,27 +83,43 @@ export function AbsenceBoard(props: {
   const days = useMemo(() => eachDay(from, to), [from, to]);
   const month = from.slice(0, 7);
 
-  const href = (params: { monat?: string; abteilung?: string; ansicht?: string }) => {
+  const href = (params: { monat?: string; abteilung?: string; ansicht?: string; gruppe?: string }) => {
     const p = new URLSearchParams();
     const m = params.monat ?? month;
     const a = params.abteilung ?? departmentFilter;
     const v = params.ansicht ?? (view === "list" ? "liste" : "");
+    const g = params.gruppe ?? (grouping === "abteilung" ? "abteilung" : "");
     if (m) p.set("monat", m);
     if (a) p.set("abteilung", a);
     if (v) p.set("ansicht", v);
+    if (g) p.set("gruppe", g);
     return `/abwesenheiten?${p.toString()}`;
   };
 
-  // Mitarbeiter nach Abteilung gruppiert
+  // Mitarbeiter nach Qualifikation (Meister, Gesellen, Azubis …) oder nach Abteilung gruppiert
   const groups = useMemo(() => {
     const filtered = employees.filter((e) => !departmentFilter || e.department.id === departmentFilter);
-    const map = new Map<string, { dep: Department; list: Employee[] }>();
+    const map = new Map<string, { dep: Department; list: Employee[]; quali: boolean }>();
     for (const e of filtered) {
-      if (!map.has(e.department.id)) map.set(e.department.id, { dep: e.department, list: [] });
-      map.get(e.department.id)!.list.push(e);
+      const q = e.qualification ?? "GESELLE";
+      const key = grouping === "quali" ? q : e.department.id;
+      if (!map.has(key)) {
+        map.set(key, {
+          dep:
+            grouping === "quali"
+              ? { id: q, name: QUALIFICATION_GROUP_LABELS[q as Qualification] ?? q, color: "", sortOrder: qualificationRank(q) }
+              : e.department,
+          list: [],
+          quali: grouping === "quali",
+        });
+      }
+      map.get(key)!.list.push(e);
     }
-    return [...map.values()].sort((a, b) => a.dep.sortOrder - b.dep.sortOrder || a.dep.name.localeCompare(b.dep.name));
-  }, [employees, departmentFilter]);
+    const out = [...map.values()].sort((a, b) => a.dep.sortOrder - b.dep.sortOrder || a.dep.name.localeCompare(b.dep.name));
+    // innerhalb einer Qualifikation nach Abteilung, dann Name
+    if (grouping === "quali") for (const g of out) g.list.sort((a, b) => a.department.sortOrder - b.department.sortOrder || a.lastName.localeCompare(b.lastName));
+    return out;
+  }, [employees, departmentFilter, grouping]);
 
   // employeeId -> Tag -> Abwesenheit
   const byCell = useMemo(() => {
@@ -256,6 +275,16 @@ export function AbsenceBoard(props: {
             ))}
           </Select>
         </div>
+        {view === "table" && (
+          <div className="flex overflow-hidden rounded-lg border border-line" role="group" aria-label="Gruppierung">
+            <Link href={href({ gruppe: "" })} aria-current={grouping === "quali" ? "page" : undefined} className={`flex min-h-11 items-center px-3 font-semibold ${grouping === "quali" ? "bg-brand-700 text-white" : "bg-white"}`}>
+              nach Qualifikation
+            </Link>
+            <Link href={href({ gruppe: "abteilung" })} aria-current={grouping === "abteilung" ? "page" : undefined} className={`flex min-h-11 items-center px-3 font-semibold ${grouping === "abteilung" ? "bg-brand-700 text-white" : "bg-white"}`}>
+              nach Abteilung
+            </Link>
+          </div>
+        )}
         <div className="flex overflow-hidden rounded-lg border border-line" role="group" aria-label="Ansicht">
           <Link href={href({ ansicht: "" })} aria-current={view === "table" ? "page" : undefined} className={`flex min-h-11 items-center px-3 font-semibold ${view === "table" ? "bg-brand-700 text-white" : "bg-white"}`}>
             Tabelle
@@ -343,13 +372,13 @@ export function AbsenceBoard(props: {
               </tr>
             </thead>
             <tbody>
-              {groups.map(({ dep, list }) => (
+              {groups.map(({ dep, list, quali }) => (
                 <Fragment key={dep.id}>
                   <tr>
                     <td colSpan={days.length + 1} className="border-b border-line bg-slate-100 px-2 py-1 text-xs font-bold uppercase tracking-wide text-slate-700">
                       <span className="sticky left-2 inline-flex items-center gap-1.5">
-                        <span className="size-2.5 rounded-full" style={{ backgroundColor: dep.color }} />
-                        {dep.name}
+                        {quali ? <QualificationBadge q={dep.id} /> : <span className="size-2.5 rounded-full" style={{ backgroundColor: dep.color }} />}
+                        {dep.name} ({list.length})
                       </span>
                     </td>
                   </tr>
@@ -362,7 +391,7 @@ export function AbsenceBoard(props: {
                           className={`sticky left-0 z-10 border-b border-r border-line px-2 py-1 text-left font-normal ${own ? "bg-brand-50" : "bg-white"} ${e.active ? "" : "text-muted line-through"}`}
                         >
                           <span className="flex items-center gap-1.5">
-                            <span className="h-5 w-1 shrink-0 rounded-full" style={{ backgroundColor: dep.color }} aria-hidden />
+                            <span className="h-5 w-1 shrink-0 rounded-full" style={{ backgroundColor: e.department.color }} title={e.department.name} aria-hidden />
                             <span className="font-mono font-bold">{e.shortName}</span>
                             <span className={`hidden truncate md:inline ${own ? "font-bold" : ""}`}>
                               {e.lastName}, {e.firstName}

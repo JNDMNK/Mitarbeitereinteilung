@@ -31,6 +31,33 @@ export const QUALIFICATION_BADGES: Record<Qualification, string> = {
   GESELLE: "G",
   MEISTER: "M",
 };
+/** Reihenfolge der Gruppen in Listen: Meister, Gesellen, Azubis nach Lehrjahr, Praktikanten */
+export const QUALIFICATION_GROUP_ORDER: Qualification[] = ["MEISTER", "GESELLE", "AZUBI_1", "AZUBI_2", "AZUBI_3", "AZUBI_4", "PRAKTIKANT"];
+export const QUALIFICATION_GROUP_LABELS: Record<Qualification, string> = {
+  MEISTER: "Meister",
+  GESELLE: "Gesellen",
+  AZUBI_1: "Azubis 1. Lehrjahr",
+  AZUBI_2: "Azubis 2. Lehrjahr",
+  AZUBI_3: "Azubis 3. Lehrjahr",
+  AZUBI_4: "Azubis 4. Lehrjahr",
+  PRAKTIKANT: "Praktikanten",
+};
+export function qualificationRank(q: string): number {
+  const i = QUALIFICATION_GROUP_ORDER.indexOf(q as Qualification);
+  return i < 0 ? 99 : i;
+}
+/** Liste nach Qualifikation gruppieren (Reihenfolge innerhalb der Gruppe bleibt erhalten) */
+export function groupByQualification<T>(items: T[], qOf: (item: T) => string): { q: string; label: string; items: T[] }[] {
+  const map = new Map<string, T[]>();
+  for (const it of items) {
+    const q = qOf(it);
+    map.set(q, [...(map.get(q) ?? []), it]);
+  }
+  return [...map.entries()]
+    .sort((a, b) => qualificationRank(a[0]) - qualificationRank(b[0]))
+    .map(([q, list]) => ({ q, label: QUALIFICATION_GROUP_LABELS[q as Qualification] ?? q, items: list }));
+}
+
 export function isApprentice(q: string): boolean {
   return q.startsWith("AZUBI_");
 }

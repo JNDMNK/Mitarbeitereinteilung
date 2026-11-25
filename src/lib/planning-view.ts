@@ -1,4 +1,4 @@
-import { DUE_WARN_DAYS, isAvailableOn, OUTAGE_ICON, outageLabel } from "./constants";
+import { DUE_WARN_DAYS, isAvailableOn, OUTAGE_ICON, outageLabel, qualificationRank } from "./constants";
 import { diffDays, formatDayShort } from "./dates";
 import { compactNames } from "./names";
 import { absenceOn, crewWarnings, siteWarnings, type Warning } from "./planning-logic";
@@ -198,8 +198,15 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
   // Pool = nur verfügbare Mitarbeiter; Abwesende stehen ausschließlich in der Abwesenheitsleiste
   const poolEmployees: PoolEmployee[] = data.employees
     .filter((e) => e.active && !seatOf.has(e.id) && !absentIds.has(e.id) && isAvailableOn(e, date))
-    .sort((a, b) => depOrder(a) - depOrder(b) || a.lastName.localeCompare(b.lastName))
+    .sort((a, b) => qualificationRank(a.qualification) - qualificationRank(b.qualification) || depOrder(a) - depOrder(b) || a.lastName.localeCompare(b.lastName))
     .map((e) => ({ employee: e }));
+  // Abwesende ebenso nach Gruppe (Meister, Gesellen, Azubis …) sortieren
+  absent.sort(
+    (a, b) =>
+      qualificationRank(a.employee.qualification) - qualificationRank(b.employee.qualification) ||
+      depOrder(a.employee) - depOrder(b.employee) ||
+      a.employee.lastName.localeCompare(b.employee.lastName),
+  );
 
   return {
     date,

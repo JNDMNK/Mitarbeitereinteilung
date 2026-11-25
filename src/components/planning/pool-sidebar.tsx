@@ -1,6 +1,7 @@
 "use client";
 
 import { formatDayShort } from "@/lib/dates";
+import { groupByQualification } from "@/lib/constants";
 import type { DayView, Indexes } from "@/lib/planning-view";
 import { DraggableEmployee, Drop } from "./day-column";
 import type { Sheet } from "./sheets";
@@ -42,21 +43,30 @@ export function PoolSidebar({
           {day.poolEmployees.length === 0 ? (
             <p className="text-sm text-muted">Alle eingeteilt.</p>
           ) : (
-            <div className="flex flex-col gap-1">
-              {day.poolEmployees.map((p) => (
-                <DraggableEmployee
-                  key={p.employee.id}
-                  employee={p.employee}
-                  date={day.date}
-                  fromVehicleId={null}
-                  day={day}
-                  idx={idx}
-                  canEdit={canEdit}
-                  own={p.employee.id === ownEmployeeId}
-                  open={open}
-                  suffix="side"
-                  fullWidth
-                />
+            <div className="space-y-1.5">
+              {groupByQualification(day.poolEmployees, (p) => p.employee.qualification).map((g) => (
+                <div key={g.q}>
+                  <div className="mb-0.5 text-[11px] font-semibold tracking-wide text-muted uppercase">
+                    {g.label} ({g.items.length})
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {g.items.map((p) => (
+                      <DraggableEmployee
+                        key={p.employee.id}
+                        employee={p.employee}
+                        date={day.date}
+                        fromVehicleId={null}
+                        day={day}
+                        idx={idx}
+                        canEdit={canEdit}
+                        own={p.employee.id === ownEmployeeId}
+                        open={open}
+                        suffix="side"
+                        fullWidth
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}

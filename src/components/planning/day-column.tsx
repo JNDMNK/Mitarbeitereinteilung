@@ -1,5 +1,7 @@
 "use client";
 
+import { groupByQualification } from "@/lib/constants";
+import { QualificationBadge } from "@/components/qualification-badge";
 import type { ReactNode } from "react";
 import { formatDayLong, formatDayShort, isWeekend, isoWeek, mapsUrl } from "@/lib/dates";
 import { holidayName } from "@/lib/holidays";
@@ -268,20 +270,29 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
           {day.poolEmployees.length === 0 ? (
             <p className="text-sm text-muted">Alle eingeteilt.</p>
           ) : (
-            <div className="flex flex-wrap gap-1">
-              {day.poolEmployees.map((p) => (
-                <DraggableEmployee
-                  key={p.employee.id}
-                  employee={p.employee}
-                  date={day.date}
-                  fromVehicleId={null}
-                  day={day}
-                  idx={idx}
-                  canEdit={canEdit}
-                  own={p.employee.id === ownEmployeeId}
-                  open={open}
-                  suffix="pool"
-                />
+            <div className="space-y-1.5">
+              {groupByQualification(day.poolEmployees, (p) => p.employee.qualification).map((g) => (
+                <div key={g.q}>
+                  <div className="mb-0.5 text-[11px] font-semibold text-muted">
+                    {g.label} ({g.items.length})
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {g.items.map((p) => (
+                      <DraggableEmployee
+                        key={p.employee.id}
+                        employee={p.employee}
+                        date={day.date}
+                        fromVehicleId={null}
+                        day={day}
+                        idx={idx}
+                        canEdit={canEdit}
+                        own={p.employee.id === ownEmployeeId}
+                        open={open}
+                        suffix="pool"
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -403,6 +414,7 @@ export function AbsentBar({ day, ownEmployeeId, open, idx }: { day: DayView; own
                   {a.type?.code}
                 </span>
                 {idx?.names.get(a.employee.id) ?? a.employee.shortName}
+                <QualificationBadge q={a.employee.qualification} />
               </button>
             ))}
           </div>

@@ -11,7 +11,7 @@ import { listOutages } from "@/server/services/vehicle-outages";
 
 export const metadata: Metadata = { title: "Abwesenheiten" };
 
-export default async function AbsencesPage({ searchParams }: { searchParams: Promise<{ monat?: string; abteilung?: string; ansicht?: string }> }) {
+export default async function AbsencesPage({ searchParams }: { searchParams: Promise<{ monat?: string; abteilung?: string; ansicht?: string; gruppe?: string }> }) {
   const { user } = await requirePagePermission("absences.view");
   const sp = await searchParams;
   const today = todayIso();
@@ -70,6 +70,7 @@ export default async function AbsencesPage({ searchParams }: { searchParams: Pro
         today={today}
         departmentFilter={sp.abteilung ?? ""}
         view={sp.ansicht === "liste" ? "list" : "table"}
+        grouping={sp.gruppe === "abteilung" ? "abteilung" : "quali"}
         canEdit={can(user.role, "absences.edit")}
         ownEmployeeId={user.employeeId}
         absences={absences}

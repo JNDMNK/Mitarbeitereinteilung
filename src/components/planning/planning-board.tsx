@@ -278,7 +278,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
             onChange={(e) => isIsoDate(e.target.value) && go(e.target.value)}
             className="min-h-11 min-w-0 flex-1 rounded-lg border border-line px-2 md:flex-none"
           />
-          <span className="text-sm font-semibold whitespace-nowrap text-muted" title="Kalenderwoche">
+          <span className="hidden text-sm font-semibold whitespace-nowrap text-muted sm:inline" title="Kalenderwoche">
             {weekLabel(days[0] ?? from, days[days.length - 1] ?? from)}
           </span>
           <button
