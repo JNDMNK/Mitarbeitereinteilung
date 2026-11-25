@@ -105,7 +105,11 @@ function SearchList<T>({
 
 function slotIn(day: DayView | undefined, vehicleId: string): VehicleSlot | undefined {
   if (!day) return undefined;
-  return day.poolVehicles.find((p) => p.vehicle.id === vehicleId) ?? day.sites.flatMap((g) => g.items).find((i) => i.vehicle.id === vehicleId);
+  return (
+    day.poolVehicles.find((p) => p.vehicle.id === vehicleId) ??
+    day.rooms.find((p) => p.vehicle.id === vehicleId) ??
+    day.sites.flatMap((g) => g.items).find((i) => i.vehicle.id === vehicleId)
+  );
 }
 
 export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run, busy, notify }: Props) {
@@ -228,6 +232,49 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
               <>
                 <OwnerLine owner={slot?.owner} />
                 {slot?.unavailable && <UnavailableNote entry={slot.unavailable} />}
+                {slot && slot.crew.length > 0 && (
+                  <section className="rounded-lg bg-slate-50 p-2 ring-1 ring-line">
+                    <h3 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">
+                      {v.kind === "ROOM" ? "Personen" : "Besatzung"} ({slot.crew.length}/{v.seats})
+                    </h3>
+                    <ul className="space-y-1">
+                      {slot.crew.map((e) => (
+                        <li key={e.id} className="flex items-center gap-2 rounded-md bg-white px-2 py-1 ring-1 ring-line">
+                          <span className="h-6 w-1 shrink-0 rounded-full" style={{ backgroundColor: idx.departments.get(e.departmentId)?.color }} aria-hidden />
+                          <span className="min-w-0 flex-1 truncate font-semibold">
+                            {e.lastName}, {e.firstName}
+                          </span>
+                          <QualificationBadge q={e.qualification} />
+                          {canEdit && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => setSheet({ kind: "pickVehicleForEmployee", date: sheet.date, employeeId: e.id })}
+                                className="flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-line px-2 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50"
+                                title={`${e.firstName} ${e.lastName} auf anderes Fahrzeug / anderen Raum setzen`}
+                              >
+                                ⇄<span className="ml-1 hidden sm:inline">Umsetzen</span>
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={async () => {
+                                  close();
+                                  await run("crew-remove", { date: sheet.date, employeeId: e.id, expectedFromVehicleId: v.id }, `${e.firstName} ${e.lastName} zurück in den Pool.`);
+                                }}
+                                className="flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-line px-2 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50"
+                                title={`${e.firstName} ${e.lastName} zurück in den Pool`}
+                              >
+                                ↩<span className="ml-1 hidden sm:inline">Freigeben</span>
+                              </button>
+                            </>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
               </>
             );
           })()}
