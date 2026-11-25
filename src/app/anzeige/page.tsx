@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { todayIso } from "@/lib/dates";
 import { buildDisplayDays } from "@/lib/display-view";
-import { visibleDays } from "@/lib/planning-days";
+import { normalizeStart, stepDay, visibleDays } from "@/lib/planning-days";
 import { requirePagePermission } from "@/server/page-auth";
 import { db } from "@/server/db";
 import { getPlanningData } from "@/server/services/planning";
@@ -17,7 +17,10 @@ export default async function DisplayPage({ searchParams }: { searchParams: Prom
   const count = sp.tage === "5" ? 5 : 3;
   const today = todayIso();
   // Wochenende und Feiertage werden übersprungen
-  const days = visibleDays(sp.datum && /^\d{4}-\d{2}-\d{2}$/.test(sp.datum) ? sp.datum : today, true, count);
+  const start = normalizeStart(sp.datum && /^\d{4}-\d{2}-\d{2}$/.test(sp.datum) ? sp.datum : today, true);
+  const days = visibleDays(start, true, count);
+  const link = (d: string) => `/anzeige?tage=${count}${d === normalizeStart(today, true) ? "" : `&datum=${d}`}`;
+  const nav = { prev: link(stepDay(start, -1, true)), next: link(stepDay(start, 1, true)), isToday: start === normalizeStart(today, true), start };
   const [data, settings] = await Promise.all([
     getPlanningData(days[0], days[days.length - 1]),
     db.appSettings.findUnique({ where: { id: 1 }, select: { companyName: true, logoFile: true } }),
@@ -30,6 +33,7 @@ export default async function DisplayPage({ searchParams }: { searchParams: Prom
       companyName={settings?.companyName ?? "Einteilung"}
       logoUrl={logoUrl(settings?.logoFile ?? null)}
       canLeave={session.user.role !== "DISPLAY"}
+      nav={nav}
     />
   );
 }

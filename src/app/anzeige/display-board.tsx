@@ -1,12 +1,8 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element -- Logo kommt aus /api/logo */
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { LiveRefresh } from "@/components/live/live-refresh";
-import { useLiveStatus } from "@/components/live/live-events";
-import { todayIso } from "@/lib/dates";
+import { DisplayHeader } from "./display-header";
 import type { DDay, DPerson, DVehicle } from "@/lib/display-view";
 
 const MIN_FONT = 6;
@@ -71,28 +67,6 @@ function useFitToScreen(deps: unknown[]) {
   return colRefs;
 }
 
-function useClock(today: string) {
-  const router = useRouter();
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    const tick = () => {
-      const d = new Date();
-      setNow(d);
-      // Tageswechsel: neu laden, damit „Heute“ weiterrückt
-      if (todayIso(d) !== today) router.refresh();
-    };
-    tick();
-    const t = setInterval(tick, 20_000);
-    // Sicherheitsnetz: alle 10 Minuten neu laden
-    const r = setInterval(() => router.refresh(), 10 * 60_000);
-    return () => {
-      clearInterval(t);
-      clearInterval(r);
-    };
-  }, [today, router]);
-  return now;
-}
-
 export function DisplayBoard({
   days,
   count,
@@ -100,7 +74,9 @@ export function DisplayBoard({
   companyName,
   logoUrl,
   canLeave,
+  nav,
 }: {
+  nav: { prev: string; next: string; isToday: boolean; start: string };
   days: DDay[];
   count: number;
   today: string;
@@ -109,50 +85,11 @@ export function DisplayBoard({
   canLeave: boolean;
 }) {
   const colRefs = useFitToScreen([days, count]);
-  const now = useClock(today);
-  const live = useLiveStatus();
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-slate-100 text-ink">
       <LiveRefresh scopes={["planning", "absences", "masterdata"]} fallbackMs={60_000} />
-      <header className="flex shrink-0 items-center gap-[1rem] bg-brand-700 px-[1rem] py-[0.4rem] text-white">
-        {logoUrl && (
-          <span className="flex h-[2.2rem] items-center rounded bg-white px-[0.3rem] py-[0.2rem]">
-            <img src={logoUrl} alt="" className="h-full object-contain" onLoad={() => window.dispatchEvent(new Event("resize"))} />
-          </span>
-        )}
-        <span className="text-[1.4rem] font-bold">{companyName}</span>
-        <span className="text-[1.1rem] opacity-90">Einteilung</span>
-        <span className="ml-auto flex items-center gap-[0.8rem] text-[1rem]">
-          <span className={`inline-flex items-center gap-[0.3rem] ${live === "live" ? "" : "opacity-70"}`}>
-            <span className={`inline-block size-[0.6rem] rounded-full ${live === "live" ? "bg-green-400" : "bg-amber-300"}`} />
-            {live === "live" ? "Live" : "Verbinde …"}
-          </span>
-          <span className="flex overflow-hidden rounded border border-white/40 text-[0.9rem]">
-            {[3, 5].map((n) => (
-              <Link key={n} href={`/anzeige?tage=${n}`} className={`px-[0.5rem] py-[0.1rem] font-semibold ${count === n ? "bg-white text-brand-800" : "hover:bg-white/15"}`}>
-                {n} Tage
-              </Link>
-            ))}
-          </span>
-          <button
-            type="button"
-            onClick={() => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {})}
-            className="rounded border border-white/40 px-[0.5rem] py-[0.1rem] text-[0.9rem] font-semibold hover:bg-white/15"
-            title="Vollbild ein/aus"
-          >
-            ⛶ Vollbild
-          </button>
-          {canLeave && (
-            <Link href="/planung" className="rounded border border-white/40 px-[0.5rem] py-[0.1rem] text-[0.9rem] font-semibold hover:bg-white/15">
-              ✕
-            </Link>
-          )}
-          <span className="min-w-[4.5rem] text-right text-[1.6rem] font-bold tabular-nums">
-            {now ? now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }) : ""}
-          </span>
-        </span>
-      </header>
+      <DisplayHeader companyName={companyName} logoUrl={logoUrl} count={count} mode="plan" today={today} nav={nav} canLeave={canLeave} homeHref={`/anzeige?tage=${count}`} />
 
       <main className="grid min-h-0 flex-1 gap-[0.6rem] p-[0.6rem]" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
         {days.map((d, i) => (

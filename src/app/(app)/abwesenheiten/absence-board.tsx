@@ -72,8 +72,10 @@ export function AbsenceBoard(props: {
   vehicles: VehicleRow[];
   outages: Outage[];
   canEditOutages: boolean;
+  /** Pfad für Links (Monitor-Anzeige nutzt eigenen Pfad) */
+  basePath?: string;
 }) {
-  const { from, to, today, canEdit, absences, departments, types, employees, departmentFilter, qualiFilter, view, grouping, ownEmployeeId, ownedVehicles, vehicles, outages, canEditOutages } = props;
+  const { from, to, today, canEdit, absences, departments, types, employees, departmentFilter, qualiFilter, view, grouping, ownEmployeeId, ownedVehicles, vehicles, outages, canEditOutages, basePath = "/abwesenheiten" } = props;
   const [outageDialog, setOutageDialog] = useState<OutageDialog>(null);
   const router = useRouter();
   const page = useSave();
@@ -97,7 +99,7 @@ export function AbsenceBoard(props: {
     if (g) p.set("gruppe", g);
     const q = params.quali ?? qualiFilter;
     if (q.length) p.set("quali", q.join(","));
-    return `/abwesenheiten?${p.toString()}`;
+    return `${basePath}${basePath.includes("?") ? "&" : "?"}${p.toString()}`;
   };
 
   const matchesFilter = useCallback(
@@ -389,7 +391,7 @@ export function AbsenceBoard(props: {
 
       {view === "table" ? (
         <div ref={scrollRef} className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-line">
-          <table className="border-separate border-spacing-0 text-sm select-none">
+          <table className="min-w-full border-separate border-spacing-0 text-sm select-none">
             <thead>
               <tr>
                 <th className="sticky left-0 z-10 border-r border-line bg-white" />
