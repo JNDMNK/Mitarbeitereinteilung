@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MessageBar, useSave } from "@/components/masterdata/shared";
 import { QualificationBadge } from "@/components/qualification-badge";
 import { Alert } from "@/components/ui/alert";
@@ -13,7 +13,7 @@ import { api } from "@/lib/api-client";
 import { addMonths, eachDay, formatDayLong, isoWeek, formatMonth, formatRange, isWeekend, weekdayShort } from "@/lib/dates";
 import { holidayName } from "@/lib/holidays";
 import { OutageForm, type OutageValue } from "@/components/outage-form";
-import { outageLabel, QUALIFICATION_GROUP_LABELS, qualificationRank, type Qualification } from "@/lib/constants";
+import { outageLabel, QUALIFICATION_BADGES, QUALIFICATION_GROUP_LABELS, QUALIFICATION_GROUP_ORDER, qualificationRank, type Qualification } from "@/lib/constants";
 
 type Absence = {
   id: string;
@@ -55,6 +55,8 @@ export function AbsenceBoard(props: {
   to: string;
   today: string;
   departmentFilter: string;
+  /** Qualifikationen (leer = alle), Mehrfachauswahl */
+  qualiFilter: string[];
   view: "table" | "list";
   /** Tabellenzeilen gruppieren nach Qualifikation (Standard) oder Abteilung */
   grouping: "quali" | "abteilung";
@@ -71,7 +73,7 @@ export function AbsenceBoard(props: {
   outages: Outage[];
   canEditOutages: boolean;
 }) {
-  const { from, to, today, canEdit, absences, departments, types, employees, departmentFilter, view, grouping, ownEmployeeId, ownedVehicles, vehicles, outages, canEditOutages } = props;
+  const { from, to, today, canEdit, absences, departments, types, employees, departmentFilter, qualiFilter, view, grouping, ownEmployeeId, ownedVehicles, vehicles, outages, canEditOutages } = props;
   const [outageDialog, setOutageDialog] = useState<OutageDialog>(null);
   const router = useRouter();
   const page = useSave();
@@ -83,7 +85,7 @@ export function AbsenceBoard(props: {
   const days = useMemo(() => eachDay(from, to), [from, to]);
   const month = from.slice(0, 7);
 
-  const href = (params: { monat?: string; abteilung?: string; ansicht?: string; gruppe?: string }) => {
+  const href = (params: { monat?: string; abteilung?: string; ansicht?: string; gruppe?: string; quali?: string[] }) => {
     const p = new URLSearchParams();
     const m = params.monat ?? month;
     const a = params.abteilung ?? departmentFilter;
@@ -93,12 +95,21 @@ export function AbsenceBoard(props: {
     if (a) p.set("abteilung", a);
     if (v) p.set("ansicht", v);
     if (g) p.set("gruppe", g);
+    const q = params.quali ?? qualiFilter;
+    if (q.length) p.set("quali", q.join(","));
     return `/abwesenheiten?${p.toString()}`;
   };
 
+  const matchesFilter = useCallback(
+    (e: Employee) =>
+      (!departmentFilter || e.department.id === departmentFilter) && (qualiFilter.length === 0 || qualiFilter.includes(e.qualification ?? "GESELLE")),
+    [departmentFilter, qualiFilter],
+  );
+  const toggleQuali = (q: string) => (qualiFilter.includes(q) ? qualiFilter.filter((x) => x !== q) : [...qualiFilter, q]);
+
   // Mitarbeiter nach Qualifikation (Meister, Gesellen, Azubis …) oder nach Abteilung gruppiert
   const groups = useMemo(() => {
-    const filtered = employees.filter((e) => !departmentFilter || e.department.id === departmentFilter);
+    const filtered = employees.filter((e) => matchesFilter(e));
     const map = new Map<string, { dep: Department; list: Employee[]; quali: boolean }>();
     for (const e of filtered) {
       const q = e.qualification ?? "GESELLE";
@@ -119,7 +130,7 @@ export function AbsenceBoard(props: {
     // innerhalb einer Qualifikation nach Abteilung, dann Name
     if (grouping === "quali") for (const g of out) g.list.sort((a, b) => a.department.sortOrder - b.department.sortOrder || a.lastName.localeCompare(b.lastName));
     return out;
-  }, [employees, departmentFilter, grouping]);
+  }, [employees, grouping, matchesFilter]);
 
   // employeeId -> Tag -> Abwesenheit
   const byCell = useMemo(() => {
@@ -298,6 +309,34 @@ export function AbsenceBoard(props: {
             + Abwesenheit
           </Button>
         )}
+      </div>
+
+      {/* Filter: Qualifikation (Mehrfachauswahl) */}
+      <div className="no-print flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter Qualifikation">
+        <span className="mr-1 text-sm font-semibold text-muted">Anzeigen:</span>
+        <Link
+          href={href({ quali: [] })}
+          aria-pressed={qualiFilter.length === 0}
+          className={`flex min-h-10 items-center rounded-full border px-3 text-sm font-semibold ${qualiFilter.length === 0 ? "border-brand-700 bg-brand-700 text-white" : "border-line bg-white hover:bg-slate-50"}`}
+        >
+          Alle
+        </Link>
+        {QUALIFICATION_GROUP_ORDER.map((q) => {
+          const on = qualiFilter.includes(q);
+          return (
+            <Link
+              key={q}
+              href={href({ quali: toggleQuali(q) })}
+              aria-pressed={on}
+              title={on ? "Filter entfernen" : "Zum Filter hinzufügen"}
+              className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold ${on ? "border-brand-700 bg-brand-50 text-brand-800 ring-1 ring-brand-700" : "border-line bg-white hover:bg-slate-50"}`}
+            >
+              <span className="font-mono text-xs">{QUALIFICATION_BADGES[q]}</span>
+              {QUALIFICATION_GROUP_LABELS[q]}
+              {on && <span aria-hidden>✓</span>}
+            </Link>
+          );
+        })}
       </div>
 
       {/* Legende */}
@@ -512,7 +551,7 @@ export function AbsenceBoard(props: {
         </div>
       ) : (
         <AbsenceList
-          absences={absences.filter((a) => !departmentFilter || employees.find((e) => e.id === a.employeeId)?.department.id === departmentFilter)}
+          absences={absences.filter((a) => { const e = employees.find((x) => x.id === a.employeeId); return !e || matchesFilter(e); })}
           canEdit={canEdit}
           ownEmployeeId={ownEmployeeId}
           onEdit={(a) => setDialog({ kind: "edit", absence: a })}

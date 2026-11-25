@@ -3,6 +3,7 @@ import { LiveRefresh } from "@/components/live/live-refresh";
 import { PageHeader } from "@/components/page-header";
 import { monthEnd, monthStart, todayIso } from "@/lib/dates";
 import { can } from "@/lib/roles";
+import { QUALIFICATIONS } from "@/lib/constants";
 import { db } from "@/server/db";
 import { requirePagePermission } from "@/server/page-auth";
 import { listAbsencesInRange } from "@/server/services/absences";
@@ -11,7 +12,7 @@ import { listOutages } from "@/server/services/vehicle-outages";
 
 export const metadata: Metadata = { title: "Abwesenheiten" };
 
-export default async function AbsencesPage({ searchParams }: { searchParams: Promise<{ monat?: string; abteilung?: string; ansicht?: string; gruppe?: string }> }) {
+export default async function AbsencesPage({ searchParams }: { searchParams: Promise<{ monat?: string; abteilung?: string; ansicht?: string; gruppe?: string; quali?: string }> }) {
   const { user } = await requirePagePermission("absences.view");
   const sp = await searchParams;
   const today = todayIso();
@@ -69,6 +70,7 @@ export default async function AbsencesPage({ searchParams }: { searchParams: Pro
         to={to}
         today={today}
         departmentFilter={sp.abteilung ?? ""}
+        qualiFilter={(sp.quali ?? "").split(",").filter((q) => (QUALIFICATIONS as readonly string[]).includes(q))}
         view={sp.ansicht === "liste" ? "list" : "table"}
         grouping={sp.gruppe === "abteilung" ? "abteilung" : "quali"}
         canEdit={can(user.role, "absences.edit")}
