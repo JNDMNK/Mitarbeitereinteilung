@@ -22,7 +22,10 @@ export function DisplayHeader({
   nav,
   canLeave,
   homeHref,
+  free = "namen",
 }: {
+  /** Anzeige der nicht Eingeteilten auf dem Monitor */
+  free?: "namen" | "anzahl" | "aus";
   companyName: string;
   logoUrl: string | null;
   count: number;
@@ -108,11 +111,25 @@ export function DisplayHeader({
           {live === "live" ? "Live" : "Verbinde …"}
         </span>
         {mode === "plan" && (
+          <span className="flex items-center overflow-hidden rounded border border-white/40 text-[0.9rem]">
+            <span className="px-[0.4rem] opacity-80">Freie:</span>
+            {(["namen", "anzahl", "aus"] as const).map((f) => (
+              <Link
+                key={f}
+                href={`/anzeige?tage=${count}${nav && !nav.isToday ? `&datum=${nav.start}` : ""}${f !== "namen" ? `&frei=${f}` : ""}`}
+                className={`px-[0.5rem] py-[0.1rem] font-semibold ${free === f ? "bg-white text-brand-800" : "hover:bg-white/15"}`}
+              >
+                {f === "namen" ? "Namen" : f === "anzahl" ? "Anzahl" : "aus"}
+              </Link>
+            ))}
+          </span>
+        )}
+        {mode === "plan" && (
           <span className="flex overflow-hidden rounded border border-white/40 text-[0.9rem]">
             {[3, 5].map((n) => (
               <Link
                 key={n}
-                href={`/anzeige?tage=${n}${nav && !nav.isToday ? `&datum=${nav.start}` : ""}`}
+                href={`/anzeige?tage=${n}${nav && !nav.isToday ? `&datum=${nav.start}` : ""}${free !== "namen" ? `&frei=${free}` : ""}`}
                 className={`px-[0.5rem] py-[0.1rem] font-semibold ${count === n ? "bg-white text-brand-800" : "hover:bg-white/15"}`}
               >
                 {n} Tage
