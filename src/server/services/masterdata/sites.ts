@@ -41,7 +41,7 @@ export async function updateSite(actorId: string, id: string, input: z.infer<typ
     const changes = describeChanges(
       cur,
       data,
-      { name: "Name", address: "Adresse", customer: "Kunde", orderNumber: "Auftragsnr.", startDate: "Beginn", endDate: "Ende", status: "Status", note: "Notiz", color: "Farbe", active: "Aktiv", adHoc: "Freier Eintrag" },
+      { name: "Name", address: "Adresse", customer: "Kunde", orderNumber: "Projekt-Nr.", startDate: "Beginn", endDate: "Ende", status: "Status", note: "Notiz", color: "Farbe", active: "Aktiv", adHoc: "Freier Eintrag" },
       (key, v) =>
         key === "startDate" || key === "endDate"
           ? fmtDate(v)

@@ -56,7 +56,7 @@ export function SiteAdmin({ sites, isAdmin = false, autoDeleteDays = 0 }: { site
       <Toolbar
         query={query}
         onQuery={setQuery}
-        placeholder="Name, Adresse, Kunde, Auftragsnr."
+        placeholder="Name, Adresse, Kunde, Projekt-Nr."
         showInactive={showInactive}
         onShowInactive={setShowInactive}
         onCreate={() => setEditing("new")}
@@ -145,7 +145,7 @@ export function SiteAdmin({ sites, isAdmin = false, autoDeleteDays = 0 }: { site
                   </a>
                 )}
                 {s.customer && <span>Kunde: {s.customer}</span>}
-                {s.orderNumber && <span>Auftrag: {s.orderNumber}</span>}
+                {s.orderNumber && <span>Projekt-Nr.: {s.orderNumber}</span>}
                 {(s.startDate || s.endDate) && (
                   <span>
                     {formatDate(s.startDate)} – {formatDate(s.endDate)}
@@ -212,7 +212,7 @@ function SiteForm({ site, onDone, onCancel }: { site: Site | null; onDone: (msg:
         <Field label="Kunde (optional)">
           <Input name="customer" defaultValue={site?.customer ?? ""} maxLength={100} />
         </Field>
-        <Field label="Auftragsnummer (optional)">
+        <Field label="Projekt-Nr. (optional)">
           <Input name="orderNumber" defaultValue={site?.orderNumber ?? ""} maxLength={50} />
         </Field>
       </div>

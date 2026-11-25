@@ -114,7 +114,7 @@ function DayCard({ day, today, big = false }: { day: MyDay; today: string; big?:
                   <li key={`${s.id}-${s.startMin}`} className="rounded-xl border border-line p-3" style={{ borderLeft: `8px solid ${s.color}` }}>
                     <p className={`font-mono font-bold ${big ? "text-2xl" : "text-xl"}`}>{timeRange(s.startMin, s.endMin)}</p>
                     <p className={`font-bold ${big ? "text-xl" : "text-lg"}`}>{s.name}</p>
-                    {(s.customer || s.orderNumber) && <p className="text-sm text-muted">{[s.customer, s.orderNumber && `Auftrag ${s.orderNumber}`].filter(Boolean).join(" · ")}</p>}
+                    {(s.customer || s.orderNumber) && <p className="text-sm text-muted">{[s.customer, s.orderNumber && `Projekt-Nr. ${s.orderNumber}`].filter(Boolean).join(" · ")}</p>}
                     {s.address && (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <a href={mapsUrl(s.address)} target="_blank" rel="noopener noreferrer" className="text-brand-700 underline">

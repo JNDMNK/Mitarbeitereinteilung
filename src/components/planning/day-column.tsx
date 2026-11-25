@@ -186,7 +186,10 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
         >
           <div className="flex items-start gap-2 border-b border-line px-3 py-1.5" style={{ boxShadow: `inset 6px 0 0 ${g.site.color}` }}>
             <div className="min-w-0 flex-1 pl-1.5">
-              <h3 className="leading-tight font-bold">{g.site.name}</h3>
+              <h3 className="leading-tight font-bold">
+                {g.site.name}
+                {g.site.orderNumber && <span className="ml-1.5 font-mono text-xs font-semibold text-muted">Projekt-Nr. {g.site.orderNumber}</span>}
+              </h3>
               {g.site.address && (
                 <a href={mapsUrl(g.site.address)} target="_blank" rel="noopener noreferrer" className="block truncate text-xs text-brand-700 underline">
                   📍 {g.site.address}

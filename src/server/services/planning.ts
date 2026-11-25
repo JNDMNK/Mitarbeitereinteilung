@@ -529,12 +529,12 @@ const ADHOC_COLORS = ["#0d9488", "#2563eb", "#7c3aed", "#c026d3", "#ea580c", "#6
 async function resolveSite(tx: Tx, actorId: string, siteId: string | undefined, newSite: NewSite | undefined, date: string) {
   if (newSite) {
     // gleichnamigen, aktiven freien Eintrag wiederverwenden (z. B. am Folgetag erneut eingegeben)
-    const existing = await tx.site.findFirst({ where: { adHoc: true, active: true, name: newSite.name, address: newSite.address } });
+    const existing = await tx.site.findFirst({ where: { adHoc: true, active: true, name: newSite.name, address: newSite.address, orderNumber: newSite.orderNumber ?? null } });
     if (existing) return existing;
     let h = 0;
     for (const ch of newSite.name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     const site = await tx.site.create({
-      data: { name: newSite.name, address: newSite.address, status: "ACTIVE", adHoc: true, color: ADHOC_COLORS[h % ADHOC_COLORS.length] },
+      data: { name: newSite.name, address: newSite.address, orderNumber: newSite.orderNumber ?? null, status: "ACTIVE", adHoc: true, color: ADHOC_COLORS[h % ADHOC_COLORS.length] },
     });
     await audit(tx, {
       userId: actorId,
@@ -542,7 +542,7 @@ async function resolveSite(tx: Tx, actorId: string, siteId: string | undefined, 
       entityType: "Site",
       entityId: site.id,
       date,
-      summary: `Freie Baustelle „${site.name}“ in der Planung angelegt`,
+      summary: `Freie Baustelle „${site.name}“${site.orderNumber ? ` (Projekt-Nr. ${site.orderNumber})` : ""} in der Planung angelegt`,
     });
     return site;
   }

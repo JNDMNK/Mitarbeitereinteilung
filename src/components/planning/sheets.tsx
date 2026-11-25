@@ -459,7 +459,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
                 <span className="size-4 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{s.name}</span>
-                  <span className="block truncate text-sm font-normal text-muted">{[s.customer, s.address].filter(Boolean).join(" · ") || "–"}</span>
+                  <span className="block truncate text-sm font-normal text-muted">{[s.orderNumber && `Projekt-Nr. ${s.orderNumber}`, s.customer, s.address].filter(Boolean).join(" · ") || "–"}</span>
                 </span>
                 {outside && <span className="text-xs font-bold text-amber-800">außerhalb Zeitraum</span>}
               </Action>
@@ -927,6 +927,7 @@ function FreeSiteDialog({
 }) {
   const [name, setName] = useState(sheet.name);
   const [address, setAddress] = useState("");
+  const [orderNumber, setOrderNumber] = useState("");
   const assignment = sheet.assignmentId ? data.vehicleDays.flatMap((v) => v.assignments).find((a) => a.id === sheet.assignmentId) : undefined;
   return (
     <Dialog open onClose={close} title="Freie Baustelle">
@@ -934,7 +935,7 @@ function FreeSiteDialog({
         className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault();
-          const newSite = { name: name.trim(), address: address.trim() || null };
+          const newSite = { name: name.trim(), address: address.trim() || null, orderNumber: orderNumber.trim() || null };
           if (!newSite.name) return;
           if (assignment) {
             close();
@@ -956,6 +957,10 @@ function FreeSiteDialog({
         <label className="block">
           <span className="mb-1 block text-sm font-semibold">Adresse (optional, für die Navigation)</span>
           <Input value={address} onChange={(e) => setAddress(e.target.value)} maxLength={200} placeholder="Straße Nr., PLZ Ort" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold">Projekt-Nr. (optional)</span>
+          <Input value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} maxLength={50} placeholder="z. B. P-2026-117" />
         </label>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={close}>

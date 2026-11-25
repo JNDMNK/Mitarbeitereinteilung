@@ -34,6 +34,13 @@ export const newSiteSchema = z.object({
     .max(200)
     .nullish()
     .transform((v) => (v ? v : null)),
+  /** Projekt-Nummer (optional) */
+  orderNumber: z
+    .string()
+    .trim()
+    .max(50)
+    .nullish()
+    .transform((v) => (v ? v : null)),
 });
 export type NewSite = z.infer<typeof newSiteSchema>;
 

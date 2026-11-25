@@ -122,6 +122,7 @@ function PrintDay({
                       <>
                         <span className="mr-1 inline-block size-2.5 rounded-full align-middle print:border print:border-black" style={{ backgroundColor: g.site.color }} />
                         <strong>{g.site.name}</strong>
+                        {g.site.orderNumber && <span className="ml-1 font-mono text-xs">Projekt-Nr. {g.site.orderNumber}</span>}
                         {g.site.address && <div className="text-xs">{g.site.address}</div>}
                         {g.warnings.map((w) => (
                           <div key={w.text} className="text-xs font-semibold">
