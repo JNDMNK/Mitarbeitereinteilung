@@ -314,7 +314,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
             <>
               {a && site && (
                 <>
-                  <Action onClick={() => setSheet({ kind: "time", date: sheet.date, vehicleId: v.id, siteId: site.id, assignmentId: a.id })}>🕒 Zeit / 📌 Termin ändern …</Action>
+                  <Action onClick={() => setSheet({ kind: "time", date: sheet.date, vehicleId: v.id, siteId: site.id, assignmentId: a.id })}>🕒 Zeit / 📌 Termin / 📅 weitere Tage …</Action>
                   {site.adHoc && (
                     <Action onClick={() => setSheet({ kind: "editSite", date: sheet.date, siteId: site.id })}>✏️ Freien Eintrag „{site.name}“ bearbeiten …</Action>
                   )}
@@ -730,19 +730,20 @@ function TimeDialog({
       }
       initial={current ? { startMin: current.startMin, endMin: current.endMin } : null}
       fixedInitial={{ fixed: !!current?.fixed, fixedTimeMin: current?.fixedTimeMin ?? null, fixedNote: current?.fixedNote ?? null }}
+      rangeFrom={sheet.date}
       others={others}
       data={data}
       idx={idx}
       submitLabel={current ? "Speichern" : "Einplanen"}
       close={close}
       busy={busy}
-      onSubmit={async (start, end, fx) => {
+      onSubmit={async (start, end, fx, range) => {
         const pin = fx.fixed ? ` – 📌 Termin${fx.fixedTimeMin !== null ? ` ${formatMinutes(fx.fixedTimeMin)}` : ""}` : "";
-        if (current) await run("assignment-update", { id: current.id, version: current.version, startMin: start, endMin: end, ...fx }, `${timeRange(start, end)} gespeichert${pin}.`);
+        if (current) await run("assignment-update", { id: current.id, version: current.version, startMin: start, endMin: end, ...fx, ...range }, `${timeRange(start, end)} gespeichert${pin}.`);
         else
           await run(
             "assignment-create",
-            { date: sheet.date, vehicleId: vehicle.id, ...(sheet.newSite ? { newSite: sheet.newSite } : { siteId: site.id }), startMin: start, endMin: end, ...fx },
+            { date: sheet.date, vehicleId: vehicle.id, ...(sheet.newSite ? { newSite: sheet.newSite } : { siteId: site.id }), startMin: start, endMin: end, ...fx, ...range },
             `${vehicle.licensePlate} auf „${site.name}“ ${timeRange(start, end)} eingeplant${pin}.`,
           );
       }}
@@ -811,6 +812,7 @@ function DropTimeDialog({
 }
 
 type FixedValue = { fixed: boolean; fixedTimeMin: number | null; fixedNote: string | null };
+type RangeValue = { untilDate?: string; includeDaysOff?: boolean };
 
 function TimeWindowDialog({
   title,
@@ -824,7 +826,10 @@ function TimeWindowDialog({
   busy,
   onSubmit,
   fixedInitial,
+  rangeFrom,
 }: {
+  /** Tag des Einsatzes: blendet „Über mehrere Tage“ ein */
+  rangeFrom?: string;
   /** fester Termin: Startwerte; ohne Angabe wird der Abschnitt nicht angezeigt */
   fixedInitial?: FixedValue;
   title: string;
@@ -836,10 +841,14 @@ function TimeWindowDialog({
   submitLabel: string;
   close: () => void;
   busy: boolean;
-  onSubmit: (start: number, end: number, fixed: FixedValue) => Promise<void>;
+  onSubmit: (start: number, end: number, fixed: FixedValue, range: RangeValue) => Promise<void>;
 }) {
   const { defaultStartMin: ds, defaultEndMin: de } = data.settings;
   const [fixed, setFixed] = useState<FixedValue>(fixedInitial ?? { fixed: false, fixedTimeMin: null, fixedNote: null });
+  const [multi, setMulti] = useState(false);
+  const [until, setUntil] = useState(rangeFrom ? addDays(rangeFrom, 4) : "");
+  const [daysOff, setDaysOff] = useState(false);
+  const range: RangeValue = multi && rangeFrom && until > rangeFrom ? { untilDate: until, includeDaysOff: daysOff } : {};
   const fiveMinOptions = useMemo(() => Array.from({ length: (22 - 5) * 12 + 1 }, (_, i) => 5 * 60 + i * 5), []);
   const suggestion = useMemo(() => initial ?? suggestSlot(others, ds, de), [initial, others, ds, de]);
   const [start, setStart] = useState(suggestion?.startMin ?? ds);
@@ -860,7 +869,7 @@ function TimeWindowDialog({
         onSubmit={async (e) => {
           e.preventDefault();
           close();
-          await onSubmit(start, end, fixed);
+          await onSubmit(start, end, fixed, range);
         }}
       >
         <p>{intro}</p>
@@ -913,6 +922,36 @@ function TimeWindowDialog({
               ))}
             </ul>
           </div>
+        )}
+        {rangeFrom && (
+          <fieldset className={`rounded-lg border-2 p-3 ${multi ? "border-sky-500 bg-sky-50" : "border-line"}`}>
+            <label className="flex min-h-11 items-center gap-2 font-semibold">
+              <input type="checkbox" className="size-5 accent-sky-600" checked={multi} onChange={(e) => setMulti(e.target.checked)} />
+              📅 Über mehrere Tage einplanen
+            </label>
+            {multi && (
+              <div className="mt-2 space-y-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-semibold">von</span>
+                    <Input value={formatDayShort(rangeFrom)} disabled />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-semibold">bis (einschließlich)</span>
+                    <Input type="date" min={addDays(rangeFrom, 1)} max={addDays(rangeFrom, 62)} value={until} onChange={(e) => setUntil(e.target.value)} required />
+                  </label>
+                </div>
+                <label className="flex min-h-10 items-center gap-2 text-sm">
+                  <input type="checkbox" className="size-5 accent-sky-600" checked={daysOff} onChange={(e) => setDaysOff(e.target.checked)} />
+                  auch an Wochenenden und Feiertagen
+                </label>
+                <p className="text-xs text-muted">
+                  Gleiche Zeit an jedem Tag. Die Besatzung wird übernommen, wo das Fahrzeug noch keine hat. Tage, an denen das Fahrzeug nicht verfügbar ist oder die Zeit schon belegt ist, werden ausgelassen und gemeldet.
+                  {fixed.fixed ? " Der feste Termin gilt nur für den ersten Tag." : ""}
+                </p>
+              </div>
+            )}
+          </fieldset>
         )}
         {fixedInitial && (
           <fieldset className={`rounded-lg border-2 p-3 ${fixed.fixed ? "border-amber-500 bg-amber-50" : "border-line"}`}>

@@ -1,8 +1,8 @@
 import "server-only";
 import type { z } from "zod";
 import { isAvailableOn, OUTAGE_ICON, outageLabel } from "@/lib/constants";
-import { formatDayShort, formatRange, weekdayShort } from "@/lib/dates";
-import { isFirstWorkdayOfWeek, remainingWorkdaysOfWeek } from "@/lib/holidays";
+import { addDays, diffDays, formatDayShort, formatRange, weekdayShort } from "@/lib/dates";
+import { isDayOff, isFirstWorkdayOfWeek, remainingWorkdaysOfWeek } from "@/lib/holidays";
 import { absenceOn, findOverlap, siteWarnings, timeRange } from "@/lib/planning-logic";
 import type {
   assignmentCreateSchema,
@@ -564,9 +564,72 @@ async function assertNoOverlap(tx: Tx, vehicleDayId: string, start: number, end:
   }
 }
 
+const MAX_RANGE_DAYS = 62;
+
+/**
+ * Einsatz (Fahrzeug auf Baustelle, gleiche Zeit) an den Folgetagen bis `untilDate` wiederholen.
+ * Besatzung: hat das Fahrzeug am Folgetag noch keine, wird die des Ausgangstags übernommen
+ * (Abwesende/anderweitig Eingeteilte ausgelassen). Feste Termine werden nicht übertragen.
+ */
+async function repeatAssignment(
+  tx: Tx,
+  actorId: string,
+  p: { fromDate: string; untilDate: string; includeDaysOff: boolean; vehicleId: string; siteId: string; startMin: number; endMin: number; note: string | null },
+  messages: string[],
+  warnings: string[],
+): Promise<string[]> {
+  if (p.untilDate <= p.fromDate) return [];
+  if (diffDays(p.fromDate, p.untilDate) > MAX_RANGE_DAYS) throw badRequest(`Der Zeitraum darf höchstens ${MAX_RANGE_DAYS} Tage lang sein.`);
+  const vehicle = await loadVehicle(tx, p.vehicleId);
+  const site = await tx.site.findUniqueOrThrow({ where: { id: p.siteId } });
+  const srcCrew = await tx.crewMember.findMany({
+    where: { date: p.fromDate, vehicleDay: { vehicleId: p.vehicleId } },
+    include: { employee: true },
+    orderBy: { sortOrder: "asc" },
+  });
+  const done: string[] = [];
+  const skipped: string[] = [];
+  const crewSkipped = { absent: [] as string[], busy: [] as string[] };
+  for (let d = addDays(p.fromDate, 1); d <= p.untilDate; d = addDays(d, 1)) {
+    if (!p.includeDaysOff && isDayOff(d)) continue;
+    const block = await vehicleBlock(tx, vehicle, d);
+    if (block) {
+      skipped.push(`${formatDayShort(d)} (${block.short})`);
+      continue;
+    }
+    const existing = await tx.vehicleDay.findUnique({ where: { date_vehicleId: { date: d, vehicleId: p.vehicleId } }, include: { assignments: true, _count: { select: { crew: true } } } });
+    const clash = existing ? findOverlap(existing.assignments, p.startMin, p.endMin) : undefined;
+    if (clash) {
+      skipped.push(`${formatDayShort(d)} (Zeit belegt)`);
+      continue;
+    }
+    const vd = existing ?? (await tx.vehicleDay.create({ data: { date: d, vehicleId: p.vehicleId } }));
+    if (!existing || existing._count.crew === 0) await copyCrewInto(tx, actorId, vd.id, d, srcCrew, crewSkipped);
+    await tx.siteAssignment.create({ data: { vehicleDayId: vd.id, siteId: p.siteId, startMin: p.startMin, endMin: p.endMin, note: p.note, updatedById: actorId } });
+    await bumpVehicleDay(tx, vd.id);
+    done.push(d);
+    for (const w of siteWarnings(site, d)) warnings.push(`${formatDayShort(d)}: ${w.text}`);
+  }
+  if (done.length) {
+    messages.push(`Auch eingeplant: ${done.map((d) => weekdayShort(d) + " " + d.slice(8, 10) + "." + d.slice(5, 7) + ".").join(", ")}`);
+    await audit(tx, {
+      userId: actorId,
+      action: "assignment.create",
+      entityType: "SiteAssignment",
+      entityId: p.siteId,
+      date: p.fromDate,
+      summary: `${vehicle.licensePlate} auf „${site.name}“ über mehrere Tage eingeplant (${timeRange(p.startMin, p.endMin)}): ${done.map(formatDayShort).join(", ")}`,
+    });
+  }
+  if (skipped.length) warnings.push(`Nicht eingeplant: ${skipped.join(", ")}.`);
+  warnings.push(...skippedWarnings(crewSkipped));
+  return done;
+}
+
 export async function createAssignment(actorId: string, input: z.infer<typeof assignmentCreateSchema>): Promise<PlanningResult> {
   const messages: string[] = [];
   const warnings: string[] = [];
+  let extraDates: string[] = [];
   await db.$transaction(async (tx) => {
     const site = await resolveSite(tx, actorId, input.siteId, input.newSite, input.date);
     if (!site.active) throw badRequest("Bitte eine aktive Baustelle wählen.");
@@ -598,12 +661,23 @@ export async function createAssignment(actorId: string, input: z.infer<typeof as
       date: input.date,
       summary: `${vehicle.licensePlate} auf „${site.name}“ eingeplant, ${timeRange(input.startMin, input.endMin)} (${formatDayShort(input.date)})${input.fixed ? ` – 📌 fester Termin${fixedTimeText(input.fixedTimeMin)}` : ""}`,
     });
+    if (input.untilDate) {
+      extraDates = await repeatAssignment(
+        tx,
+        actorId,
+        { fromDate: input.date, untilDate: input.untilDate, includeDaysOff: !!input.includeDaysOff, vehicleId: vehicle.id, siteId: site.id, startMin: input.startMin, endMin: input.endMin, note: input.note || null },
+        messages,
+        warnings,
+      );
+    }
   });
-  return finish(actorId, [input.date], messages, warnings);
+  return finish(actorId, [input.date, ...extraDates], messages, warnings);
 }
 
 export async function updateAssignment(actorId: string, input: z.infer<typeof assignmentUpdateSchema>): Promise<PlanningResult> {
   const warnings: string[] = [];
+  const messages: string[] = [];
+  let extraDates: string[] = [];
   let date = "";
   await db.$transaction(async (tx) => {
     const cur = await tx.siteAssignment.findUnique({ where: { id: input.id }, include: { site: true, vehicleDay: { include: { vehicle: true } } } });
@@ -655,8 +729,17 @@ export async function updateAssignment(actorId: string, input: z.infer<typeof as
       date,
       summary: `Einsatz ${cur.vehicleDay.vehicle.licensePlate} (${formatDayShort(date)}) geändert${changes.length ? ": " + changes.join(", ") : ""}`,
     });
+    if (input.untilDate) {
+      extraDates = await repeatAssignment(
+        tx,
+        actorId,
+        { fromDate: date, untilDate: input.untilDate, includeDaysOff: !!input.includeDaysOff, vehicleId: cur.vehicleDay.vehicleId, siteId: site.id, startMin: start, endMin: end, note: input.note !== undefined ? input.note || null : cur.note },
+        messages,
+        warnings,
+      );
+    }
   });
-  return finish(actorId, [date], [], warnings);
+  return finish(actorId, [date, ...extraDates], messages, warnings);
 }
 
 export async function deleteAssignment(actorId: string, input: z.infer<typeof assignmentDeleteSchema>): Promise<PlanningResult> {
