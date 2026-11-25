@@ -13,7 +13,7 @@ const HEARTBEAT_MS = 25_000;
 export async function GET(req: Request) {
   const session = await getSession();
   if (!session) return new Response("Bitte anmelden.", { status: 401 });
-  if (!can(session.user.role, "planning.view")) return new Response("Keine Berechtigung.", { status: 403 });
+  if (!can(session.user.role, "planning.view") && !can(session.user.role, "display.view")) return new Response("Keine Berechtigung.", { status: 403 });
 
   const encoder = new TextEncoder();
   let cleanup = () => {};

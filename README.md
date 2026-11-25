@@ -171,6 +171,17 @@ Auf dem Smartphone lässt sich die App über „Zum Startbildschirm hinzufügen�
 
 ---
 
+## Monitor-Anzeige (z. B. 55"-Fernseher in der Werkstatt)
+
+1. Unter **Stammdaten → Benutzer** einen Login mit Rolle **Anzeige (Monitor)** anlegen (ohne Mitarbeiter).
+2. Am Monitor-PC bzw. Smart-TV-Browser mit diesem Login anmelden – es öffnet sich automatisch `/anzeige`.
+3. Oben **3 Tage** oder **5 Tage** wählen (oder direkt `…/anzeige?tage=5` als Startseite eintragen) und **⛶ Vollbild** drücken.
+
+Die Anzeige überspringt Wochenende und Feiertage, aktualisiert sich live, rückt um Mitternacht weiter und
+passt die Schriftgröße automatisch so an, dass alle Tage ohne Scrollen auf den Bildschirm passen.
+Der Anzeige-Login kann nichts einteilen oder bearbeiten und sieht keine anderen Seiten.
+Tipp: Chrome/Edge im Kiosk-Modus starten (`--kiosk https://einteilung.example.de/anzeige?tage=5`).
+
 ## Updates
 
 Unraid → **Docker** → bei *Mitarbeitereinteilung* auf **apply update** klicken (oder „Check for Updates“).

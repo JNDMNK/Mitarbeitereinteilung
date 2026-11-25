@@ -30,6 +30,7 @@ async function assertEmployeeLink(tx: Tx, role: Role, employeeId: string | null 
   if (role === "EMPLOYEE" && !employeeId) {
     throw badRequest("Für die Rolle Mitarbeiter muss ein Mitarbeiter-Datensatz verknüpft werden.");
   }
+  if (role === "DISPLAY" && employeeId) throw badRequest("Ein Anzeige-Benutzer (Monitor) wird nicht mit einem Mitarbeiter verknüpft.");
   if (!employeeId) return;
   const emp = await tx.employee.findUnique({ where: { id: employeeId }, include: { user: { select: { id: true, username: true } } } });
   if (!emp) throw badRequest("Der gewählte Mitarbeiter existiert nicht.");

@@ -235,6 +235,12 @@ function UserForm({
           ))}
         </Select>
       </Field>
+      {role === "DISPLAY" && (
+        <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-muted">
+          Für einen Bildschirm/Monitor: sieht nur die Tagesübersicht (3 oder 5 Tage) unter <span className="font-mono">/anzeige</span>, kann nichts einteilen oder bearbeiten.
+        </p>
+      )}
+      {role !== "DISPLAY" && (
       <Field
         label={role === "EMPLOYEE" ? "Mitarbeiter (Pflicht)" : "Mitarbeiter (optional)"}
         hint={available.length === 0 ? "Es gibt noch keine freien Mitarbeiter-Datensätze." : undefined}
@@ -248,6 +254,7 @@ function UserForm({
           ))}
         </Select>
       </Field>
+      )}
       <div className="flex justify-end gap-2">
         <Button type="submit" disabled={busy}>
           {busy ? "Speichern …" : "Speichern"}

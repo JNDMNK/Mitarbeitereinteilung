@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Brand } from "@/components/brand";
 import { DesktopNav, MobileNav } from "@/components/app-nav";
 import { LogoutButton } from "@/components/logout-button";
@@ -12,6 +13,8 @@ import { logoUrl } from "@/server/services/settings";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePageSession();
   const { user } = session;
+  // Monitor-Benutzer sehen ausschließlich die Anzeige
+  if (user.role === "DISPLAY") redirect("/anzeige");
   const items = NAV_ITEMS.filter(
     (i) => can(user.role, i.permission) && (i.href !== "/meine-einteilung" || user.employeeId),
   );
