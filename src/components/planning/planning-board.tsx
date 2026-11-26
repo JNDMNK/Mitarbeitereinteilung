@@ -434,7 +434,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
           {view === "cards" ? (
             <div className="grid gap-4 md:grid-cols-3">
               {days.map((d, i) => (
-                <div key={d} className={i === shownMobileDay ? "" : "hidden md:block"}>
+                <div key={d} className={`min-w-0 ${i === shownMobileDay ? "" : "hidden md:block"}`}>
                   <DayColumn day={dayViews.get(d)!} idx={idx} today={today} canEdit={canEdit} ownEmployeeId={ownEmployeeId} open={setSheet} poolInSidebar={wide} />
                 </div>
               ))}
@@ -442,7 +442,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
           ) : (
             <div className="space-y-6">
               {days.map((d, i) => (
-                <div key={d} className={i === shownMobileDay ? "" : "hidden md:block"}>
+                <div key={d} className={`min-w-0 ${i === shownMobileDay ? "" : "hidden md:block"}`}>
                   <TimelineDay
                     day={dayViews.get(d)!}
                     data={data}

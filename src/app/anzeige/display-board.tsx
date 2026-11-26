@@ -180,20 +180,22 @@ function DayBody({ day }: { day: DDay }) {
     <div>
       {day.absent.length > 0 && (
         <Section title={`Abwesend (${day.absent.length})`} tone="red">
-          <div className="flex flex-wrap items-center gap-[0.25rem]">
-            {groupByQualification(day.absent, (a) => a.quali).flatMap((g) => [
-              <span key={`g-${g.q}`} className="ml-[0.3rem] text-[0.7rem] font-semibold text-red-900/70 first:ml-0">
+          <div className="space-y-[0.2rem]">
+            {groupByQualification(day.absent, (a) => a.quali).map((g) => (
+              <div key={g.q} className="flex flex-wrap items-center gap-[0.25rem]">
+              <span className="text-[0.7rem] font-semibold text-red-900/70">
                 {g.label.replace("Azubis ", "")}:
-              </span>,
-              ...g.items.map((a) => (
+              </span>
+              {g.items.map((a) => (
               <span key={a.id} className="inline-flex items-center gap-[0.25rem] rounded-[0.25rem] bg-red-50 px-[0.3rem] py-[0.05rem] text-[0.95rem] ring-1 ring-red-200" title={a.typeName}>
                 <span className="rounded px-[0.2rem] font-mono text-[0.75rem] font-bold text-white" style={{ backgroundColor: a.typeColor }}>
                   {a.code}
                 </span>
                 {a.name}
               </span>
-              )),
-            ])}
+              ))}
+              </div>
+            ))}
           </div>
         </Section>
       )}

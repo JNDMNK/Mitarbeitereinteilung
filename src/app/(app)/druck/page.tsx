@@ -104,7 +104,8 @@ function PrintDay({
       {day.sites.length === 0 ? (
         <p className="mb-4 italic">Keine Baustellen eingeplant.</p>
       ) : (
-        <table className="mb-4 w-full border-collapse">
+        <div className="mb-4 overflow-x-auto print:overflow-visible">
+        <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-black text-left">
               <th className="py-1 pr-2">Baustelle</th>
@@ -158,6 +159,7 @@ function PrintDay({
             )}
           </tbody>
         </table>
+        </div>
       )}
 
       {day.poolVehicles.some((p) => p.crew.length > 0) && (
