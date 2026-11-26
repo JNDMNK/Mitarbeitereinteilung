@@ -34,7 +34,7 @@ export function MobileNav({ items }: { items: NavItem[] }) {
   const all = [...items.filter((i) => !i.desktopOnly), { href: "/konto", label: "Konto", short: "Konto", icon: "⚙️", permission: "planning.view" as const }];
   return (
     <nav
-      className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] md:hidden"
       aria-label="Hauptnavigation"
     >
       <ul className="grid" style={{ gridTemplateColumns: `repeat(${all.length}, minmax(0, 1fr))` }}>

@@ -13,6 +13,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // nötig, damit env(safe-area-inset-*) auf dem iPhone (Notch, Home-Balken) greift
+  viewportFit: "cover",
   themeColor: "#a50d26",
 };
 

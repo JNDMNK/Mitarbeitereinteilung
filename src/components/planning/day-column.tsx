@@ -374,7 +374,7 @@ export function DayHeader({ day, today, canEdit, open, sticky = true }: { day: D
   const holiday = holidayName(day.date);
   return (
       <header
-        className={`${sticky ? "md:sticky md:top-14 md:z-20" : ""} flex items-center justify-between gap-2 rounded-xl px-3 py-2 shadow-sm ${
+        className={`${sticky ? "md:sticky md:top-[calc(3.5rem_+_env(safe-area-inset-top))] md:z-20" : ""} flex items-center justify-between gap-2 rounded-xl px-3 py-2 shadow-sm ${
           isToday ? "bg-brand-700 text-white" : isWeekend(day.date) || holiday ? "bg-slate-300 text-ink" : "bg-ink text-white"
         }`}
       >

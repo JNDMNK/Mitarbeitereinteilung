@@ -12,7 +12,7 @@ export default async function ForcePasswordChangePage() {
   if (!session.user.mustChangePassword) redirect("/konto");
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-4">
+    <main className="flex min-h-dvh items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
       <meta name="csrf-token" content={session.csrfToken} />
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg ring-1 ring-line">
         <h1 className="mb-1 text-2xl font-bold">Neues Passwort festlegen</h1>

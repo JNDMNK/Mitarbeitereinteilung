@@ -18,7 +18,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : undefined;
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-4">
+    <main className="flex min-h-dvh items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg ring-1 ring-line">
         <div className="mb-6 border-b border-line pb-5">
           <Brand companyName={settings.companyName} logoUrl={logoUrl(settings.logoFile)} size="lg" />

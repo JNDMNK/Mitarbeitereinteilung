@@ -23,7 +23,7 @@ export function PoolSidebar({
   open: (s: Sheet) => void;
 }) {
   return (
-    <aside className="sticky top-16 max-h-[calc(100dvh-5rem)] w-56 shrink-0 2xl:w-64 space-y-3 overflow-y-auto pr-1" aria-label="Nicht eingeteilte Mitarbeiter">
+    <aside className="sticky top-[calc(4rem_+_env(safe-area-inset-top))] max-h-[calc(100dvh_-_5rem_-_env(safe-area-inset-top))] w-56 shrink-0 2xl:w-64 space-y-3 overflow-y-auto pr-1" aria-label="Nicht eingeteilte Mitarbeiter">
       <h2 className="text-sm font-bold tracking-wide text-muted uppercase">Nicht eingeteilt</h2>
       {days.map((day) => (
         <Drop

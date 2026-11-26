@@ -22,10 +22,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const displayName = user.employee ? `${user.employee.firstName} ${user.employee.lastName}` : user.username;
 
   return (
-    <div className="min-h-dvh pb-20 md:pb-0">
+    <div className="min-h-dvh pb-[calc(5rem_+_env(safe-area-inset-bottom))] md:pb-0">
       <meta name="csrf-token" content={session.csrfToken} />
-      <header className="no-print sticky top-0 z-30 bg-brand-700 text-white shadow">
-        <div className="mx-auto flex h-14 max-w-screen-2xl items-center gap-4 px-3 md:px-6">
+      <header className="no-print sticky top-0 z-30 bg-brand-700 pt-[env(safe-area-inset-top)] text-white shadow">
+        <div className="mx-auto flex h-14 max-w-screen-2xl items-center gap-4 pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))] md:px-6">
           <Link href="/" className="min-w-0">
             <Brand companyName={settings?.companyName ?? "Einteilung"} logoUrl={logoUrl(settings?.logoFile ?? null)} />
           </Link>

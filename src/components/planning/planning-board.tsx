@@ -386,7 +386,7 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
       {/* Tages-Reiter (Handy) */}
       <div
         ref={tabsRef}
-        className={`no-print sticky top-14 z-20 -mx-3 scroll-mt-14 grid-cols-3 gap-1 bg-canvas/95 px-3 py-1 backdrop-blur md:hidden ${dayCount > 1 ? "grid" : "hidden"}`}
+        className={`no-print sticky top-[calc(3.5rem_+_env(safe-area-inset-top))] z-20 -mx-3 scroll-mt-[calc(3.5rem_+_env(safe-area-inset-top))] grid-cols-3 gap-1 bg-canvas/95 px-3 py-1 backdrop-blur md:hidden ${dayCount > 1 ? "grid" : "hidden"}`}
         role="tablist"
         aria-label="Tag wählen (oder wischen)"
       >

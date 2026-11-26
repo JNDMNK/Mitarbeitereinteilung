@@ -72,7 +72,7 @@ export function DisplayHeader({
   }, [atHome, homeHref, router]);
 
   return (
-    <header className="no-print flex shrink-0 flex-wrap items-center gap-x-[1rem] gap-y-[0.3rem] bg-brand-700 px-[1rem] py-[0.4rem] text-white">
+    <header className="no-print flex shrink-0 flex-wrap items-center gap-x-[1rem] gap-y-[0.3rem] bg-brand-700 px-[1rem] py-[0.4rem] pt-[max(0.4rem,env(safe-area-inset-top))] text-white">
       {logoUrl && (
         <span className="flex h-[2.2rem] items-center rounded bg-white px-[0.3rem] py-[0.2rem]">
           <img src={logoUrl} alt="" className="h-full object-contain" onLoad={() => window.dispatchEvent(new Event("resize"))} />
