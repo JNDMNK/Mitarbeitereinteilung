@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useLiveStatus } from "@/components/live/live-events";
 import { todayIso } from "@/lib/dates";
+import { api } from "@/lib/api-client";
 
 /** Nach so langer Zeit ohne Bedienung zurück zur Einteilung ab heute (Wandmonitor) */
 const IDLE_RETURN_MS = 5 * 60_000;
@@ -128,10 +129,28 @@ export function DisplayHeader({
         >
           ⛶ Vollbild
         </button>
-        {canLeave && (
+        {canLeave ? (
           <Link href="/planung" className={btn} title="Zurück zur Planung">
             ✕
           </Link>
+        ) : (
+          <button
+            type="button"
+            className={btn}
+            title="Monitor-Benutzer abmelden"
+            onClick={async () => {
+              if (!confirm("Monitor wirklich abmelden? Danach muss sich jemand neu anmelden, damit die Anzeige wieder läuft.")) return;
+              try {
+                await api("/api/auth/logout", { method: "POST" });
+              } finally {
+                // Voller Seitenwechsel: Client-Zustand und CSRF-Token verwerfen
+                // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+                window.location.assign("/login");
+              }
+            }}
+          >
+            ⏻ Abmelden
+          </button>
         )}
         <span className="min-w-[4.5rem] text-right text-[1.6rem] font-bold tabular-nums">
           {now ? now.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }) : ""}

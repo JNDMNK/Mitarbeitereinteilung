@@ -20,6 +20,7 @@ export default async function DisplayAbsencesPage({ searchParams }: { searchPara
   ]);
   return (
     <div className="flex min-h-dvh flex-col bg-canvas">
+      <meta name="csrf-token" content={session.csrfToken} />
       <LiveRefresh scopes={["absences", "masterdata"]} fallbackMs={60_000} />
       <DisplayHeader
         companyName={settings?.companyName ?? "Einteilung"}

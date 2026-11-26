@@ -26,6 +26,8 @@ export default async function DisplayPage({ searchParams }: { searchParams: Prom
     db.appSettings.findUnique({ where: { id: 1 }, select: { companyName: true, logoFile: true } }),
   ]);
   return (
+    <>
+    <meta name="csrf-token" content={session.csrfToken} />
     <DisplayBoard
       days={buildDisplayDays(data, days, today)}
       count={count}
@@ -35,5 +37,6 @@ export default async function DisplayPage({ searchParams }: { searchParams: Prom
       canLeave={session.user.role !== "DISPLAY"}
       nav={nav}
     />
+    </>
   );
 }
