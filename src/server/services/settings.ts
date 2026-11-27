@@ -137,7 +137,7 @@ export async function updateCleanupSettings(actorId: string, input: z.infer<type
       action: "settings.update",
       entityType: "AppSettings",
       entityId: "1",
-      summary: `Automatisches Löschen geändert (Baustellen ${txt(data.autoDeleteSiteDays)}, Mitarbeiter ${txt(data.autoDeleteEmployeeDays)}, Fahrzeuge/Räume ${txt(data.autoDeleteVehicleDays)}${data.planningRetentionYears ? `, Planung nach ${data.planningRetentionYears} Jahr(en)` : ""})`,
+      summary: `Automatisches Löschen geändert (Baustellen ${txt(data.autoDeleteSiteDays)}, Mitarbeiter ${txt(data.autoDeleteEmployeeDays)}, Fahrzeuge/Räume ${txt(data.autoDeleteVehicleDays)}${data.planningRetentionYears ? `, Planung nach ${data.planningRetentionYears} J.` : ""}${data.absenceRetentionYears ? `, Abwesenheiten nach ${data.absenceRetentionYears} J.` : ""}${data.auditRetentionYears ? `, Protokoll nach ${data.auditRetentionYears} J.` : ""})`,
     });
     return tx.appSettings.findUniqueOrThrow({ where: { id: 1 } });
   });

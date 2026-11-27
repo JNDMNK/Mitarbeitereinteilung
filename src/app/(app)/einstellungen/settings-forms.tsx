@@ -164,7 +164,7 @@ export function LogoForm({ logoUrl }: { logoUrl: string | null }) {
   );
 }
 
-export function CleanupForm(props: { version: number; autoDeleteSiteDays: number; autoDeleteEmployeeDays: number; autoDeleteVehicleDays: number; planningRetentionYears: number }) {
+export function CleanupForm(props: { version: number; autoDeleteSiteDays: number; autoDeleteEmployeeDays: number; autoDeleteVehicleDays: number; planningRetentionYears: number; absenceRetentionYears: number; auditRetentionYears: number; lastVacuumAt: string | null }) {
   const router = useRouter();
   const [msg, setMsg] = useState<Msg>(null);
   const [busy, setBusy] = useState(false);
@@ -183,12 +183,14 @@ export function CleanupForm(props: { version: number; autoDeleteSiteDays: number
         setBusy(true);
         setMsg(null);
         try {
-          const res = await api<{ result: { sites: number; employees: number; vehicles: number; planningDays: number; errors: string[] } }>("/api/settings/cleanup", {
+          const res = await api<{ result: { sites: number; employees: number; vehicles: number; planningDays: number; absences: number; auditEntries: number; freeSites: number; errors: string[] } }>("/api/settings/cleanup", {
             method: "PATCH",
             body: {
               version: props.version,
               ...Object.fromEntries(fields.map((x) => [x.name, Number(f.get(x.name))])),
               planningRetentionYears: Number(f.get("planningRetentionYears")),
+              absenceRetentionYears: Number(f.get("absenceRetentionYears")),
+              auditRetentionYears: Number(f.get("auditRetentionYears")),
             },
           });
           const r = res.result;
@@ -198,6 +200,9 @@ export function CleanupForm(props: { version: number; autoDeleteSiteDays: number
             text:
               `Gespeichert.${total ? ` Sofort gelöscht: ${r.sites} Baustelle(n), ${r.employees} Mitarbeiter, ${r.vehicles} Fahrzeug(e)/Räume.` : ""}` +
               (r.planningDays ? ` Alte Planung gelöscht: ${r.planningDays} Fahrzeug-Tage.` : "") +
+              (r.absences ? ` Alte Abwesenheiten gelöscht: ${r.absences}.` : "") +
+              (r.freeSites ? ` Ungenutzte freie Einträge gelöscht: ${r.freeSites}.` : "") +
+              (r.auditEntries ? ` Alte Protokolleinträge gelöscht: ${r.auditEntries}.` : "") +
               (r.errors.length ? ` Nicht gelöscht: ${r.errors.join("; ")}` : ""),
           });
           router.refresh();
@@ -220,16 +225,29 @@ export function CleanupForm(props: { version: number; autoDeleteSiteDays: number
         ))}
       </div>
       <div className="rounded-lg border border-line p-3">
-        <Field
-          label="Alte Planung löschen (Baustellen-Einsätze und Besatzung)"
-          hint="Planungstage, die länger zurückliegen, werden automatisch gelöscht, damit die Datenbank nicht über die Jahre wächst. Stammdaten, Abwesenheiten und das Änderungsprotokoll bleiben erhalten."
-        >
-          <Select name="planningRetentionYears" defaultValue={props.planningRetentionYears} className="sm:max-w-60">
-            <option value={1}>nach 1 Jahr</option>
-            <option value={2}>nach 2 Jahren</option>
-            <option value={3}>nach 3 Jahren</option>
-          </Select>
-        </Field>
+        <p className="mb-2 font-semibold">Alte Daten löschen (damit die Datenbank nicht über die Jahre wächst)</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {(
+            [
+              ["planningRetentionYears", "Planung (Einsätze, Besatzung)", props.planningRetentionYears],
+              ["absenceRetentionYears", "Abwesenheiten", props.absenceRetentionYears],
+              ["auditRetentionYears", "Änderungsprotokoll", props.auditRetentionYears],
+            ] as const
+          ).map(([name, label, value]) => (
+            <Field key={name} label={label}>
+              <Select name={name} defaultValue={value}>
+                <option value={1}>nach 1 Jahr</option>
+                <option value={2}>nach 2 Jahren</option>
+                <option value={3}>nach 3 Jahren</option>
+              </Select>
+            </Field>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-muted">
+          Abwesenheiten zählen ab ihrem Ende. Freie Einträge (Baustellen aus der Planung), die nirgends mehr eingeplant sind und seit 30 Tagen unverändert, werden mit entfernt. Stammdaten
+          bleiben erhalten. Einmal im Monat wird die Datenbankdatei nachts verdichtet
+          {props.lastVacuumAt ? ` (zuletzt ${new Date(props.lastVacuumAt).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })})` : ""}.
+        </p>
       </div>
       <p className="text-sm text-muted">Geprüft wird beim Start und danach alle 6 Stunden. Jede Löschung steht im Änderungsprotokoll.</p>
       <Button type="submit" disabled={busy}>

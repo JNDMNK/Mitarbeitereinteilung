@@ -94,6 +94,11 @@ model AppSettings {
   autoDeleteVehicleDays  Int @default(30)
   /// Planung (Einsätze, Besatzung) nach so vielen Jahren löschen (1–3)
   planningRetentionYears Int @default(1)
+  /// Abwesenheiten / Änderungsprotokoll nach so vielen Jahren löschen (1–3)
+  absenceRetentionYears  Int @default(2)
+  auditRetentionYears    Int @default(1)
+  /// letzte Verdichtung der Datenbank (VACUUM)
+  lastVacuumAt           DateTime?
   /// Einteilung am ersten Arbeitstag der Woche automatisch für die restliche Woche übernehmen (außer Praktikanten)
   weekCrews              Boolean @default(true)
   version          Int      @default(1)

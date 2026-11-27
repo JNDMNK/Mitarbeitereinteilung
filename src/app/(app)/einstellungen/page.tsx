@@ -37,6 +37,9 @@ export default async function SettingsPage() {
             autoDeleteEmployeeDays={s.autoDeleteEmployeeDays}
             autoDeleteVehicleDays={s.autoDeleteVehicleDays}
             planningRetentionYears={s.planningRetentionYears}
+            absenceRetentionYears={s.absenceRetentionYears}
+            auditRetentionYears={s.auditRetentionYears}
+            lastVacuumAt={s.lastVacuumAt ? s.lastVacuumAt.toISOString() : null}
           />
         </section>
         <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-line lg:col-span-2">

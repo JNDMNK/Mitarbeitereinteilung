@@ -101,4 +101,6 @@ export const cleanupSettingsSchema = z.object({
   autoDeleteEmployeeDays: cleanupDays("Mitarbeiter"),
   autoDeleteVehicleDays: cleanupDays("Fahrzeuge/Räume"),
   planningRetentionYears: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+  absenceRetentionYears: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+  auditRetentionYears: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
 });
