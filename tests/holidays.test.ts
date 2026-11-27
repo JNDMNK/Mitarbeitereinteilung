@@ -58,3 +58,12 @@ describe("Arbeitstage", () => {
     expect(workDaysText(null)).toBe("alle Tage");
   });
 });
+
+import { cleanupSettingsSchema } from "@/lib/validation";
+describe("Aufbewahrung Planung", () => {
+  it("nur 1, 2 oder 3 Jahre", () => {
+    const base = { version: 1, autoDeleteSiteDays: 30, autoDeleteEmployeeDays: 30, autoDeleteVehicleDays: 30 };
+    expect(cleanupSettingsSchema.safeParse({ ...base, planningRetentionYears: 2 }).success).toBe(true);
+    expect(cleanupSettingsSchema.safeParse({ ...base, planningRetentionYears: 5 }).success).toBe(false);
+  });
+});

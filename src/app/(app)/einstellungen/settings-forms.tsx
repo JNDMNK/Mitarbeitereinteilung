@@ -164,7 +164,7 @@ export function LogoForm({ logoUrl }: { logoUrl: string | null }) {
   );
 }
 
-export function CleanupForm(props: { version: number; autoDeleteSiteDays: number; autoDeleteEmployeeDays: number; autoDeleteVehicleDays: number }) {
+export function CleanupForm(props: { version: number; autoDeleteSiteDays: number; autoDeleteEmployeeDays: number; autoDeleteVehicleDays: number; planningRetentionYears: number }) {
   const router = useRouter();
   const [msg, setMsg] = useState<Msg>(null);
   const [busy, setBusy] = useState(false);
@@ -183,11 +183,12 @@ export function CleanupForm(props: { version: number; autoDeleteSiteDays: number
         setBusy(true);
         setMsg(null);
         try {
-          const res = await api<{ result: { sites: number; employees: number; vehicles: number; errors: string[] } }>("/api/settings/cleanup", {
+          const res = await api<{ result: { sites: number; employees: number; vehicles: number; planningDays: number; errors: string[] } }>("/api/settings/cleanup", {
             method: "PATCH",
             body: {
               version: props.version,
               ...Object.fromEntries(fields.map((x) => [x.name, Number(f.get(x.name))])),
+              planningRetentionYears: Number(f.get("planningRetentionYears")),
             },
           });
           const r = res.result;
@@ -196,6 +197,7 @@ export function CleanupForm(props: { version: number; autoDeleteSiteDays: number
             tone: r.errors.length ? "error" : "success",
             text:
               `Gespeichert.${total ? ` Sofort gelöscht: ${r.sites} Baustelle(n), ${r.employees} Mitarbeiter, ${r.vehicles} Fahrzeug(e)/Räume.` : ""}` +
+              (r.planningDays ? ` Alte Planung gelöscht: ${r.planningDays} Fahrzeug-Tage.` : "") +
               (r.errors.length ? ` Nicht gelöscht: ${r.errors.join("; ")}` : ""),
           });
           router.refresh();
@@ -216,6 +218,18 @@ export function CleanupForm(props: { version: number; autoDeleteSiteDays: number
             <Input name={x.name} type="number" min={0} max={3650} step={1} inputMode="numeric" defaultValue={x.value} required />
           </Field>
         ))}
+      </div>
+      <div className="rounded-lg border border-line p-3">
+        <Field
+          label="Alte Planung löschen (Baustellen-Einsätze und Besatzung)"
+          hint="Planungstage, die länger zurückliegen, werden automatisch gelöscht, damit die Datenbank nicht über die Jahre wächst. Stammdaten, Abwesenheiten und das Änderungsprotokoll bleiben erhalten."
+        >
+          <Select name="planningRetentionYears" defaultValue={props.planningRetentionYears} className="sm:max-w-60">
+            <option value={1}>nach 1 Jahr</option>
+            <option value={2}>nach 2 Jahren</option>
+            <option value={3}>nach 3 Jahren</option>
+          </Select>
+        </Field>
       </div>
       <p className="text-sm text-muted">Geprüft wird beim Start und danach alle 6 Stunden. Jede Löschung steht im Änderungsprotokoll.</p>
       <Button type="submit" disabled={busy}>

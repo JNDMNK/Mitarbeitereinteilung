@@ -1,4 +1,6 @@
 import "server-only";
+import { formatDate, todayIso } from "@/lib/dates";
+import { audit } from "../audit";
 import { db } from "../db";
 import { deleteEmployee } from "./masterdata/employees";
 import { deleteSite } from "./masterdata/sites";
@@ -7,7 +9,7 @@ import { getSettings } from "./settings";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export type CleanupResult = { sites: number; employees: number; vehicles: number; errors: string[] };
+export type CleanupResult = { sites: number; employees: number; vehicles: number; planningDays: number; errors: string[] };
 
 function cutoff(days: number, now: Date) {
   return new Date(now.getTime() - days * DAY_MS);
@@ -19,7 +21,7 @@ function cutoff(days: number, now: Date) {
  */
 export async function runAutoCleanup(now = new Date()): Promise<CleanupResult> {
   const s = await getSettings();
-  const result: CleanupResult = { sites: 0, employees: 0, vehicles: 0, errors: [] };
+  const result: CleanupResult = { sites: 0, employees: 0, vehicles: 0, planningDays: 0, errors: [] };
   const reason = (days: number) => `automatisch nach ${days} Tagen inaktiv`;
 
   if (s.autoDeleteSiteDays > 0) {
@@ -58,7 +60,44 @@ export async function runAutoCleanup(now = new Date()): Promise<CleanupResult> {
       }
     }
   }
+  try {
+    result.planningDays = await deleteOldPlanning(s.planningRetentionYears, now);
+  } catch (err) {
+    result.errors.push(`Alte Planung: ${(err as Error).message}`);
+  }
   return result;
+}
+
+/** Erster Tag, der noch aufbewahrt wird: heute vor `years` Jahren */
+export function planningCutoff(years: number, now = new Date()): string {
+  const today = todayIso(now);
+  const y = Number(today.slice(0, 4)) - years;
+  const md = today.slice(5) === "02-29" ? "02-28" : today.slice(5);
+  return `${y}-${md}`;
+}
+
+/**
+ * Planungstage (Fahrzeug-Tage mit Besatzung und Baustellen-Einsätzen) vor dem Stichtag löschen.
+ * Stammdaten, Abwesenheiten und das Änderungsprotokoll bleiben unberührt.
+ */
+async function deleteOldPlanning(years: number, now: Date): Promise<number> {
+  const keepFrom = planningCutoff(Math.min(3, Math.max(1, years || 1)), now);
+  const where = { date: { lt: keepFrom } };
+  const days = await db.vehicleDay.count({ where });
+  if (days === 0) return 0;
+  const assignments = await db.siteAssignment.count({ where: { vehicleDay: where } });
+  await db.$transaction(async (tx) => {
+    // Besatzung und Einsätze hängen per Cascade am Fahrzeug-Tag
+    await tx.vehicleDay.deleteMany({ where });
+    await audit(tx, {
+      userId: null,
+      action: "planning.cleanup",
+      entityType: "Planning",
+      entityId: keepFrom,
+      summary: `Alte Planung vor dem ${formatDate(keepFrom)} automatisch gelöscht (nach ${years} Jahr(en)): ${days} Fahrzeug-Tage, ${assignments} Einsätze`,
+    });
+  });
+  return days;
 }
 
 const g = globalThis as unknown as { autoCleanupTimer?: NodeJS.Timeout };
@@ -71,6 +110,7 @@ export function startAutoCleanup() {
       const r = await runAutoCleanup();
       const total = r.sites + r.employees + r.vehicles;
       if (total > 0) console.log(`[auto-cleanup] gelöscht: ${r.sites} Baustelle(n), ${r.employees} Mitarbeiter, ${r.vehicles} Fahrzeug(e)/Raum/Räume`);
+      if (r.planningDays > 0) console.log(`[auto-cleanup] alte Planung gelöscht: ${r.planningDays} Fahrzeug-Tage`);
       for (const e of r.errors) console.warn(`[auto-cleanup] ${e}`);
     } catch (err) {
       console.error("[auto-cleanup] Fehler:", err);
