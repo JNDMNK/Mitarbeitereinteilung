@@ -380,7 +380,7 @@ function EmployeeForm({
                   spellCheck={false}
                 />
               </Field>
-              <Field label="Start-Passwort" hint={`Mind. ${PASSWORD_MIN_LENGTH} Zeichen, muss beim 1. Login geändert werden`}>
+              <Field label="Start-Passwort" hint={`Mind. ${PASSWORD_MIN_LENGTH} Zeichen.`}>
                 <Input name="password" type="text" required minLength={PASSWORD_MIN_LENGTH} autoComplete="new-password" />
               </Field>
             </div>

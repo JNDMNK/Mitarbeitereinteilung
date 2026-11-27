@@ -88,6 +88,8 @@ describe("Validierung", () => {
   it("Passwort-Mindestlänge", () => {
     const r = createUserSchema.safeParse({ username: "test", password: "kurz", role: "ADMIN" });
     expect(r.success).toBe(false);
+    expect(createUserSchema.safeParse({ username: "test", password: "1234567", role: "ADMIN" }).success).toBe(false);
+    expect(createUserSchema.safeParse({ username: "test", password: "12345678", role: "ADMIN" }).success).toBe(true);
   });
   it("Benutzername wird normalisiert", () => {
     expect(usernameSchema.parse("  Max.Muster ")).toBe("max.muster");

@@ -1,4 +1,5 @@
 import "server-only";
+import { PASSWORD_MIN_LENGTH } from "@/lib/constants";
 import { db } from "./db";
 import { env } from "./env";
 import { hashPassword } from "./auth/password";
@@ -32,8 +33,8 @@ export async function bootstrap() {
   if (userCount === 0) {
     const { initialAdminUser, initialAdminPassword } = env();
     if (initialAdminUser && initialAdminPassword) {
-      if (initialAdminPassword.length < 10) {
-        console.warn("[bootstrap] INITIAL_ADMIN_PASSWORD ist kürzer als 10 Zeichen – Admin wird trotzdem angelegt, bitte sofort ändern.");
+      if (initialAdminPassword.length < PASSWORD_MIN_LENGTH) {
+        console.warn(`[bootstrap] INITIAL_ADMIN_PASSWORD ist kürzer als ${PASSWORD_MIN_LENGTH} Zeichen – Admin wird trotzdem angelegt, bitte sofort ändern.`);
       }
       const admin = await db.user.create({
         data: {
