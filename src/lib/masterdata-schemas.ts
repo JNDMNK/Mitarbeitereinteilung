@@ -52,6 +52,13 @@ const employeeBase = z.object({
   /** Zeitraum im Betrieb (z. B. Praktikum) */
   availableFrom: optionalDate,
   availableUntil: optionalDate,
+  /** Arbeitstage (ISO-Wochentage, z. B. "1234"); leer = alle Tage */
+  workDays: z
+    .string()
+    .regex(/^[1-7]{1,7}$/, "Bitte mindestens einen Arbeitstag wählen.")
+    .nullish()
+    .transform((v) => (v ? [...new Set(v.split(""))].sort().join("") : null))
+    .transform((v) => (v === "1234567" ? null : v)),
 });
 const employeePeriodRefine = <T extends { availableFrom?: string | null; availableUntil?: string | null; qualification?: string }>(s: z.ZodType<T>) =>
   s

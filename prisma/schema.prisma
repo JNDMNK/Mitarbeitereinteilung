@@ -127,6 +127,8 @@ model Employee {
   /// Zeitraum im Betrieb (z. B. Praktikum), "YYYY-MM-DD", leer = unbegrenzt
   availableFrom  String?
   availableUntil String?
+  /// Arbeitstage als ISO-Wochentage, z. B. "1234" = Mo–Do; leer = an allen Tagen
+  workDays     String?
   active       Boolean    @default(true)
   /// Zeitpunkt der Deaktivierung (für automatisches Löschen)
   deactivatedAt DateTime?

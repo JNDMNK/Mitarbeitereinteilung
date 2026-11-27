@@ -13,7 +13,7 @@ import { api } from "@/lib/api-client";
 import { addMonths, eachDay, formatDayLong, isoWeek, formatMonth, formatRange, isWeekend, weekdayShort } from "@/lib/dates";
 import { holidayName } from "@/lib/holidays";
 import { OutageForm, type OutageValue } from "@/components/outage-form";
-import { outageLabel, QUALIFICATION_BADGES, QUALIFICATION_GROUP_LABELS, QUALIFICATION_GROUP_ORDER, qualificationRank, type Qualification } from "@/lib/constants";
+import { outageLabel, workDaysText, worksOn, QUALIFICATION_BADGES, QUALIFICATION_GROUP_LABELS, QUALIFICATION_GROUP_ORDER, qualificationRank, type Qualification } from "@/lib/constants";
 
 type Absence = {
   id: string;
@@ -37,6 +37,7 @@ type Employee = {
   active: boolean;
   availableFrom?: string | null;
   availableUntil?: string | null;
+  workDays?: string | null;
   qualification?: string;
   department: Department;
 };
@@ -454,7 +455,7 @@ export function AbsenceBoard(props: {
                           return (
                             <td
                               key={d}
-                              title={!inPeriod(e, d) ? "nicht im Betrieb" : a ? `${a.type.name}: ${formatRange(a.startDate, a.endDate)}${a.withVehicle ? " – mit Fahrzeug" : ""}${a.note ? ` – ${a.note}` : ""}` : formatDayLong(d)}
+                              title={!inPeriod(e, d) ? "nicht im Betrieb" : !a && !worksOn(e, d) ? `arbeitsfrei (arbeitet ${workDaysText(e.workDays)})` : a ? `${a.type.name}: ${formatRange(a.startDate, a.endDate)}${a.withVehicle ? " – mit Fahrzeug" : ""}${a.note ? ` – ${a.note}` : ""}` : formatDayLong(d)}
                               onPointerDown={(ev) => {
                                 lastPointerType.current = ev.pointerType;
                                 onCellPointerDown(ev, e, d);
@@ -464,7 +465,13 @@ export function AbsenceBoard(props: {
                               }}
                               onClick={(ev) => onCellClick(ev, e, d, lastPointerType.current)}
                               className={`h-10 border-b border-line p-0.5 text-center ${
-                                !inPeriod(e, d) ? "bg-[repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9_4px,#e2e8f0_4px,#e2e8f0_8px)]" : isWeekend(d) || holidayName(d) ? "bg-slate-100" : ""
+                                !inPeriod(e, d)
+                                  ? "bg-[repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9_4px,#e2e8f0_4px,#e2e8f0_8px)]"
+                                  : isWeekend(d) || holidayName(d)
+                                    ? "bg-slate-100"
+                                    : !worksOn(e, d)
+                                      ? "bg-[repeating-linear-gradient(135deg,#fff,#fff_5px,#fef3c7_5px,#fef3c7_10px)]"
+                                      : ""
                               } ${d === today ? "border-x-2 border-x-brand-700" : ""} ${canEdit && e.active && inPeriod(e, d) ? "cursor-pointer hover:bg-brand-50" : ""}`}
                             >
                               {a ? (

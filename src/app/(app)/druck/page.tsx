@@ -210,6 +210,11 @@ function PrintDay({
       <div className="grid gap-4 sm:grid-cols-2 print:grid-cols-2">
         <div className="break-inside-avoid">
           <h2 className="mb-1 font-bold">Abwesend ({day.absent.length})</h2>
+          {day.off.length > 0 && (
+            <p className="mb-1 text-sm">
+              <strong>Arbeitsfrei:</strong> {day.off.map((e) => `${e.firstName} ${e.lastName}`).join(", ")}
+            </p>
+          )}
           {day.absent.length === 0 ? (
             <p className="italic">niemand</p>
           ) : (

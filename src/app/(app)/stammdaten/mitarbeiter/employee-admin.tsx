@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/field";
 import { api } from "@/lib/api-client";
-import { PASSWORD_MIN_LENGTH, QUALIFICATION_LABELS, QUALIFICATIONS, type Qualification } from "@/lib/constants";
+import { PASSWORD_MIN_LENGTH, QUALIFICATION_LABELS, QUALIFICATIONS, WEEKDAY_OPTIONS, workDaysText, type Qualification } from "@/lib/constants";
 import { formatDate, todayIso } from "@/lib/dates";
 import { AutoDeleteTag, ColorDot, FormActions, ListBox, matches, MessageBar, Row, str, Tag, toggleActive, Toolbar, useSave } from "@/components/masterdata/shared";
 
@@ -21,6 +21,7 @@ type Employee = {
   phone: string | null;
   availableFrom: string | null;
   availableUntil: string | null;
+  workDays: string | null;
   active: boolean;
   version: number;
   department: { id: string; name: string; color: string };
@@ -170,6 +171,7 @@ export function EmployeeAdmin({
                     {e.availableUntil ? formatDate(e.availableUntil) : "offen"}
                   </Tag>
                 ))}
+              {e.workDays && <Tag tone="amber">arbeitet {workDaysText(e.workDays)}</Tag>}
               {!e.active && <Tag>inaktiv</Tag>}
                 {!e.active && <AutoDeleteTag deactivatedAt={e.deactivatedAt} days={autoDeleteDays} />}
             </div>
@@ -257,6 +259,8 @@ function EmployeeForm({
   onDone: (msg: string) => void;
   onCancel: () => void;
 }) {
+  const [limited, setLimited] = useState(!!employee?.workDays);
+  const [workDays, setWorkDays] = useState<string[]>((employee?.workDays ?? "12345").split(""));
   const form = useSave();
   const [first, setFirst] = useState(employee?.firstName ?? "");
   const [last, setLast] = useState(employee?.lastName ?? "");
@@ -287,6 +291,7 @@ function EmployeeForm({
           phone: str(f, "phone") || null,
           availableFrom: str(f, "availableFrom") || null,
           availableUntil: str(f, "availableUntil") || null,
+          workDays: limited ? workDays.join("") : null,
         };
         const ok = await form.run(
           () =>
@@ -358,6 +363,39 @@ function EmployeeForm({
           </Field>
         </div>
         <p className="mt-1 text-xs text-muted">Außerhalb dieses Zeitraums erscheint die Person nicht in der Planung und kann nicht eingeteilt werden.</p>
+      </fieldset>
+
+      <fieldset className={`rounded-lg border p-3 ${limited ? "border-amber-400 bg-amber-50" : "border-line"}`}>
+        <legend className="px-1 text-sm font-semibold">Arbeitstage</legend>
+        <label className="flex min-h-11 items-center gap-2">
+          <input type="checkbox" className="size-5 accent-amber-600" checked={limited} onChange={(e) => setLimited(e.target.checked)} />
+          Arbeitet nicht an allen Tagen (z. B. 4-Tage-Woche)
+        </label>
+        {limited && (
+          <>
+            <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Arbeitstage">
+              {WEEKDAY_OPTIONS.map((d) => {
+                const on = workDays.includes(String(d.n));
+                return (
+                  <button
+                    key={d.n}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setWorkDays((w) => (on ? w.filter((x) => x !== String(d.n)) : [...w, String(d.n)].sort()))}
+                    className={`min-h-11 min-w-12 rounded-lg border-2 px-3 font-semibold ${on ? "border-amber-600 bg-amber-500 text-white" : "border-line bg-white text-muted"}`}
+                  >
+                    {d.short}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-muted">
+              {workDays.length === 0
+                ? "Bitte mindestens einen Tag wählen."
+                : `Arbeitet ${workDaysText(workDays.join(""))}. An den anderen Tagen steht die Person als „Arbeitsfrei“ in der Planung und kann nicht eingeteilt werden.`}
+            </p>
+          </>
+        )}
       </fieldset>
 
       {!employee && (

@@ -49,6 +49,7 @@ export async function loadAbsenceBoard(sp: AbsenceSearchParams) {
       active: true,
       availableFrom: true,
       availableUntil: true,
+      workDays: true,
       qualification: true,
       department: { select: { id: true, name: true, color: true, sortOrder: true } },
     },

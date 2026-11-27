@@ -1,6 +1,6 @@
 import "server-only";
 import type { z } from "zod";
-import { isAvailableOn, OUTAGE_ICON, outageLabel } from "@/lib/constants";
+import { isAvailableOn, isoWeekday, OUTAGE_ICON, outageLabel, WEEKDAY_OPTIONS, worksOn } from "@/lib/constants";
 import { addDays, diffDays, formatDayShort, formatRange, weekdayShort } from "@/lib/dates";
 import { isDayOff, isFirstWorkdayOfWeek, remainingWorkdaysOfWeek } from "@/lib/holidays";
 import { absenceOn, findOverlap, siteWarnings, timeRange } from "@/lib/planning-logic";
@@ -82,6 +82,7 @@ export async function getPlanningData(from: string, to: string): Promise<Plannin
         active: true,
         availableFrom: true,
         availableUntil: true,
+        workDays: true,
       },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
@@ -233,6 +234,7 @@ async function ensureVehicleDay(tx: Tx, actorId: string, date: string, vehicleId
     const busy = taken.find((t) => t.employeeId === empId);
     if (!e.active) skipped.push(`${e.shortName} (inaktiv)`);
     else if (!isAvailableOn(e, date)) skipped.push(`${e.shortName} (nicht im Betrieb)`);
+    else if (!worksOn(e, date)) skipped.push(`${e.shortName} (arbeitsfrei)`);
     else if (abs) skipped.push(`${e.shortName} (${abs.type.name})`);
     else if (busy) skipped.push(`${e.shortName} (schon auf ${busy.vehicleDay.vehicle.licensePlate})`);
     else if (added.length >= vehicle.seats) skipped.push(`${e.shortName} (kein Sitzplatz frei)`);
@@ -299,6 +301,9 @@ async function assignCrewTx(
   if (currentVehicleId === p.vehicleId) return;
   await assertVehicleAvailable(tx, vehicle, p.date);
 
+  if (!worksOn(emp, p.date)) {
+    throw badRequest(`${fullName(emp)} arbeitet ${WEEKDAY_OPTIONS[isoWeekday(p.date) - 1].long} nicht (Arbeitstage in den Stammdaten) und kann am ${formatDayShort(p.date)} nicht eingeteilt werden.`);
+  }
   if (!isAvailableOn(emp, p.date)) {
     throw badRequest(`${fullName(emp)} ist am ${formatDayShort(p.date)} nicht im Betrieb (${periodText(emp)}).`);
   }
@@ -429,6 +434,10 @@ async function syncWeek(tx: Tx, actorId: string, date: string, changes: WeekChan
       const vehicle = vehicles.get(to)!;
       const label = `${emp.shortName} ${weekdayShort(d)}`;
       if (!emp.active || !vehicle.active) continue;
+      if (!worksOn(emp, d)) {
+        skipped.push(`${label} (arbeitsfrei)`);
+        continue;
+      }
       if (!isAvailableOn(emp, d)) {
         skipped.push(`${label} (nicht im Betrieb)`);
         continue;
@@ -801,13 +810,17 @@ async function copyCrewInto(
   toDate: string,
   crew: {
     employeeId: string;
-    employee: { firstName: string; lastName: string; shortName: string; active: boolean; availableFrom: string | null; availableUntil: string | null };
+    employee: { firstName: string; lastName: string; shortName: string; active: boolean; availableFrom: string | null; availableUntil: string | null; workDays: string | null };
   }[],
   skipped: { absent: string[]; busy: string[] },
 ) {
   let added = 0;
   for (const c of crew) {
     if (!c.employee.active) continue;
+    if (!worksOn(c.employee, toDate)) {
+      skipped.absent.push(`${c.employee.shortName} (arbeitsfrei)`);
+      continue;
+    }
     if (!isAvailableOn(c.employee, toDate)) {
       skipped.absent.push(`${c.employee.shortName} (nicht im Betrieb)`);
       continue;

@@ -178,7 +178,7 @@ function DayBody({ day }: { day: DDay }) {
   return (
     <div className="flex min-h-full flex-col">
     <div>
-      {day.absent.length > 0 && (
+      {(day.absent.length > 0 || day.off.length > 0) && (
         <Section title={`Abwesend (${day.absent.length})`} tone="red">
           <div className="space-y-[0.2rem]">
             {groupByQualification(day.absent, (a) => a.quali).map((g) => (
@@ -196,6 +196,16 @@ function DayBody({ day }: { day: DDay }) {
               ))}
               </div>
             ))}
+            {day.off.length > 0 && (
+              <div className="flex flex-wrap items-center gap-[0.25rem]">
+                <span className="text-[0.7rem] font-semibold text-slate-600">Arbeitsfrei:</span>
+                {day.off.map((p) => (
+                  <span key={p.id} className="inline-flex items-center rounded-[0.25rem] border border-dashed border-slate-400 px-[0.3rem] py-[0.05rem] text-[0.95rem] text-slate-600">
+                    {p.name}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </Section>
       )}

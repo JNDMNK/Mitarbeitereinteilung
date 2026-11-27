@@ -12,6 +12,8 @@ export type PEmployee = {
   /** Zeitraum im Betrieb (z. B. Praktikum) */
   availableFrom: string | null;
   availableUntil: string | null;
+  /** Arbeitstage (ISO-Wochentage), leer = alle */
+  workDays?: string | null;
 };
 export type PVehicle = {
   id: string;

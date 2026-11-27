@@ -1,11 +1,14 @@
 import "server-only";
 import { addDays, eachDay } from "@/lib/dates";
 import { isDayOff } from "@/lib/holidays";
+import { worksOn } from "@/lib/constants";
 import { db } from "../db";
 
 export type MyDay = {
   date: string;
   absence: { type: { name: string; code: string; color: string }; startDate: string; endDate: string; note: string | null; withVehicle: boolean } | null;
+  /** arbeitsfrei laut eigenen Arbeitstagen (z. B. 4-Tage-Woche) */
+  dayOff: boolean;
   /** owner = Besitzer, wenn es nicht das eigene Fahrzeug ist */
   vehicle: { licensePlate: string; name: string; type: string | null; isDefaultDriver: boolean; owner: string | null; isRoom: boolean } | null;
   colleagues: { id: string; firstName: string; lastName: string; shortName: string; qualification: string; phone: string | null; isDriver: boolean; absent: boolean }[];
@@ -29,6 +32,7 @@ export type MyDay = {
 /** Persönliche Einteilung eines Mitarbeiters für `days` Tage ab `from` */
 export async function getMyAssignments(employeeId: string, from: string, days = 7): Promise<MyDay[]> {
   const to = addDays(from, days - 1);
+  const me = await db.employee.findUnique({ where: { id: employeeId }, select: { workDays: true } });
   const [crew, absences] = await Promise.all([
     db.crewMember.findMany({
       where: { employeeId, date: { gte: from, lte: to } },
@@ -77,6 +81,7 @@ export async function getMyAssignments(employeeId: string, from: string, days = 
       return {
         date,
         absence: abs ? { type: abs.type, startDate: abs.startDate, endDate: abs.endDate, note: abs.note, withVehicle: abs.withVehicle } : null,
+        dayOff: !worksOn({ workDays: me?.workDays ?? null }, date),
         vehicle: vd
           ? {
               licensePlate: vd.vehicle.licensePlate,

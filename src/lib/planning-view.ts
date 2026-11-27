@@ -1,4 +1,4 @@
-import { DUE_WARN_DAYS, isAvailableOn, OUTAGE_ICON, outageLabel, qualificationRank } from "./constants";
+import { DUE_WARN_DAYS, isAvailableOn, isoWeekday, OUTAGE_ICON, outageLabel, qualificationRank, WEEKDAY_OPTIONS, worksOn } from "./constants";
 import { diffDays, formatDayShort } from "./dates";
 import { compactNames } from "./names";
 import { absenceOn, crewWarnings, siteWarnings, type Warning } from "./planning-logic";
@@ -45,6 +45,8 @@ export type PoolEmployee = { employee: PEmployee; absence?: AbsentEntry };
 export type DayView = {
   date: string;
   absent: AbsentEntry[];
+  /** arbeitsfrei laut Arbeitstagen (z. B. 4-Tage-Woche), nicht abwesend */
+  off: PEmployee[];
   sites: SiteGroup[];
   /** Fahrzeuge ohne Baustelleneinsatz (mit oder ohne Besatzung) */
   poolVehicles: VehicleSlot[];
@@ -84,6 +86,9 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
       absentIds.add(e.id);
     }
   }
+  // Arbeitsfrei (eigene Arbeitstage), nur wer nicht ohnehin abwesend ist
+  const off = data.employees.filter((e) => e.active && isAvailableOn(e, date) && !absentIds.has(e.id) && !worksOn(e, date));
+  const offIds = new Set(off.map((e) => e.id));
 
   const seatOf = new Map<string, string>();
   const slotOf = (vd: PVehicleDay): VehicleSlot | null => {
@@ -93,7 +98,12 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
     for (const e of crew) seatOf.set(e.id, vehicle.id);
     const outside: Warning[] = crew
       .filter((e) => !isAvailableOn(e, date))
-      .map((e) => ({ level: "error", text: `${e.firstName} ${e.lastName} ist an diesem Tag nicht im Betrieb` }));
+      .map((e): Warning => ({ level: "error", text: `${e.firstName} ${e.lastName} ist an diesem Tag nicht im Betrieb` }))
+      .concat(
+        crew
+          .filter((e) => offIds.has(e.id))
+          .map((e) => ({ level: "error" as const, text: `${e.firstName} ${e.lastName} arbeitet ${WEEKDAY_OPTIONS[isoWeekday(date) - 1].long} nicht` })),
+      );
     // Räume: kein "nur Azubis"/"keine Besatzung" (ein Lehrling allein im Lager ist gewollt)
     const base = crewWarnings(vehicle, crew, absentIds, vd.assignments.length > 0).filter(
       (w) => vehicle.kind !== "ROOM" || (!w.text.startsWith("Nur Azubis") && w.text !== "Keine Besatzung"),
@@ -197,7 +207,7 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
   const depOrder = (e: PEmployee) => idx.departments.get(e.departmentId)?.sortOrder ?? 999;
   // Pool = nur verfügbare Mitarbeiter; Abwesende stehen ausschließlich in der Abwesenheitsleiste
   const poolEmployees: PoolEmployee[] = data.employees
-    .filter((e) => e.active && !seatOf.has(e.id) && !absentIds.has(e.id) && isAvailableOn(e, date))
+    .filter((e) => e.active && !seatOf.has(e.id) && !absentIds.has(e.id) && !offIds.has(e.id) && isAvailableOn(e, date))
     .sort((a, b) => qualificationRank(a.qualification) - qualificationRank(b.qualification) || depOrder(a) - depOrder(b) || a.lastName.localeCompare(b.lastName))
     .map((e) => ({ employee: e }));
   // Abwesende ebenso nach Gruppe (Meister, Gesellen, Azubis …) sortieren
@@ -208,9 +218,11 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
       a.employee.lastName.localeCompare(b.employee.lastName),
   );
 
+  off.sort((a, b) => qualificationRank(a.qualification) - qualificationRank(b.qualification) || depOrder(a) - depOrder(b) || a.lastName.localeCompare(b.lastName));
   return {
     date,
     absent,
+    off: off.filter((e) => !seatOf.has(e.id)),
     sites,
     poolVehicles: vehiclesOnly,
     rooms,
@@ -245,6 +257,7 @@ export function filterDayByDepartments(day: DayView, idx: Indexes, hiddenDepartm
   const rooms = day.rooms.filter(slotVisible);
   const poolEmployees = day.poolEmployees.filter((p) => !empHidden(p.employee));
   const absent = day.absent.filter((a) => !empHidden(a.employee));
+  const off = day.off.filter((e) => !empHidden(e));
 
   const visibleVehicleIds = new Set([...poolVehicles, ...rooms].map((p) => p.vehicle.id).concat(sites.flatMap((g) => g.items.map((i) => i.vehicle.id))));
   const allVehicleIds = new Set([...day.poolVehicles, ...day.rooms].map((p) => p.vehicle.id).concat(day.sites.flatMap((g) => g.items.map((i) => i.vehicle.id))));
@@ -260,6 +273,7 @@ export function filterDayByDepartments(day: DayView, idx: Indexes, hiddenDepartm
     rooms,
     poolEmployees,
     absent,
+    off,
     stats: { assigned: assigned.size, available: poolEmployees.length, absent: absent.length },
     hidden: {
       departments: hiddenDepartments,

@@ -100,6 +100,12 @@ describe("Tagesansicht aufbauen", () => {
     settings: { defaultStartMin: 420, defaultEndMin: 960 },
   };
   const day = buildDay(data, buildIndexes(data), "2026-12-01");
+  it("Arbeitsfreier Tag (4-Tage-Woche): nicht im Pool, sondern arbeitsfrei", () => {
+    const d2 = { ...data, employees: data.employees.map((e) => (e.id === "u" ? e : e.id === "c" ? { ...e, workDays: "1345" } : e)) }; // c arbeitet dienstags nicht
+    const dd = buildDay(d2, buildIndexes(d2), "2026-12-01"); // Dienstag
+    expect(dd.off.map((e) => e.id)).toEqual(["c"]);
+    expect(dd.poolEmployees.some((p) => p.employee.id === "c")).toBe(false);
+  });
   it("Werkstatt-Ausfall sperrt das Fahrzeug, TÜV-Fälligkeit wird angezeigt", () => {
     const d2 = {
       ...data,

@@ -18,6 +18,8 @@ export type DDay = {
   holiday: string | null;
   stats: { assigned: number; available: number; absent: number };
   absent: (DPerson & { code: string; typeColor: string; typeName: string })[];
+  /** arbeitsfrei laut Arbeitstagen */
+  off: DPerson[];
   sites: DSite[];
   /** Fahrzeuge mit Besatzung, aber ohne Baustelle */
   idleVehicles: DVehicle[];
@@ -63,6 +65,7 @@ export function buildDisplayDays(data: PlanningData, days: string[], today: stri
         typeColor: a.type?.color ?? "#64748b",
         typeName: a.type?.name ?? "Abwesend",
       })),
+      off: day.off.map(person),
       sites: day.sites.map((g) => ({
         id: g.site.id,
         name: g.site.name,

@@ -46,3 +46,15 @@ describe("Fester Termin", () => {
     expect(fixedConfirmText({ fixed: false }, "verschieben")).toBeNull();
   });
 });
+
+import { workDaysText, worksOn } from "@/lib/constants";
+describe("Arbeitstage", () => {
+  it("4-Tage-Woche Mo–Do", () => {
+    expect(worksOn({ workDays: "1234" }, "2026-11-26")).toBe(true); // Do
+    expect(worksOn({ workDays: "1234" }, "2026-11-27")).toBe(false); // Fr
+    expect(worksOn({ workDays: null }, "2026-11-28")).toBe(true);
+    expect(workDaysText("1234")).toBe("Mo–Do");
+    expect(workDaysText("1245")).toBe("Mo, Di, Do, Fr");
+    expect(workDaysText(null)).toBe("alle Tage");
+  });
+});

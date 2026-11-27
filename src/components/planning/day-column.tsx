@@ -1,6 +1,6 @@
 "use client";
 
-import { groupByQualification } from "@/lib/constants";
+import { groupByQualification, workDaysText } from "@/lib/constants";
 import { QualificationBadge } from "@/components/qualification-badge";
 import type { ReactNode } from "react";
 import { formatDayLong, formatDayShort, formatRange, isWeekend, isoWeek, mapsUrl } from "@/lib/dates";
@@ -433,10 +433,10 @@ export function DayHeader({ day, today, canEdit, open, sticky = true }: { day: D
 }
 
 export function AbsentBar({ day, ownEmployeeId, open, idx }: { day: DayView; ownEmployeeId: string | null; open: (s: Sheet) => void; idx?: Indexes }) {
-  if (day.absent.length === 0) return null;
+  if (day.absent.length === 0 && day.off.length === 0) return null;
   return (
 <div className="rounded-xl bg-white p-2 shadow-sm ring-1 ring-line">
-          <h3 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">Abwesend ({day.absent.length})</h3>
+          <h3 className="mb-1 text-xs font-bold tracking-wide text-muted uppercase">Abwesend ({day.absent.length}){day.off.length ? ` · arbeitsfrei (${day.off.length})` : ""}</h3>
           <div className="space-y-1">
             {groupByQualification(day.absent, (a) => a.employee.qualification).map((g) => (
               <div key={g.q} className="flex flex-wrap items-center gap-1">
@@ -460,6 +460,24 @@ export function AbsentBar({ day, ownEmployeeId, open, idx }: { day: DayView; own
               ))}
               </div>
             ))}
+            {day.off.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-[11px] font-semibold text-muted">Arbeitsfrei:</span>
+                {day.off.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => open({ kind: "employee", date: day.date, employeeId: e.id })}
+                    title={`${e.firstName} ${e.lastName}: arbeitsfrei (arbeitet ${workDaysText(e.workDays)})`}
+                    className={`inline-flex min-h-10 items-center gap-1 rounded-md border border-dashed border-slate-400 px-2 text-sm font-semibold text-slate-600 md:min-h-8 md:px-1.5 md:text-xs ${e.id === ownEmployeeId ? "bg-brand-50" : "bg-white"}`}
+                  >
+                    <span className="rounded bg-slate-200 px-1 font-mono leading-5 font-bold text-slate-700">frei</span>
+                    {idx?.names.get(e.id) ?? e.shortName}
+                    <QualificationBadge q={e.qualification} />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
   );

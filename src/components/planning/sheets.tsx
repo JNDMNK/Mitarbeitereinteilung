@@ -6,7 +6,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input, Select } from "@/components/ui/field";
 import { QualificationBadge } from "@/components/qualification-badge";
 import { formatDayShort, formatRange, mapsUrl } from "@/lib/dates";
-import { QUALIFICATION_LABELS, type Qualification } from "@/lib/constants";
+import { QUALIFICATION_LABELS, workDaysText, worksOn, type Qualification } from "@/lib/constants";
 import { findOverlap, fixedConfirmText, fixedLabel, suggestSlot, timeRange } from "@/lib/planning-logic";
 import { addDays, formatDateTimeShort } from "@/lib/dates";
 import type { NewSite, PlanningAction } from "@/lib/planning-schemas";
@@ -135,6 +135,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
     const vehicleId = day.seatOf.get(e.id) ?? null;
     const vehicle = vehicleId ? idx.vehicles.get(vehicleId) : null;
     const absent = day.absent.find((a) => a.employee.id === e.id);
+    const dayOff = !worksOn(e, sheet.date);
     return (
       <Dialog open onClose={close} title={`${e.firstName} ${e.lastName}`}>
         <div className="space-y-3">
@@ -154,6 +155,9 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
                 </p>
               ) : null;
             })()}
+          {dayOff && !absent && (
+            <p className="rounded-lg bg-slate-100 p-2 font-semibold text-slate-700">Arbeitsfrei – arbeitet {workDaysText(e.workDays)}.</p>
+          )}
           {absent && (
             <p className="rounded-lg bg-red-50 p-2 font-semibold text-red-800">
               Abwesend: {absent.type?.name} {formatRange(absent.absence.startDate, absent.absence.endDate)}
@@ -166,8 +170,8 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
           )}
           {canEdit && (
             <>
-              {absent ? (
-                <p className="text-sm text-muted">Abwesende Mitarbeiter können an diesem Tag nicht eingeteilt werden.</p>
+              {absent || dayOff ? (
+                <p className="text-sm text-muted">{absent ? "Abwesende Mitarbeiter" : "Arbeitsfreie Mitarbeiter"} können an diesem Tag nicht eingeteilt werden.</p>
               ) : (
                 <Action onClick={() => setSheet({ kind: "pickVehicleForEmployee", date: sheet.date, employeeId: e.id })}>
                   🚐 {vehicle ? "Auf anderes Fahrzeug / Raum setzen …" : "Zuweisen zu Fahrzeug / Raum …"}
@@ -449,7 +453,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
   if (sheet.kind === "pickEmployeeForVehicle") {
     const v = idx.vehicles.get(sheet.vehicleId)!;
     const available = day.poolEmployees.map((p) => p.employee);
-    const absent = day.absent.filter((a) => a.employee.active && !day.seatOf.has(a.employee.id)).map((a) => a.employee);
+    const absent = [...day.absent.filter((a) => a.employee.active && !day.seatOf.has(a.employee.id)).map((a) => a.employee), ...day.off];
     const hiddenDeps = day.hidden?.departments ?? new Set<string>();
     const elsewhere = data.employees.filter((e) => e.active && !hiddenDeps.has(e.departmentId) && day.seatOf.has(e.id) && day.seatOf.get(e.id) !== v.id);
     return (
@@ -458,7 +462,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
           items={[
             { group: "Verfügbar", list: available },
             { group: "Schon eingeteilt (wird umgesetzt)", list: elsewhere },
-            { group: "Abwesend – nicht einteilbar", list: absent },
+            { group: "Abwesend / arbeitsfrei – nicht einteilbar", list: absent },
           ]}
           placeholder="Name oder Kürzel"
           empty="Keine Mitarbeiter gefunden."
@@ -469,7 +473,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
             return (
               <Action
                 key={e.id}
-                disabled={busy || !!abs}
+                disabled={busy || !!abs || !worksOn(e, sheet.date)}
                 onClick={async () => {
                   close();
                   await run("crew-assign", { date: sheet.date, employeeId: e.id, vehicleId: v.id, expectedFromVehicleId: from }, `${e.firstName} ${e.lastName} → ${v.kind === "ROOM" ? v.name : v.licensePlate}.`);

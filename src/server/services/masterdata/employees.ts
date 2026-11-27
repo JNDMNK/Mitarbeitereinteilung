@@ -1,6 +1,6 @@
 import "server-only";
 import type { z } from "zod";
-import { QUALIFICATION_LABELS, type Qualification } from "@/lib/constants";
+import { QUALIFICATION_LABELS, workDaysText, type Qualification } from "@/lib/constants";
 import type { employeeCreateSchema, employeeLoginSchema, employeeUpdateSchema } from "@/lib/masterdata-schemas";
 import type { Role } from "@/lib/roles";
 import { audit } from "../../audit";
@@ -22,6 +22,7 @@ export const employeeSelect = {
   phone: true,
   availableFrom: true,
   availableUntil: true,
+  workDays: true,
   active: true,
   version: true,
   department: { select: { id: true, name: true, color: true } },
@@ -107,6 +108,7 @@ export async function updateEmployee(actorId: string, id: string, input: z.infer
         phone: "Telefon",
         availableFrom: "im Betrieb ab",
         availableUntil: "im Betrieb bis",
+        workDays: "Arbeitstage",
         active: "Status",
       },
       (key, v) =>
@@ -114,7 +116,9 @@ export async function updateEmployee(actorId: string, id: string, input: z.infer
           ? (QUALIFICATION_LABELS[v as Qualification] ?? String(v))
           : key === "departmentId"
             ? depName(v)
-            : v === null || v === undefined || v === ""
+            : key === "workDays"
+              ? workDaysText(v as string | null)
+              : v === null || v === undefined || v === ""
               ? "–"
               : String(v),
     );

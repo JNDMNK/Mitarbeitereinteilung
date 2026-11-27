@@ -67,6 +67,37 @@ export function isUnqualified(q: string): boolean {
   return isApprentice(q) || q === "PRAKTIKANT";
 }
 
+/** Wochentage für die Arbeitstage-Auswahl (ISO: 1 = Montag … 7 = Sonntag) */
+export const WEEKDAY_OPTIONS = [
+  { n: 1, short: "Mo", long: "montags" },
+  { n: 2, short: "Di", long: "dienstags" },
+  { n: 3, short: "Mi", long: "mittwochs" },
+  { n: 4, short: "Do", long: "donnerstags" },
+  { n: 5, short: "Fr", long: "freitags" },
+  { n: 6, short: "Sa", long: "samstags" },
+  { n: 7, short: "So", long: "sonntags" },
+] as const;
+
+/** ISO-Wochentag eines "YYYY-MM-DD" (1 = Montag … 7 = Sonntag) */
+export function isoWeekday(iso: string): number {
+  const d = new Date(`${iso}T12:00:00Z`).getUTCDay();
+  return d === 0 ? 7 : d;
+}
+
+/** Arbeitet der Mitarbeiter an diesem Wochentag? (leer = an allen Tagen) */
+export function worksOn(e: { workDays?: string | null }, date: string): boolean {
+  return !e.workDays || e.workDays.includes(String(isoWeekday(date)));
+}
+
+/** Kurztext der Arbeitstage, z. B. "Mo–Do" oder "Mo, Di, Do" */
+export function workDaysText(workDays: string | null | undefined): string {
+  if (!workDays) return "alle Tage";
+  const nums = [...new Set(workDays.split("").map(Number))].filter((n) => n >= 1 && n <= 7).sort();
+  const isRange = nums.length > 2 && nums.every((n, i) => i === 0 || n === nums[i - 1] + 1);
+  const short = (n: number) => WEEKDAY_OPTIONS[n - 1].short;
+  return isRange ? `${short(nums[0])}–${short(nums[nums.length - 1])}` : nums.map(short).join(", ");
+}
+
 /** Ist der Mitarbeiter an diesem Tag im Betrieb (Zeitraum, z. B. Praktikum)? */
 export function isAvailableOn(e: { availableFrom?: string | null; availableUntil?: string | null }, date: string): boolean {
   return (!e.availableFrom || e.availableFrom <= date) && (!e.availableUntil || e.availableUntil >= date);

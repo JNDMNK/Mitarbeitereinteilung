@@ -87,7 +87,8 @@ function DayCard({ day, today, big = false }: { day: MyDay; today: string; big?:
           <p className="rounded-lg bg-amber-50 p-2 text-sm font-semibold text-amber-900">⚠ Trotz Abwesenheit eingeteilt – bitte mit dem Einteiler klären.</p>
         )}
 
-        {!assigned && !day.absence && <p className="text-lg text-muted">Noch nicht eingeteilt.</p>}
+        {!assigned && !day.absence && day.dayOff && <p className="rounded-xl bg-slate-100 p-3 text-lg font-semibold text-slate-700">Arbeitsfrei</p>}
+        {!assigned && !day.absence && !day.dayOff && <p className="text-lg text-muted">Noch nicht eingeteilt.</p>}
 
         {day.vehicle && (
           <>
