@@ -34,6 +34,9 @@ export const newSiteSchema = z.object({
     .max(200)
     .nullish()
     .transform((v) => (v ? v : null)),
+  /** Zeitraum der Baustelle (optional) */
+  startDate: date.nullish(),
+  endDate: date.nullish(),
   /** Projekt-Nummer (optional) */
   orderNumber: z
     .string()

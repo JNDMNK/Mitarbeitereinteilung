@@ -3,7 +3,7 @@
 import { groupByQualification } from "@/lib/constants";
 import { QualificationBadge } from "@/components/qualification-badge";
 import type { ReactNode } from "react";
-import { formatDayLong, formatDayShort, isWeekend, isoWeek, mapsUrl } from "@/lib/dates";
+import { formatDayLong, formatDayShort, formatRange, isWeekend, isoWeek, mapsUrl } from "@/lib/dates";
 import { holidayName } from "@/lib/holidays";
 import { timeRange } from "@/lib/planning-logic";
 import type { PEmployee, PVehicle } from "@/lib/planning-types";
@@ -201,16 +201,22 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
                   📍 {g.site.address}
                 </a>
               )}
+              {(g.site.startDate || g.site.endDate) && (
+                <div className="text-xs font-semibold text-muted">
+                  📅 {g.site.startDate ? formatRange(g.site.startDate, g.site.endDate ?? g.site.startDate) : `bis ${formatRange(g.site.endDate!, g.site.endDate!)}`}
+                  {!g.site.endDate && g.site.startDate ? " (offen)" : ""}
+                </div>
+              )}
               {g.site.note && <p className="line-clamp-2 text-xs text-muted italic" title={g.site.note}>{g.site.note}</p>}
               <WarningList warnings={g.warnings} />
             </div>
-            {canEdit && g.site.adHoc && (
+            {canEdit && (
               <button
                 type="button"
                 onClick={() => open({ kind: "editSite", date: day.date, siteId: g.site.id })}
                 className="min-h-9 shrink-0 rounded-lg border border-line px-2 text-sm font-semibold hover:bg-slate-50"
-                title="Freien Eintrag bearbeiten (Name, Adresse, Projekt-Nr., Notiz)"
-                aria-label="Freien Eintrag bearbeiten"
+                title="Baustelle bearbeiten (Name, Adresse, Projekt-Nr., Zeitraum, Notiz)"
+                aria-label="Baustelle bearbeiten"
               >
                 ✏️
               </button>

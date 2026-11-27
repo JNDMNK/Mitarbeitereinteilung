@@ -536,7 +536,7 @@ async function resolveSite(tx: Tx, actorId: string, siteId: string | undefined, 
     let h = 0;
     for (const ch of newSite.name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     const site = await tx.site.create({
-      data: { name: newSite.name, address: newSite.address, orderNumber: newSite.orderNumber ?? null, status: "ACTIVE", adHoc: true, color: ADHOC_COLORS[h % ADHOC_COLORS.length] },
+      data: { name: newSite.name, address: newSite.address, orderNumber: newSite.orderNumber ?? null, startDate: newSite.startDate ?? null, endDate: newSite.endDate ?? null, status: "ACTIVE", adHoc: true, color: ADHOC_COLORS[h % ADHOC_COLORS.length] },
     });
     await audit(tx, {
       userId: actorId,

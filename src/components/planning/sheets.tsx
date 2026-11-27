@@ -315,9 +315,9 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
               {a && site && (
                 <>
                   <Action onClick={() => setSheet({ kind: "time", date: sheet.date, vehicleId: v.id, siteId: site.id, assignmentId: a.id })}>🕒 Zeit / 📌 Termin / 📅 weitere Tage …</Action>
-                  {site.adHoc && (
-                    <Action onClick={() => setSheet({ kind: "editSite", date: sheet.date, siteId: site.id })}>✏️ Freien Eintrag „{site.name}“ bearbeiten …</Action>
-                  )}
+                  <Action onClick={() => setSheet({ kind: "editSite", date: sheet.date, siteId: site.id })}>
+                    ✏️ {site.adHoc ? "Freien Eintrag" : "Baustelle"} „{site.name}“ bearbeiten …
+                  </Action>
                   <Action
                     onClick={() => {
                       const ask = fixedConfirmText(a, "auf eine andere Baustelle setzen");
@@ -731,6 +731,7 @@ function TimeDialog({
       initial={current ? { startMin: current.startMin, endMin: current.endMin } : null}
       fixedInitial={{ fixed: !!current?.fixed, fixedTimeMin: current?.fixedTimeMin ?? null, fixedNote: current?.fixedNote ?? null }}
       rangeFrom={sheet.date}
+      rangeUntil={sheet.newSite?.endDate ?? ("endDate" in site ? site.endDate : null)}
       others={others}
       data={data}
       idx={idx}
@@ -827,7 +828,10 @@ function TimeWindowDialog({
   onSubmit,
   fixedInitial,
   rangeFrom,
+  rangeUntil,
 }: {
+  /** Vorschlag für „bis“ (z. B. Ende der Baustelle) */
+  rangeUntil?: string | null;
   /** Tag des Einsatzes: blendet „Über mehrere Tage“ ein */
   rangeFrom?: string;
   /** fester Termin: Startwerte; ohne Angabe wird der Abschnitt nicht angezeigt */
@@ -846,7 +850,7 @@ function TimeWindowDialog({
   const { defaultStartMin: ds, defaultEndMin: de } = data.settings;
   const [fixed, setFixed] = useState<FixedValue>(fixedInitial ?? { fixed: false, fixedTimeMin: null, fixedNote: null });
   const [multi, setMulti] = useState(false);
-  const [until, setUntil] = useState(rangeFrom ? addDays(rangeFrom, 4) : "");
+  const [until, setUntil] = useState(rangeFrom ? (rangeUntil && rangeUntil > rangeFrom ? rangeUntil : addDays(rangeFrom, 4)) : "");
   const [daysOff, setDaysOff] = useState(false);
   const range: RangeValue = multi && rangeFrom && until > rangeFrom ? { untilDate: until, includeDaysOff: daysOff } : {};
   const fiveMinOptions = useMemo(() => Array.from({ length: (22 - 5) * 12 + 1 }, (_, i) => 5 * 60 + i * 5), []);
@@ -1096,6 +1100,9 @@ function FreeSiteDialog({
   const [name, setName] = useState(sheet.name);
   const [address, setAddress] = useState("");
   const [orderNumber, setOrderNumber] = useState("");
+  const [from, setFrom] = useState("");
+  const [until, setUntil] = useState("");
+  const periodInvalid = !!from && !!until && until < from;
   const assignment = sheet.assignmentId ? data.vehicleDays.flatMap((v) => v.assignments).find((a) => a.id === sheet.assignmentId) : undefined;
   return (
     <Dialog open onClose={close} title="Freie Baustelle">
@@ -1103,8 +1110,8 @@ function FreeSiteDialog({
         className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault();
-          const newSite = { name: name.trim(), address: address.trim() || null, orderNumber: orderNumber.trim() || null };
-          if (!newSite.name) return;
+          const newSite = { name: name.trim(), address: address.trim() || null, orderNumber: orderNumber.trim() || null, startDate: from || null, endDate: until || null };
+          if (!newSite.name || periodInvalid) return;
           if (assignment) {
             close();
             await run("assignment-update", { id: assignment.id, version: assignment.version, newSite }, `Einsatz auf „${newSite.name}“ geändert.`);
@@ -1130,11 +1137,12 @@ function FreeSiteDialog({
           <span className="mb-1 block text-sm font-semibold">Projekt-Nr. (optional)</span>
           <Input value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} maxLength={50} placeholder="z. B. P-2026-117" />
         </label>
+        <PeriodFields from={from} until={until} setFrom={setFrom} setUntil={setUntil} startHint={sheet.date} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={close}>
             Abbrechen
           </Button>
-          <Button type="submit" disabled={busy || !name.trim()}>
+          <Button type="submit" disabled={busy || !name.trim() || periodInvalid}>
             Weiter
           </Button>
         </div>
@@ -1150,14 +1158,17 @@ function EditSiteDialog({ site, close, onDone, onError }: { site: PSite; close: 
   const [orderNumber, setOrderNumber] = useState(site.orderNumber ?? "");
   const [customer, setCustomer] = useState(site.customer ?? "");
   const [note, setNote] = useState(site.note ?? "");
+  const [from, setFrom] = useState(site.startDate ?? "");
+  const [until, setUntil] = useState(site.endDate ?? "");
+  const periodInvalid = !!from && !!until && until < from;
   const [busy, setBusy] = useState(false);
   return (
-    <Dialog open onClose={close} title="✏️ Freien Eintrag bearbeiten">
+    <Dialog open onClose={close} title={site.adHoc ? "✏️ Freien Eintrag bearbeiten" : "✏️ Baustelle bearbeiten"}>
       <form
         className="space-y-3"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!name.trim()) return;
+          if (!name.trim() || periodInvalid) return;
           setBusy(true);
           try {
             await api(`/api/sites/${site.id}`, {
@@ -1169,6 +1180,8 @@ function EditSiteDialog({ site, close, onDone, onError }: { site: PSite; close: 
                 orderNumber: orderNumber.trim() || null,
                 customer: customer.trim() || null,
                 note: note.trim() || null,
+                startDate: from || null,
+                endDate: until || null,
                 status: site.status,
               },
             });
@@ -1179,7 +1192,9 @@ function EditSiteDialog({ site, close, onDone, onError }: { site: PSite; close: 
           }
         }}
       >
-        <p className="text-sm text-muted">Änderungen gelten für alle Tage, an denen dieser Eintrag eingeplant ist.</p>
+        <p className="text-sm text-muted">
+          Änderungen gelten für alle Tage, an denen {site.adHoc ? "dieser Eintrag" : "diese Baustelle"} eingeplant ist{site.adHoc ? "" : " (auch in den Stammdaten)"}.
+        </p>
         <label className="block">
           <span className="mb-1 block text-sm font-semibold">Bezeichnung</span>
           <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} autoFocus />
@@ -1198,6 +1213,7 @@ function EditSiteDialog({ site, close, onDone, onError }: { site: PSite; close: 
             <Input value={customer} onChange={(e) => setCustomer(e.target.value)} maxLength={100} />
           </label>
         </div>
+        <PeriodFields from={from} until={until} setFrom={setFrom} setUntil={setUntil} />
         <label className="block">
           <span className="mb-1 block text-sm font-semibold">Notiz</span>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} rows={3} className="block w-full rounded-lg border border-line px-3 py-2 text-base" placeholder="z. B. Schlüssel beim Nachbarn, Zufahrt über Hof" />
@@ -1206,11 +1222,60 @@ function EditSiteDialog({ site, close, onDone, onError }: { site: PSite; close: 
           <Button variant="secondary" onClick={close}>
             Abbrechen
           </Button>
-          <Button type="submit" disabled={busy || !name.trim()}>
+          <Button type="submit" disabled={busy || !name.trim() || periodInvalid}>
             {busy ? "Speichern …" : "Speichern"}
           </Button>
         </div>
       </form>
     </Dialog>
+  );
+}
+
+/** Zeitraum einer Baustelle (optional): von – bis */
+function PeriodFields({
+  from,
+  until,
+  setFrom,
+  setUntil,
+  startHint,
+}: {
+  from: string;
+  until: string;
+  setFrom: (v: string) => void;
+  setUntil: (v: string) => void;
+  /** Vorschlag für „von“, wenn „bis“ zuerst gesetzt wird */
+  startHint?: string;
+}) {
+  return (
+    <fieldset className="rounded-lg border border-line p-3">
+      <legend className="px-1 text-sm font-semibold">📅 Zeitraum der Baustelle (optional)</legend>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="mb-1 block text-sm">von</span>
+          <Input
+            type="date"
+            value={from}
+            onChange={(e) => {
+              setFrom(e.target.value);
+              if (until && e.target.value && until < e.target.value) setUntil(e.target.value);
+            }}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm">bis (einschließlich)</span>
+          <Input
+            type="date"
+            value={until}
+            min={from || undefined}
+            onChange={(e) => {
+              setUntil(e.target.value);
+              if (!from && startHint && e.target.value) setFrom(startHint <= e.target.value ? startHint : e.target.value);
+            }}
+          />
+        </label>
+      </div>
+      {from && until && until < from && <p className="mt-1 text-sm font-semibold text-red-700">Das Ende darf nicht vor dem Beginn liegen.</p>}
+      <p className="mt-1 text-xs text-muted">Nur zur Info und für Hinweise in der Planung. Fahrzeuge über mehrere Tage einplanen: im Zeit-Dialog „Über mehrere Tage“.</p>
+    </fieldset>
   );
 }
