@@ -24,6 +24,9 @@ type Props = {
   poolInSidebar?: boolean;
 };
 
+/** Pseudo-Abwesenheitsart für arbeitsfreie Tage (nur Anzeige) */
+const OFF_DAY_TYPE = { id: "off", name: "Arbeitsfrei (Ausnahme möglich)", code: "frei", color: "#94a3b8" };
+
 export function DraggableEmployee({
   employee,
   date,
@@ -37,10 +40,13 @@ export function DraggableEmployee({
   assignedBy,
   isOwner,
   fullWidth,
+  offDay,
 }: {
   employee: PEmployee;
   date: string;
   fullWidth?: boolean;
+  /** arbeitsfreier Tag: grau mit „frei“, aber ziehbar (Ausnahme) */
+  offDay?: boolean;
   fromVehicleId: string | null;
   assignedBy?: string;
   isOwner?: boolean;
@@ -60,7 +66,7 @@ export function DraggableEmployee({
     <EmployeeChip
       employee={employee}
       department={idx.departments.get(employee.departmentId)}
-      absenceType={abs?.type}
+      absenceType={abs?.type ?? (offDay ? OFF_DAY_TYPE : undefined)}
       own={own}
       onClick={() => open({ kind: "employee", date, employeeId: employee.id })}
       dragRef={drag.ref}
@@ -167,7 +173,7 @@ export function DayColumn({ day, idx, today, canEdit, ownEmployeeId, open, poolI
   return (
     <section className="min-w-0 space-y-3" aria-label={`${formatDayLong(day.date)}, KW ${isoWeek(day.date)}`}>
       <DayHeader day={day} today={today} canEdit={canEdit} open={open} />
-      <AbsentBar day={day} ownEmployeeId={ownEmployeeId} open={open} idx={idx} />
+      <AbsentBar day={day} ownEmployeeId={ownEmployeeId} open={open} idx={idx} canEdit={canEdit} />
 
       {/* Baustellen */}
       {day.sites.length === 0 && (
@@ -432,7 +438,7 @@ export function DayHeader({ day, today, canEdit, open, sticky = true }: { day: D
   );
 }
 
-export function AbsentBar({ day, ownEmployeeId, open, idx }: { day: DayView; ownEmployeeId: string | null; open: (s: Sheet) => void; idx?: Indexes }) {
+export function AbsentBar({ day, ownEmployeeId, open, idx, canEdit = false }: { day: DayView; ownEmployeeId: string | null; open: (s: Sheet) => void; idx?: Indexes; canEdit?: boolean }) {
   if (day.absent.length === 0 && day.off.length === 0) return null;
   return (
 <div className="rounded-xl bg-white p-2 shadow-sm ring-1 ring-line">
@@ -463,19 +469,27 @@ export function AbsentBar({ day, ownEmployeeId, open, idx }: { day: DayView; own
             {day.off.length > 0 && (
               <div className="flex flex-wrap items-center gap-1">
                 <span className="text-[11px] font-semibold text-muted">Arbeitsfrei:</span>
-                {day.off.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    onClick={() => open({ kind: "employee", date: day.date, employeeId: e.id })}
-                    title={`${e.firstName} ${e.lastName}: arbeitsfrei (arbeitet ${workDaysText(e.workDays)})`}
-                    className={`inline-flex min-h-10 items-center gap-1 rounded-md border border-dashed border-slate-400 px-2 text-sm font-semibold text-slate-600 md:min-h-8 md:px-1.5 md:text-xs ${e.id === ownEmployeeId ? "bg-brand-50" : "bg-white"}`}
-                  >
-                    <span className="rounded bg-slate-200 px-1 font-mono leading-5 font-bold text-slate-700">frei</span>
-                    {idx?.names.get(e.id) ?? e.shortName}
-                    <QualificationBadge q={e.qualification} />
-                  </button>
-                ))}
+                {day.off.map((e) =>
+                  idx ? (
+                    <DraggableEmployee
+                      key={e.id}
+                      employee={e}
+                      date={day.date}
+                      fromVehicleId={null}
+                      day={day}
+                      idx={idx}
+                      canEdit={canEdit}
+                      own={e.id === ownEmployeeId}
+                      open={open}
+                      suffix="off"
+                      offDay
+                    />
+                  ) : (
+                    <span key={e.id} className="text-sm text-slate-600">
+                      {e.shortName} ({workDaysText(e.workDays)})
+                    </span>
+                  ),
+                )}
               </div>
             )}
           </div>

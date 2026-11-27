@@ -28,6 +28,7 @@ function useWideScreen() {
   );
 }
 import { fixedConfirmText, timeRange } from "@/lib/planning-logic";
+import { workDaysText, worksOn } from "@/lib/constants";
 import { Toasts } from "./toasts";
 import { usePlanningActions, usePlanningData } from "./use-planning";
 import { useQueryClient } from "@tanstack/react-query";
@@ -139,6 +140,10 @@ function Board({ initialStart, initialData, today, canEdit, ownEmployeeId, hideW
         if (absent && !(sameDay && drag.fromVehicleId === drop.vehicleId)) {
           actions.notify("error", [`${name} ist am ${formatDayShort(drop.date)} abwesend (${absent.type?.name ?? "Abwesenheit"}) und kann nicht eingeteilt werden.`]);
           return;
+        }
+        // Arbeitsfreier Tag (z. B. 4-Tage-Woche): als Ausnahme erlaubt, aber bewusst bestätigen
+        if (!worksOn(e, drop.date) && !(sameDay && drag.fromVehicleId) && dayViews.get(drop.date)?.seatOf.get(e.id) !== drop.vehicleId) {
+          if (!confirm(`${name} hat am ${formatDayShort(drop.date)} normalerweise frei (arbeitet ${workDaysText(e.workDays)}).\n\nTrotzdem einteilen (z. B. Notfall oder Restarbeiten)?`)) return;
         }
         if (sameDay) {
           if (drag.fromVehicleId === drop.vehicleId) return;

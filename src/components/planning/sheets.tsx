@@ -156,7 +156,9 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
               ) : null;
             })()}
           {dayOff && !absent && (
-            <p className="rounded-lg bg-slate-100 p-2 font-semibold text-slate-700">Arbeitsfrei – arbeitet {workDaysText(e.workDays)}.</p>
+            <p className="rounded-lg bg-slate-100 p-2 font-semibold text-slate-700">
+              Normalerweise frei – arbeitet {workDaysText(e.workDays)}. Einteilen ist als Ausnahme möglich (z. B. Notfall).
+            </p>
           )}
           {absent && (
             <p className="rounded-lg bg-red-50 p-2 font-semibold text-red-800">
@@ -170,8 +172,8 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
           )}
           {canEdit && (
             <>
-              {absent || dayOff ? (
-                <p className="text-sm text-muted">{absent ? "Abwesende Mitarbeiter" : "Arbeitsfreie Mitarbeiter"} können an diesem Tag nicht eingeteilt werden.</p>
+              {absent ? (
+                <p className="text-sm text-muted">Abwesende Mitarbeiter können an diesem Tag nicht eingeteilt werden.</p>
               ) : (
                 <Action onClick={() => setSheet({ kind: "pickVehicleForEmployee", date: sheet.date, employeeId: e.id })}>
                   🚐 {vehicle ? "Auf anderes Fahrzeug / Raum setzen …" : "Zuweisen zu Fahrzeug / Raum …"}
@@ -428,6 +430,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
               key={x.vehicle.id}
               disabled={busy || x.vehicle.id === from || !!slotIn(day, x.vehicle.id)?.unavailable}
               onClick={async () => {
+                if (!from && !worksOn(e, sheet.date) && !confirm(`${e.firstName} ${e.lastName} hat an diesem Tag normalerweise frei (arbeitet ${workDaysText(e.workDays)}).\n\nTrotzdem einteilen (z. B. Notfall oder Restarbeiten)?`)) return;
                 close();
                 await run("crew-assign", { date: sheet.date, employeeId: e.id, vehicleId: x.vehicle.id, expectedFromVehicleId: from }, `${e.firstName} ${e.lastName} → ${x.vehicle.kind === "ROOM" ? x.vehicle.name : x.vehicle.licensePlate}.`);
               }}
@@ -453,7 +456,7 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
   if (sheet.kind === "pickEmployeeForVehicle") {
     const v = idx.vehicles.get(sheet.vehicleId)!;
     const available = day.poolEmployees.map((p) => p.employee);
-    const absent = [...day.absent.filter((a) => a.employee.active && !day.seatOf.has(a.employee.id)).map((a) => a.employee), ...day.off];
+    const absent = day.absent.filter((a) => a.employee.active && !day.seatOf.has(a.employee.id)).map((a) => a.employee);
     const hiddenDeps = day.hidden?.departments ?? new Set<string>();
     const elsewhere = data.employees.filter((e) => e.active && !hiddenDeps.has(e.departmentId) && day.seatOf.has(e.id) && day.seatOf.get(e.id) !== v.id);
     return (
@@ -462,7 +465,8 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
           items={[
             { group: "Verfügbar", list: available },
             { group: "Schon eingeteilt (wird umgesetzt)", list: elsewhere },
-            { group: "Abwesend / arbeitsfrei – nicht einteilbar", list: absent },
+            { group: "Arbeitsfrei – nur als Ausnahme", list: day.off },
+            { group: "Abwesend – nicht einteilbar", list: absent },
           ]}
           placeholder="Name oder Kürzel"
           empty="Keine Mitarbeiter gefunden."
@@ -473,8 +477,9 @@ export function PlanningSheets({ sheet, setSheet, data, idx, days, canEdit, run,
             return (
               <Action
                 key={e.id}
-                disabled={busy || !!abs || !worksOn(e, sheet.date)}
+                disabled={busy || !!abs}
                 onClick={async () => {
+                  if (!worksOn(e, sheet.date) && !confirm(`${e.firstName} ${e.lastName} hat an diesem Tag normalerweise frei (arbeitet ${workDaysText(e.workDays)}).\n\nTrotzdem einteilen?`)) return;
                   close();
                   await run("crew-assign", { date: sheet.date, employeeId: e.id, vehicleId: v.id, expectedFromVehicleId: from }, `${e.firstName} ${e.lastName} → ${v.kind === "ROOM" ? v.name : v.licensePlate}.`);
                 }}

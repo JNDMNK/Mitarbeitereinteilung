@@ -102,7 +102,7 @@ export function buildDay(data: PlanningData, idx: Indexes, date: string): DayVie
       .concat(
         crew
           .filter((e) => offIds.has(e.id))
-          .map((e) => ({ level: "error" as const, text: `${e.firstName} ${e.lastName} arbeitet ${WEEKDAY_OPTIONS[isoWeekday(date) - 1].long} nicht` })),
+          .map((e) => ({ level: "warn" as const, text: `${e.firstName} ${e.lastName} hat ${WEEKDAY_OPTIONS[isoWeekday(date) - 1].long} normalerweise frei (Ausnahme)` })),
       );
     // Räume: kein "nur Azubis"/"keine Besatzung" (ein Lehrling allein im Lager ist gewollt)
     const base = crewWarnings(vehicle, crew, absentIds, vd.assignments.length > 0).filter(

@@ -301,8 +301,9 @@ async function assignCrewTx(
   if (currentVehicleId === p.vehicleId) return;
   await assertVehicleAvailable(tx, vehicle, p.date);
 
+  // Arbeitsfreier Tag: manuelles Einteilen als Ausnahme erlaubt (Notfall, Restarbeiten) – nur mit Hinweis
   if (!worksOn(emp, p.date)) {
-    throw badRequest(`${fullName(emp)} arbeitet ${WEEKDAY_OPTIONS[isoWeekday(p.date) - 1].long} nicht (Arbeitstage in den Stammdaten) und kann am ${formatDayShort(p.date)} nicht eingeteilt werden.`);
+    warnings.push(`${fullName(emp)} hat ${WEEKDAY_OPTIONS[isoWeekday(p.date) - 1].long} normalerweise frei – als Ausnahme eingeteilt (${formatDayShort(p.date)}).`);
   }
   if (!isAvailableOn(emp, p.date)) {
     throw badRequest(`${fullName(emp)} ist am ${formatDayShort(p.date)} nicht im Betrieb (${periodText(emp)}).`);

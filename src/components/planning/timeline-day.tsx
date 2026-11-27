@@ -89,7 +89,7 @@ export function TimelineDay({ day, data, idx, today, canEdit, ownEmployeeId, ope
   return (
     <section className="space-y-2" aria-label={`Zeitleiste ${day.date}`}>
       <DayHeader day={day} today={today} canEdit={canEdit} open={open} sticky={false} />
-      <AbsentBar day={day} ownEmployeeId={ownEmployeeId} open={open} idx={idx} />
+      <AbsentBar day={day} ownEmployeeId={ownEmployeeId} open={open} idx={idx} canEdit={canEdit} />
 
       <div ref={scrollRef} data-no-swipe className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-line">
         <div className="min-w-[860px]">
