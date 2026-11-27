@@ -1,7 +1,7 @@
 import "server-only";
 import type { z } from "zod";
 import { diffDays, formatDate, formatRange } from "@/lib/dates";
-import type { absenceCreateSchema, absenceUpdateSchema } from "@/lib/masterdata-schemas";
+import type { absenceBulkSchema, absenceCreateSchema, absenceUpdateSchema } from "@/lib/masterdata-schemas";
 import { audit } from "../audit";
 import { publishChange } from "../events";
 import { db, type DbOrTx, type Tx } from "../db";
@@ -121,6 +121,57 @@ export async function createAbsence(actorId: string, input: z.infer<typeof absen
   });
   publishChange({ scope: "absences", userId: actorId });
   return result;
+}
+
+/**
+ * Gleiche Abwesenheit für mehrere Mitarbeiter (z. B. 4 Azubis im selben Schulblock).
+ * Wer nicht geht (Überschneidung, außerhalb der Zeit im Betrieb, inaktiv), wird ausgelassen und gemeldet.
+ */
+export async function createAbsencesBulk(actorId: string, input: z.infer<typeof absenceBulkSchema>) {
+  assertLength(input.startDate, input.endDate);
+  const ids = [...new Set(input.employeeIds)];
+  const result = await db.$transaction(async (tx) => {
+    const type = await assertType(tx, input.typeId);
+    const created: string[] = [];
+    const skipped: string[] = [];
+    const warnings: string[] = [];
+    for (const id of ids) {
+      const emp = await tx.employee.findUnique({ where: { id } });
+      if (!emp || !emp.active) {
+        skipped.push(`${emp ? `${emp.firstName} ${emp.lastName}` : "?"} (inaktiv)`);
+        continue;
+      }
+      const name = `${emp.firstName} ${emp.lastName}`;
+      try {
+        assertInPeriod(emp, input.startDate, input.endDate);
+        await assertNoOverlap(tx, emp.id, input.startDate, input.endDate);
+      } catch (err) {
+        skipped.push(`${name} (${(err as Error).message.replace(/\.$/, "")})`);
+        continue;
+      }
+      const a = await tx.absence.create({
+        data: { employeeId: emp.id, typeId: input.typeId, startDate: input.startDate, endDate: input.endDate, note: input.note ?? null, withVehicle: false },
+      });
+      await audit(tx, {
+        userId: actorId,
+        action: "absence.create",
+        entityType: "Absence",
+        entityId: a.id,
+        date: input.startDate,
+        summary: `${type.name} für ${name} ${formatRange(input.startDate, input.endDate)} eingetragen (Sammeleintrag)`,
+      });
+      created.push(name);
+      const days = await assignedDays(tx, emp.id, input.startDate, input.endDate);
+      if (days.length) warnings.push(`${name} ist an ${days.length} Tag(en) bereits eingeteilt (${days.slice(0, 5).map(formatDate).join(", ")}${days.length > 5 ? " …" : ""}).`);
+    }
+    if (created.length === 0) throw badRequest(`Keine Abwesenheit eingetragen: ${skipped.join("; ")}.`);
+    return { created, skipped, warnings, typeName: type.name };
+  });
+  publishChange({ scope: "absences", userId: actorId });
+  return {
+    message: `${result.typeName} ${formatRange(input.startDate, input.endDate)} für ${result.created.length} Mitarbeiter eingetragen: ${result.created.join(", ")}.`,
+    warnings: [...(result.skipped.length ? [`Nicht eingetragen: ${result.skipped.join("; ")}.`] : []), ...result.warnings],
+  };
 }
 
 export async function updateAbsence(actorId: string, id: string, input: z.infer<typeof absenceUpdateSchema>) {

@@ -13,7 +13,7 @@ import { api } from "@/lib/api-client";
 import { addMonths, eachDay, formatDayLong, isoWeek, formatMonth, formatRange, isWeekend, weekdayShort } from "@/lib/dates";
 import { holidayName } from "@/lib/holidays";
 import { OutageForm, type OutageValue } from "@/components/outage-form";
-import { outageLabel, workDaysText, worksOn, QUALIFICATION_BADGES, QUALIFICATION_GROUP_LABELS, QUALIFICATION_GROUP_ORDER, qualificationRank, type Qualification } from "@/lib/constants";
+import { groupByQualification, outageLabel, workDaysText, worksOn, QUALIFICATION_BADGES, QUALIFICATION_GROUP_LABELS, QUALIFICATION_GROUP_ORDER, qualificationRank, type Qualification } from "@/lib/constants";
 
 type Absence = {
   id: string;
@@ -661,10 +661,13 @@ function AbsenceForm({
   const [typeId, setTypeId] = useState(editing?.typeId ?? types.find((t) => t.active)?.id ?? "");
   const [start, setStart] = useState(editing?.startDate ?? (state.kind === "create" ? state.start : ""));
   const [end, setEnd] = useState(editing?.endDate ?? (state.kind === "create" ? state.end : ""));
-  const fixedEmployee = editing ? editing.employee : state.kind === "create" && state.employeeId ? employees.find((e) => e.id === state.employeeId) : null;
-  const [pickedEmployee, setPickedEmployee] = useState("");
-  const employeeId = fixedEmployee?.id ?? pickedEmployee;
-  const plates = employeeId ? (ownedVehicles[employeeId] ?? []) : [];
+  const presetEmployee = state.kind === "create" && state.employeeId ? employees.find((e) => e.id === state.employeeId) : undefined;
+  // Neu: eine oder mehrere Personen (z. B. Berufsschul-Block für mehrere Azubis)
+  const [selected, setSelected] = useState<string[]>(presetEmployee ? [presetEmployee.id] : []);
+  const [multi, setMulti] = useState(!presetEmployee);
+  const fixedEmployee = editing ? editing.employee : !multi ? presetEmployee : null;
+  const employeeId = editing ? editing.employee.id : selected.length === 1 ? selected[0] : "";
+  const plates = employeeId && (editing || selected.length === 1) ? (ownedVehicles[employeeId] ?? []) : [];
   // Fahrzeug-Besitzer müssen bewusst wählen (beim Bearbeiten vorbelegt)
   const [withVehicle, setWithVehicle] = useState<"yes" | "no" | "">(editing ? (editing.withVehicle ? "yes" : "no") : "");
   const selectable = types.filter((t) => t.active || t.id === editing?.typeId);
@@ -674,42 +677,51 @@ function AbsenceForm({
     const f = new FormData(e.currentTarget);
     const note = String(f.get("note") ?? "").trim() || null;
     let warnings: string[] = [];
+    let bulkMessage: string | null = null;
+    if (!editing && selected.length === 0) {
+      form.setMsg({ tone: "error", text: "Bitte mindestens einen Mitarbeiter wählen." });
+      return;
+    }
     const ok = await form.run(async () => {
       const vehicleFlag = plates.length ? { withVehicle: withVehicle === "yes" } : {};
+      if (!editing && selected.length > 1) {
+        const res = await api<{ message: string; warnings: string[] }>("/api/absences/bulk", {
+          body: { employeeIds: selected, typeId, startDate: start, endDate: end, note },
+        });
+        warnings = res.warnings ?? [];
+        bulkMessage = res.message;
+        return;
+      }
       const res = editing
         ? await api<{ warnings: string[] }>(`/api/absences/${editing.id}`, {
             method: "PATCH",
             body: { version: editing.version, typeId, startDate: start, endDate: end, note, ...vehicleFlag },
           })
         : await api<{ warnings: string[] }>("/api/absences", {
-            body: { employeeId: fixedEmployee?.id ?? f.get("employeeId"), typeId, startDate: start, endDate: end, note, ...vehicleFlag },
+            body: { employeeId, typeId, startDate: start, endDate: end, note, ...vehicleFlag },
           });
       warnings = res.warnings ?? [];
     }, "");
     const t = types.find((x) => x.id === typeId);
-    if (ok) onDone(`${t?.name ?? "Abwesenheit"} ${formatRange(start, end)} gespeichert.`, warnings);
+    if (ok) onDone(bulkMessage ?? `${t?.name ?? "Abwesenheit"} ${formatRange(start, end)} gespeichert.`, warnings);
   }
 
   return (
     <form className="space-y-4" onSubmit={submit}>
       {form.msg?.tone === "error" && <MessageBar msg={form.msg} />}
       {fixedEmployee ? (
-        <p className="text-lg font-bold">
-          {fixedEmployee.firstName} {fixedEmployee.lastName} <span className="font-mono text-base text-muted">{fixedEmployee.shortName}</span>
-        </p>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <p className="text-lg font-bold">
+            {fixedEmployee.firstName} {fixedEmployee.lastName} <span className="font-mono text-base text-muted">{fixedEmployee.shortName}</span>
+          </p>
+          {!editing && (
+            <button type="button" onClick={() => setMulti(true)} className="text-sm font-semibold text-brand-700 underline">
+              + weitere Personen (gleicher Zeitraum)
+            </button>
+          )}
+        </div>
       ) : (
-        <Field label="Mitarbeiter">
-          <Select name="employeeId" required value={pickedEmployee} onChange={(e) => setPickedEmployee(e.target.value)}>
-            <option value="" disabled>
-              – bitte wählen –
-            </option>
-            {employees.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.lastName}, {e.firstName} ({e.shortName})
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <EmployeeMultiPicker employees={employees} selected={selected} setSelected={setSelected} />
       )}
       <fieldset>
         <legend className="mb-1 text-sm font-semibold">Art</legend>
@@ -803,4 +815,86 @@ function weekRuns(days: string[]): { start: string; week: number; count: number 
     else runs.push({ start: d, week: w, count: 1 });
   }
   return runs;
+}
+
+/** Mehrere Mitarbeiter wählen: Suche, Schnellauswahl nach Gruppe, Liste mit Häkchen */
+function EmployeeMultiPicker({ employees, selected, setSelected }: { employees: Employee[]; selected: string[]; setSelected: (v: string[]) => void }) {
+  const [q, setQ] = useState("");
+  const groups = groupByQualification(employees, (e) => e.qualification ?? "GESELLE");
+  const match = (e: Employee) => !q.trim() || `${e.firstName} ${e.lastName} ${e.shortName}`.toLowerCase().includes(q.trim().toLowerCase());
+  const toggle = (id: string) => setSelected(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  return (
+    <fieldset className="rounded-lg border border-line p-2">
+      <legend className="px-1 text-sm font-semibold">
+        Mitarbeiter <span className="font-normal text-muted">({selected.length} gewählt – eine oder mehrere Personen)</span>
+      </legend>
+      {selected.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {selected.map((id) => {
+            const e = employees.find((x) => x.id === id);
+            if (!e) return null;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => toggle(id)}
+                className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-sm font-semibold text-brand-800 ring-1 ring-brand-600"
+                title="Entfernen"
+              >
+                {e.lastName} {e.firstName.slice(0, 1)}. <span aria-hidden>×</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <Input type="search" placeholder="Name oder Kürzel suchen" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="mt-2 flex flex-wrap gap-1">
+        {groups.map((g) => {
+          const ids = g.items.map((e) => e.id);
+          const all = ids.every((id) => selected.includes(id));
+          return (
+            <button
+              key={g.q}
+              type="button"
+              onClick={() => setSelected(all ? selected.filter((id) => !ids.includes(id)) : [...new Set([...selected, ...ids])])}
+              className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${all ? "border-brand-700 bg-brand-50 text-brand-800" : "border-line bg-white"}`}
+              title={all ? "Alle dieser Gruppe abwählen" : "Alle dieser Gruppe auswählen"}
+            >
+              {all ? "✓ " : "+ "}alle {g.label.replace("Azubis ", "")} ({ids.length})
+            </button>
+          );
+        })}
+        {selected.length > 0 && (
+          <button type="button" onClick={() => setSelected([])} className="rounded-full px-2 py-0.5 text-xs font-semibold text-muted underline">
+            Auswahl leeren
+          </button>
+        )}
+      </div>
+      <div className="mt-2 max-h-56 space-y-2 overflow-y-auto">
+        {groups.map((g) => {
+          const list = g.items.filter(match);
+          if (list.length === 0) return null;
+          return (
+            <div key={g.q}>
+              <div className="text-[11px] font-semibold tracking-wide text-muted uppercase">{g.label}</div>
+              <ul className="grid gap-1 sm:grid-cols-2">
+                {list.map((e) => (
+                  <li key={e.id}>
+                    <label className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-2 ring-1 ${selected.includes(e.id) ? "bg-brand-50 ring-brand-600" : "ring-line"}`}>
+                      <input type="checkbox" className="size-5 accent-brand-600" checked={selected.includes(e.id)} onChange={() => toggle(e.id)} />
+                      <span className="h-5 w-1 shrink-0 rounded-full" style={{ backgroundColor: e.department.color }} aria-hidden />
+                      <span className="truncate">
+                        {e.lastName}, {e.firstName}
+                      </span>
+                      <span className="ml-auto font-mono text-xs text-muted">{e.shortName}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
 }

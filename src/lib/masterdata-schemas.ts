@@ -159,6 +159,12 @@ const absenceRefine = <T extends { startDate?: string; endDate?: string }>(s: z.
     path: ["endDate"],
   });
 export const absenceCreateSchema = absenceRefine(absenceBase);
+/** Mehrere Mitarbeiter auf einmal (z. B. Berufsschul-Block); Fahrzeuge bleiben dabei immer da */
+export const absenceBulkSchema = absenceRefine(
+  absenceBase.omit({ employeeId: true, withVehicle: true }).extend({
+    employeeIds: z.array(id).min(1, "Bitte mindestens einen Mitarbeiter wählen.").max(200),
+  }),
+);
 export const absenceUpdateSchema = absenceRefine(absenceBase.omit({ employeeId: true }).partial().extend({ version }));
 export const absenceDeleteSchema = z.object({ version });
 export const versionSchema = z.object({ version });
