@@ -34,7 +34,7 @@ export function MobileNav({ items }: { items: NavItem[] }) {
   const all = [...items.filter((i) => !i.desktopOnly), { href: "/konto", label: "Konto", short: "Konto", icon: "⚙️", permission: "planning.view" as const }];
   return (
     <nav
-      className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] md:hidden"
+      className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white pr-[env(safe-area-inset-right)] pb-[max(0.25rem,calc(env(safe-area-inset-bottom)_-_0.75rem))] pl-[env(safe-area-inset-left)] md:hidden"
       aria-label="Hauptnavigation"
     >
       <ul className="grid" style={{ gridTemplateColumns: `repeat(${all.length}, minmax(0, 1fr))` }}>
@@ -45,7 +45,7 @@ export function MobileNav({ items }: { items: NavItem[] }) {
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-h-16 flex-col items-center justify-center gap-0.5 text-xs font-semibold ${
+                className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-semibold ${
                   active ? "text-brand-700" : "text-muted"
                 }`}
               >

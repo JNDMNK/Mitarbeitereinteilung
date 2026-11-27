@@ -354,7 +354,7 @@ function EmployeeForm({
 
       <fieldset className={`rounded-lg border p-3 ${qualification === "PRAKTIKANT" ? "border-sky-300 bg-sky-50" : "border-line"}`}>
         <legend className="px-1 text-sm font-semibold">{qualification === "PRAKTIKANT" ? "Praktikumszeitraum" : "Zeitraum im Betrieb (optional, z. B. befristet)"}</legend>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 items-end gap-3">
           <Field label="von">
             <Input name="availableFrom" type="date" defaultValue={employee?.availableFrom ?? ""} />
           </Field>

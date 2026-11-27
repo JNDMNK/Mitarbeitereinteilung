@@ -897,7 +897,7 @@ function TimeWindowDialog({
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 items-end gap-3">
           <label className="block">
             <span className="mb-1 block text-sm font-semibold">Beginn</span>
             <Select value={start} onChange={(e) => setStart(Number(e.target.value))}>
@@ -939,7 +939,7 @@ function TimeWindowDialog({
             </label>
             {multi && (
               <div className="mt-2 space-y-2">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 items-end gap-3">
                   <label className="block">
                     <span className="mb-1 block text-sm font-semibold">von</span>
                     <Input value={formatDayShort(rangeFrom)} disabled />
@@ -1207,7 +1207,7 @@ function EditSiteDialog({ site, close, onDone, onError }: { site: PSite; close: 
           <span className="mb-1 block text-sm font-semibold">Adresse (für die Navigation)</span>
           <Input value={address} onChange={(e) => setAddress(e.target.value)} maxLength={200} placeholder="Straße Nr., PLZ Ort" />
         </label>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 items-end gap-3">
           <label className="block">
             <span className="mb-1 block text-sm font-semibold">Projekt-Nr.</span>
             <Input value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} maxLength={50} />
@@ -1253,7 +1253,7 @@ function PeriodFields({
   return (
     <fieldset className="rounded-lg border border-line p-3">
       <legend className="px-1 text-sm font-semibold">📅 Zeitraum der Baustelle (optional)</legend>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 items-end gap-3">
         <label className="block">
           <span className="mb-1 block text-sm">von</span>
           <Input

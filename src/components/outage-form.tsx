@@ -103,7 +103,7 @@ export function OutageForm({
       <p className="text-sm text-muted">
         <strong className="font-mono text-ink">{vehicle.licensePlate}</strong> {vehicle.name} ist in diesem Zeitraum nicht planbar.
       </p>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 items-end gap-3">
         <Field label="von">
           <Input
             type="date"

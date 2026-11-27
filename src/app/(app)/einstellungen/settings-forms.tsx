@@ -50,8 +50,8 @@ export function SettingsForm(props: { version: number; companyName: string; defa
       <Field label="Firmenname" hint="Erscheint in der Kopfzeile, auf der Anmeldeseite und im Ausdruck.">
         <Input name="companyName" defaultValue={props.companyName} required maxLength={80} />
       </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Standard-Arbeitsbeginn">
+      <div className="grid grid-cols-2 items-end gap-3">
+        <Field label="Arbeitsbeginn">
           <Select name="defaultStartMin" defaultValue={props.defaultStartMin}>
             {times.map((t) => (
               <option key={t} value={t}>
@@ -60,7 +60,7 @@ export function SettingsForm(props: { version: number; companyName: string; defa
             ))}
           </Select>
         </Field>
-        <Field label="Standard-Arbeitsende">
+        <Field label="Arbeitsende">
           <Select name="defaultEndMin" defaultValue={props.defaultEndMin}>
             {times.map((t) => (
               <option key={t} value={t}>
@@ -70,7 +70,7 @@ export function SettingsForm(props: { version: number; companyName: string; defa
           </Select>
         </Field>
       </div>
-      <p className="text-sm text-muted">Wird bei neuen Baustelleneinsätzen als Zeitfenster vorgeschlagen.</p>
+      <p className="text-sm text-muted">Standard-Arbeitszeit: wird bei neuen Baustelleneinsätzen als Zeitfenster vorgeschlagen.</p>
       <label className="flex items-start gap-3">
         <input type="checkbox" name="weekCrews" defaultChecked={props.weekCrews} className="mt-1 size-5 shrink-0 accent-brand-600" />
         <span>

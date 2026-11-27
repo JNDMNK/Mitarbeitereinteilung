@@ -325,7 +325,7 @@ function VehicleForm({
           <Input name="name" defaultValue={vehicle?.name} required maxLength={60} placeholder={room ? "Lager" : "Sprinter 1"} />
         </Field>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 items-end gap-3">
         {room ? (
           <input type="hidden" name="type" value="" />
         ) : (
@@ -407,7 +407,7 @@ function VehicleForm({
       </fieldset>
 
       {!room && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 items-end gap-3">
           <Field label="TÜV fällig (optional)">
             <Input name="tuevDue" type="date" defaultValue={vehicle?.tuevDue ?? ""} />
           </Field>

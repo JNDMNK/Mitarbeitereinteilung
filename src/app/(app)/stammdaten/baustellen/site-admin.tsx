@@ -216,7 +216,7 @@ function SiteForm({ site, onDone, onCancel }: { site: Site | null; onDone: (msg:
           <Input name="orderNumber" defaultValue={site?.orderNumber ?? ""} maxLength={50} />
         </Field>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 items-end gap-3">
         <Field label="Zeitraum von">
           <Input name="startDate" type="date" defaultValue={site?.startDate ?? ""} />
         </Field>
